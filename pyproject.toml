@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "linti"
 version = "0.4.2"
-description = "A community-maintained linter for TM1 TI scripts"
+description = "A linter for TM1 TI scripts"
 authors = [
     { name = "Florian Scherzberg", email = "florian.scherzberg@deutschebahn.com" }
 ]
