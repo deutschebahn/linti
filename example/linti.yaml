@@ -1,0 +1,54 @@
+# linti configuration file
+#
+# This file is automatically discovered and loaded from the same directory
+# as the TI file being analyzed (linti.yaml).
+#
+# You can also specify a custom config file with: linti file.ti --config custom.yaml
+
+rules:
+
+  # KeywordCasingRule
+  # Enforces consistent casing for keywords (IF, ENDIF, ELSE, WHILE, END, etc.)
+  # 
+  # Supported styles:
+  #   - uppercase: IF, ENDIF, ELSE, WHILE, END
+  #   - lowercase: if, endif, else, while, end
+  #   - camelcase: If, Endif, Else, While, End
+  keyword_casing:
+    enabled: true
+    style: consistent
+
+  # IndentationRule
+  # Enforces indentation for IF/WHILE blocks.
+  # size: number of spaces per indentation level
+  indentation:
+    enabled: true
+    size: 4
+
+  # VariablePrefixRule
+  # Enforces TM1 naming conventions for variables.
+  # 
+  # Conventions:
+  #   - Numeric variables must start with 'n': nCount, nValue, nSum
+  #   - String variables must start with 's': sMessage, sName, sPath
+  #
+  # Example violations:
+  #   - count = 5;     (should be nCount)
+  #   - name = 'test'; (should be sName)
+  variable_prefix:
+    enabled: true
+    # Allow constants to start with 'c' (e.g., cRate, cMessage)
+    # When enabled, constants may only be assigned once.
+    allow_constant_prefix: true
+
+  docstring_region:
+    enabled: true
+    region_name: Docstring
+    required_headers:
+      - '# Description'
+      - '# Change Log'
+    generic_prefixes:
+      - '}core.'
+    generic_extra_headers:
+      - '# Use Case'
+

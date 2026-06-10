@@ -1,0 +1,39 @@
+
+!TM1py.ProcessObject
+Name: Example-TI
+PrologProcedure: |-
+  cConstant = '1';
+  if (a = 1);
+      nSub = substr('asv', 2, 3);
+  ENDIF;
+  sErrors = 0;sMessage = 'as';
+  nMessage = 'as'; 
+  ItemSkip();
+  # noqa: N110
+  sNSG = 0;
+  sHGD = 0;
+
+  cMDX = 'SELECT 
+    {[Version].Members} 
+    ON 0, 
+    {[Measures].Members} 
+    ON 1 FROM [Sales]';
+
+  cConstant = 2;
+  ODBCOpen('Source', 'ClientName', pPassword);
+MetadataProcedure: |-
+  ItemSkip();
+
+DataProcedure: |-
+  ItemSkip();
+
+EpilogProcedure: |-
+  ODBCClose('Source');
+  
+Parameters:
+- Name: vPassword
+  Prompt: 'REQUIRED: ODBC Password'
+  Value: ''
+  Type: Numeric
+
+

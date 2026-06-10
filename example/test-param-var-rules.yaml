@@ -1,0 +1,40 @@
+!TM1py.ProcessObject
+Name: Test_Parameter_Variable_Rules
+PrologProcedure: |-
+  # Test parameter and variable rules
+  
+  # Valid: Reading from parameter
+  cLogOutput = pLogOutput;
+  
+  # Invalid: Assigning to parameter (S210)
+  pLogOutput = 0;
+  
+  # Valid: Reading from variable
+  sDim = vDimension;
+  
+  # Invalid: Assigning to variable (S210)
+  vDimension = 'NewDim';
+  
+  # Valid: Assigning to local variable
+  nValue = 5;
+MetadataProcedure: |-
+  # Metadata processing
+DataProcedure: |-
+  # Data processing
+EpilogProcedure: |-
+  # Epilog
+HasSecurityAccess: false
+Parameters:
+- Name: pLogOutput
+  Type: Numeric
+  Value: 1
+- Name: InvalidParam
+  Type: Numeric
+  Value: 0
+Variables:
+- Name: vDimension
+  Type: String
+  Position: 1
+- Name: BadVariable
+  Type: String
+  Position: 2

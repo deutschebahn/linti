@@ -1,0 +1,281 @@
+#!/usr/bin/env python3
+"""Generate ALL_RULES.md from rule metadata.
+
+Usage:
+    python scripts/generate_all_rules.py          # write to ALL_RULES.md
+    python scripts/generate_all_rules.py --check   # check if file is up-to-date
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from textwrap import dedent
+
+# Ensure the package is importable
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from linti.rules import _RULE_REGISTRY  # noqa: E402
+from linti.rules.Rule import RuleMetadata  # noqa: E402
+
+GROUP_LABELS = {
+    "F": "Formatting Rules (F)",
+    "N": "Naming Convention Rules (N)",
+    "D": "Documentation Rules (D)",
+    "S": "Semantic/Logic Rules (S)",
+}
+
+HEADER = dedent(
+    """\
+    # Linti Rule IDs
+
+    Rule IDs consist of a letter indicating the rule group, followed by a 3-digit number.
+
+    ## Rule Groups
+
+    - **F** - Formatting Rules
+    - **N** - Naming Convention Rules
+    - **D** - Documentation Rules
+    - **S** - Semantic/Logic Rules
+
+    ## Current Rules
+"""
+)
+
+TABLE_HEADER = dedent(
+    """\
+    | Rule ID | Rule Name | Description | Auto-fix |
+    |---------|-----------|-------------|----------|
+"""
+)
+
+CONFIG_SECTION = dedent(
+    """\
+    ## Configuration
+
+    The linter can be configured using a `linti.yaml` configuration file. The file is automatically discovered and loaded from the same directory as the TI file being analyzed.
+
+    ### Automatic Configuration Discovery
+
+    Place a `linti.yaml` file in the same directory as your TI files:
+
+    ```bash
+    my-project/
+    \u251c\u2500\u2500 processes/
+    \u2502   \u251c\u2500\u2500 linti.yaml          # Configuration for this directory
+    \u2502   \u251c\u2500\u2500 process1.ti
+    \u2502   \u2514\u2500\u2500 process2.ti
+    ```
+
+    When you run `linti processes/process1.ti`, the linter will automatically find and use `linti.yaml`.
+
+    ### Custom Configuration File
+
+    You can also specify a custom configuration file:
+
+    ```bash
+    linti process.ti --config custom-config.yaml
+    ```
+
+    ### Complete Configuration Example
+
+    A typical `linti.yaml` file looks like this:
+
+    ```yaml
+    rules:
+    {merged_config}
+    ```
+
+    ### Disabling Rules
+
+    To disable a specific rule, set `enabled: false`:
+
+    ```yaml
+    rules:
+      keyword_casing:
+        enabled: false
+      variable_prefix:
+        enabled: true
+    ```
+
+    ## CLI Usage
+
+    ### Basic Usage
+
+    ```bash
+    # Lint a single file
+    linti process.ti
+
+    # Lint with additional debug output
+    linti process.ti --tokens
+    linti process.ti --ast
+    linti process.ti --tokens --ast
+
+    # Lint with custom configuration
+    linti process.ti --config my-config.yaml
+    ```
+
+    ### Exit Codes
+
+    The CLI returns different exit codes based on linting results:
+    - `0`: No linting issues found (clean code)
+    - `1`: Linting issues were found
+
+    This allows integration with CI/CD pipelines and automated workflows.
+"""
+)
+
+
+def _group_key(rule_id: str) -> tuple[int, str]:
+    """Sort key: F before N before D before S, then by number."""
+    prefix = rule_id[0]
+    order = {"F": 0, "N": 1, "D": 2, "S": 3}
+    return (order.get(prefix, 9), rule_id)
+
+
+def _collect_rules() -> list[tuple[str, RuleMetadata]]:
+    """Collect all rules that have METADATA, sorted by rule ID."""
+    rules: list[tuple[str, RuleMetadata]] = []
+    seen_ids: set[str] = set()
+
+    for rule_cls in _RULE_REGISTRY:
+        meta: RuleMetadata | None = getattr(rule_cls, "METADATA", None)
+        if meta is None:
+            continue
+
+        try:
+            instances = rule_cls.from_config({})
+        except Exception:
+            instances = [rule_cls()]
+
+        for inst in instances:
+            rule_id = inst.RULE_ID
+            if rule_id in seen_ids:
+                continue
+            seen_ids.add(rule_id)
+            rules.append((rule_id, meta))
+
+    rules.sort(key=lambda r: _group_key(r[0]))
+    return rules
+
+
+def _render_summary_tables(rules: list[tuple[str, RuleMetadata]]) -> str:
+    """Render the per-group summary tables."""
+    parts: list[str] = []
+    current_group = ""
+
+    for rule_id, meta in rules:
+        group = rule_id[0]
+        if group != current_group:
+            heading = GROUP_LABELS.get(group, f"Other ({group})")
+            parts.append(f"\n### {heading}\n\n{TABLE_HEADER.rstrip()}")
+            current_group = group
+        auto_fix = "\u2705" if meta.auto_fix else "\u274c"
+        parts.append(f"| {rule_id} | {meta.name} | {meta.description} | {auto_fix} |")
+
+    return "\n".join(parts).lstrip("\n")
+
+
+def _render_examples(label: str, lang: str, examples: list) -> str:
+    """Render a code block of examples."""
+    if not examples:
+        return ""
+    lines = [f"**{label}:**", f"```{lang}"]
+    for ex in examples:
+        if ex.description:
+            lines.append(f"# {ex.description}")
+        lines.append(ex.code)
+    lines.extend(["```", ""])
+    return "\n".join(lines)
+
+
+def _render_rule_detail(rule_id: str, meta: RuleMetadata) -> str:
+    """Render the detailed section for a single rule."""
+    parts = [f"### {rule_id}: {meta.name}", "", f"{meta.description}.", ""]
+
+    if meta.auto_fix:
+        parts.append(
+            "**\u2728 Auto-fix available:** Use `linti --auto-fix` to automatically fix issues."
+        )
+        parts.append("")
+
+    if meta.explanation:
+        for paragraph in meta.explanation.split("\n\n"):
+            parts.append(paragraph)
+            parts.append("")
+
+    if meta.config_example:
+        parts.extend(["**Configuration:**", "```yaml", meta.config_example, "```", ""])
+
+    valid = [e for e in meta.examples if e.valid]
+    invalid = [e for e in meta.examples if not e.valid]
+
+    if valid:
+        parts.append(_render_examples("Valid usage", "ti", valid))
+    if invalid:
+        parts.append(_render_examples("Invalid usage", "ti", invalid))
+
+    parts.extend(["---", ""])
+    return "\n".join(parts)
+
+
+def _render_merged_config(rules: list[tuple[str, RuleMetadata]]) -> str:
+    """Merge all config_example snippets into one combined rules: block."""
+    parts: list[str] = []
+    for _, meta in rules:
+        if not meta.config_example:
+            continue
+        inside_rules = False
+        for line in meta.config_example.split("\n"):
+            if line.strip() == "rules:":
+                inside_rules = True
+                continue
+            if inside_rules:
+                parts.append(line)
+        parts.append("")
+    return "\n".join(parts)
+
+
+def generate_markdown() -> str:
+    """Generate the complete ALL_RULES.md content."""
+    rules = _collect_rules()
+
+    sections = [
+        HEADER,
+        _render_summary_tables(rules),
+        "",
+        "## Rule Details",
+        "",
+        "\n".join(_render_rule_detail(rid, meta) for rid, meta in rules),
+        CONFIG_SECTION.format(merged_config=_render_merged_config(rules)),
+    ]
+
+    return "\n".join(sections).rstrip("\n") + "\n"
+
+
+def main() -> None:
+    check_mode = "--check" in sys.argv
+
+    content = generate_markdown()
+    target = Path(__file__).resolve().parent.parent / "ALL_RULES.md"
+
+    if check_mode:
+        if not target.exists():
+            print("ALL_RULES.md does not exist. Run without --check to generate it.")
+            sys.exit(1)
+        existing = target.read_text()
+        if existing == content:
+            print("ALL_RULES.md is up-to-date.")
+            sys.exit(0)
+        else:
+            print(
+                "ALL_RULES.md is out of date. Run 'python scripts/generate_all_rules.py' to update."
+            )
+            sys.exit(1)
+    else:
+        target.write_text(content)
+        print(f"Generated {target}")
+
+
+if __name__ == "__main__":
+    main()

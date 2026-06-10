@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "linti"
+version = "0.4.2"
+description = "A community-maintained linter for TM1 TI scripts"
+authors = [
+    { name = "Florian Scherzberg", email = "florian.scherzberg@deutschebahn.com" }
+]
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = [
+    "typer[all]>=0.9.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["linti*"]
+
+[project.scripts]
+linti = "linti.cli.main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"

@@ -1,0 +1,24 @@
+DatasourceASCiIDecimalSeparator = ';';
+cConstant = '1';
+if (a = 1);
+     nSub = substr('asv', 2, 3);
+ENDIF;
+IF(nABC = 1);
+    ProcessQuit();
+    ExecuteCommand( sCommandLine, bWait );
+    LogOutput( sSeverityLevel, sMessage );
+ENDIF;
+sErrors = 0;
+nMessage = 'as';
+
+cConstant = 2;
+
+
+
+
+
+
+
+
+
+RunProcess(pProcessname, ParamName1, ParamValue1, ParamName2, ParamValue2);
