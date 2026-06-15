@@ -25,14 +25,14 @@ jobs:
       - name: Run Ruff (linting)
         run: ruff check .
 
-      - name: Run unit tests
-        run: |
-          pip install -e .[dev]
-          pytest tests/ -v
-
       - name: Validation Summary
         if: success()
         run: |
-          echo "✅ All validation checks passed!"
+          echo "✅ Linting check passed"
           echo "- Linting (Ruff): PASSED"
-          echo "- Unit tests: PASSED"
+
+  run-unit-test:
+    needs: validate
+    uses: ./.github/workflows/unit-tests.yml
+    with:
+      python-version: "3.11"
