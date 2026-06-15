@@ -8,8 +8,16 @@ permissions:
   contents: read
 
 jobs:
+  run-unit-test:
+    uses: ./.github/workflows/unit-tests.yml
+    with:
+      python-version: "3.11"
+
+
   release-build:
     runs-on: ubuntu-latest
+    needs:
+      - run-unit-test
 
     steps:
       - uses: actions/checkout@v4

@@ -1,0 +1,32 @@
+name: Unit Tests
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        required: false
+        type: string
+        default: "3.11"
+
+jobs:
+  run-unit-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Run unit tests
+        run: |
+          pip install -e .[dev]
+          pytest tests/ -v
+
+      - name: Validation Summary
+        if: success()
+        run: |
+          echo "- Unit tests: PASSED"
