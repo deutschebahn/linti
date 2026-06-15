@@ -25,13 +25,14 @@ For larger changes — new features, architectural changes, or significant refac
 1. Clone the repository and change into the project folder.
 2. Create a virtual environment: `python -m venv .venv && source .venv/bin/activate`
 3. Install the package with dev dependencies: `pip install -e ".[dev]"`
-4. Run the tests: `pytest`
+4. Install the pre-commit hooks `pre-commit install`
+5. Run the tests: `pytest`
 
 **Optional: Try it out**
 
-5. Run the CLI with the example script: `linti example/example.ti`
+6. Run the CLI with the example script: `linti example/example.ti`
    You will see if `example.ti` has got linting issues.
-6. Feel free to solve the linting issues in `example.ti` and run `linti example.ti` again to check your fixes.
+7. Feel free to solve the linting issues in `example.ti` and run `linti example.ti` again to check your fixes.
 
 ## Code Style
 
