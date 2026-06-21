@@ -7,7 +7,7 @@ import click
 import typer
 from typer.core import TyperGroup
 
-from linti.cli.file_linter import lint_directory, lint_ti_file, lint_yaml_file
+from linti.cli.file_linter import lint_directory, lint_process_file
 from linti.cli.rule_explainer import explain_rule, list_rules
 
 
@@ -94,12 +94,15 @@ def lint(
 
     if file_path.is_dir():
         lint_directory(file_path, show_tokens, show_ast, config, auto_fix, select)
-    elif file_path.suffix.lower() == ".yaml":
-        lint_yaml_file(
-            file_path, show_tokens, show_ast, config, auto_fix=auto_fix, select=select
-        )
     else:
-        lint_ti_file(file_path, show_tokens, show_ast, config, auto_fix, select)
+        lint_process_file(
+            file_path,
+            show_tokens,
+            show_ast,
+            config,
+            auto_fix=auto_fix,
+            select=select,
+        )
 
 
 @app.command()

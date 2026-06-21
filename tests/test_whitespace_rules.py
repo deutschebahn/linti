@@ -1,7 +1,7 @@
 """Tests for whitespace linting rules F220–F270."""
 
-from linti.cli.auto_fixer import apply_fixes, apply_fixes_iteratively
 from linti.lexer.lexer import Lexer
+from linti.linter.fixer import apply_fixes, apply_fixes_iteratively
 from linti.linter.linter import Linter
 from linti.rules.format.no_multiple_spaces_rule import NoMultipleSpacesRule
 from linti.rules.format.no_space_before_semicolon_rule import (

@@ -1,0 +1,7 @@
+#region Prolog
+
+cSTring = 'ABC';
+if (cSTring @<> 'ABC'); 
+    
+endif;
+#endregion

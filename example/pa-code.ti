@@ -1,0 +1,25 @@
+#SECTION Prolog
+
+#SECTION Metadata
+
+cSTring = 'ABC';
+if (cSTring @<> 'ABC'); 
+    
+endif;
+
+
+#SECTION Data
+
+
+#SECTION Epilog
+
+
+#JSON_PROPERTIES
+{
+  "Parameters": [],
+  "DataSource": {
+    "Type": "None"
+  },
+  "Variables": [],
+  "HasSecurityAccess": false
+}

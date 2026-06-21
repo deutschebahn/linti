@@ -3,17 +3,15 @@
 import tempfile
 from pathlib import Path
 
-from linti.cli.auto_fixer import (
+from linti.cli.file_linter import auto_fix_file
+from linti.linter.fixer import (
     apply_fixes,
     apply_fixes_iteratively,
-    auto_fix_ti_file,
-    auto_fix_yaml_procedures,
     collect_fixable_issues,
 )
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import Fix, LintIssue
 from linti.linter.linter import Linter
-from linti.loader.yaml_loader import load_yaml_process
 from linti.rules.format.indentation_rule import IndentationRule
 from linti.rules.format.keyword_casing_rule import KeywordCasingRule
 from linti.rules.format.newline_per_statement_rule import NewLinePerStatementRule
@@ -204,10 +202,9 @@ PrologProcedure: |-
         file_path = Path(tmpdir) / "process.yaml"
         file_path.write_text(yaml_content)
 
-        process = load_yaml_process(file_path)
         linter = Linter(rules=[KeywordCasingRule(style="uppercase"), IndentationRule()])
 
-        fixes_by_proc = auto_fix_yaml_procedures(file_path, process, linter)
+        fixes_by_proc = auto_fix_file(file_path, linter)
         fixed_content = file_path.read_text()
 
         assert fixes_by_proc.get("prolog", 0) > 0
@@ -264,8 +261,8 @@ def test_auto_fix_ti_file_runs_multiple_passes():
             ]
         )
 
-        num_fixes = auto_fix_ti_file(file_path, linter)
+        fixes_by_proc = auto_fix_file(file_path, linter)
         fixed_code = file_path.read_text()
 
         assert fixed_code == "a = 1;\nif(a=1);\n    a = b;\nendif;"
-        assert num_fixes >= 5
+        assert sum(fixes_by_proc.values()) >= 5
