@@ -28,14 +28,35 @@ It is not affiliated with, endorsed by, sponsored by, or maintained by IBM. TM1,
 * Rules
 * Parser (AST)
 * Formatter
+* Provider-based input format support
 
-## Soonish
+## Supported Input Formats
 
-* Loader feature (e.g., TI from JSON)
+### Fully Supported (all rules)
+
+- Git-deploy process format (`.json` + linked `.ti`)
+  - Reads metadata from JSON and code from `Code@Code.link`.
+- PA-code format (`.ti`)
+  - Uses `#SECTION Prolog|Metadata|Data|Epilog` and a trailing
+    `#JSON_PROPERTIES` block for metadata.
+- YAML TM1 process files (`.yaml`, `.yml`)
+  - `!TM1py.ProcessObject` and `config.definition` formats.
+
+### TI File Variants (partial support)
+
+- Region-based `.ti` files (`#region Prolog|Metadata|Data|Epilog`)
+  - Section-aware rules work (Prolog/Metadata/Data/Epilog context).
+  - Rules that require metadata declarations (for example parameters/variables)
+    are limited because plain `.ti` region files do not carry metadata blocks.
+- Plain `.ti` files (no region markers)
+  - Entire file is treated as Prolog.
+  - Only Prolog-valid and section-independent rules are meaningful.
 
 ## Install via Pypi
 
 The linter is available on PyPI and can be installed using `pip install linti`.
+
+For a quick setup guide, see [GETTING_STARTED.md](GETTING_STARTED.md).
 
 ## Configuration
 
@@ -171,8 +192,17 @@ linti process.ti --config my-config.yaml
 # Auto-fix issues
 linti process.ti --auto-fix
 
+# Lint a region-based TI file
+linti process-regions.ti --auto-fix
+
 # Lint a YAML ProcessObject file
 linti process.yaml --auto-fix
+
+# Lint a Git-deploy process (JSON + linked .ti)
+linti process.json --auto-fix
+
+# Lint a PA-code process (#SECTION + #JSON_PROPERTIES)
+linti pa-code.ti --auto-fix
 
 # Lint all YAML files in a directory
 linti processes/ --auto-fix
@@ -287,7 +317,7 @@ The linter can automatically fix keyword casing issues (F110: Keyword Casing) an
 
 ## TM1 Block Context Awareness
 
-The linter understands TM1's four execution blocks when linting YAML ProcessObject files:
+The linter understands TM1's four execution blocks when procedure sections are available (YAML, Git JSON+TI, PA-code `.ti`, or region-based `.ti`):
 
 - **Prolog**: Initialization and setup code
 - **Metadata**: Dimension/hierarchy manipulation code
@@ -298,7 +328,10 @@ Rules can use block context to enforce block-specific requirements. For example:
 - The ProcessQuit rule only allows `ProcessQuit()` in IF/ELSE blocks within Prolog or Epilog
 - Rules could require certain variable naming patterns based on the block
 
-When linting plain `.ti` files, the block context is `None` and rules apply generic validation.
+Metadata-dependent rules (for example checks based on declared Parameters/Variables)
+require formats that provide metadata (`.yaml`, Git JSON+TI, PA-code).
+
+For plain `.ti` files without `#region` sections, the full file is treated as **Prolog**.
 
 ## License
 
