@@ -141,7 +141,7 @@ def test_end_of_procedure_context_disables_newline_rule():
 
 def test_autofix_two_statements_on_same_line():
     """Fix inserts a newline between two statements on the same line."""
-    from linti.cli.auto_fixer import apply_fixes
+    from linti.linter.fixer import apply_fixes
 
     code = "x = 1; y = 2;\n"
     issues = _lint(code)
@@ -155,7 +155,7 @@ def test_autofix_two_statements_on_same_line():
 
 def test_autofix_three_statements_on_same_line():
     """Fix splits three statements into separate lines."""
-    from linti.cli.auto_fixer import apply_fixes
+    from linti.linter.fixer import apply_fixes
 
     code = "x = 1; y = 2; z = 3;\n"
     issues = _lint(code)
@@ -168,7 +168,7 @@ def test_autofix_three_statements_on_same_line():
 
 def test_autofix_no_whitespace_between_statements():
     """Fix inserts newline even when no space exists after semicolon."""
-    from linti.cli.auto_fixer import apply_fixes
+    from linti.linter.fixer import apply_fixes
 
     code = "x = 1;y = 2;\n"
     issues = _lint(code)
