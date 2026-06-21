@@ -100,6 +100,17 @@ class DocstringRegionRule(BaseRule):
     def _region_end_lower(self) -> str:
         return f"#EndRegion - {self._region_name}".lower()
 
+    def _is_region_end(self, val_lower: str) -> bool:
+        """Return True if *val_lower* closes the docstring region.
+
+        Accepts both ``#EndRegion - <name>`` and plain ``#EndRegion``.
+        """
+        if val_lower.startswith(self._region_end_lower()):
+            return True
+        # Plain #EndRegion (no name) also closes the current region.
+        stripped = val_lower.lstrip("#").strip()
+        return stripped == "endregion"
+
     def _is_generic(self, process_name: str | None) -> bool:
         """Return True when the process name starts with a generic prefix."""
         if not process_name or not self._generic_prefixes:
@@ -182,7 +193,7 @@ class DocstringRegionRule(BaseRule):
                     self._state = "in_region"
 
             elif self._state == "in_region":
-                if val_lower.startswith(self._region_end_lower()):
+                if self._is_region_end(val_lower):
                     self._state = "done"
                     return self._check_header_issues(context, token)
                 self._headers_found.append(token.value.strip())
