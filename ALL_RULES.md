@@ -36,6 +36,7 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 | N110 | Variable Prefix Naming | Enforces TM1 variable naming conventions (n/s/c prefixes) | ❌ |
 | N210 | Parameter Naming | Enforces that parameters start with lowercase 'p' | ❌ |
 | N220 | Data Source Variable Naming | Enforces that data source variables start with lowercase 'v' | ❌ |
+| N230 | Variables Consistent Casing | Enforces consistent casing for variable references within a process | ✅ |
 
 ### Documentation Rules (D)
 
@@ -445,6 +446,41 @@ Dimension
 
 ---
 
+### N230: Variables Consistent Casing
+
+Enforces consistent casing for variable references within a process.
+
+**✨ Auto-fix available:** Use `linti --auto-fix` to automatically fix issues.
+
+TM1 variables are case-insensitive, meaning `vYear`, `vyear`, and `VYEAR` all refer to the same variable. While technically valid, inconsistent casing reduces readability and breaks PAW variable highlighting when navigating code.
+
+For parameters and data source variables, the casing from the metadata declaration is used as the canonical form. For script variables, the first occurrence in code defines the canonical casing.
+
+The autofix replaces all inconsistent references with the canonical form.
+
+**Configuration:**
+```yaml
+rules:
+  variable_consistent_casing:
+    enabled: true
+```
+
+**Valid usage:**
+```ti
+# Consistent casing throughout
+sName = 'hello';
+IF(sName @= 'hello');
+```
+
+**Invalid usage:**
+```ti
+# Inconsistent casing for the same variable
+sName = 'hello';
+IF(sname @= 'hello');
+```
+
+---
+
 ### D410: Docstring Region
 
 Enforces a docstring region before executable code in the prolog.
@@ -791,6 +827,9 @@ rules:
     enabled: true
 
   variable_naming:
+    enabled: true
+
+  variable_consistent_casing:
     enabled: true
 
   docstring_region:
