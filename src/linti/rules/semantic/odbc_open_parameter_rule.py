@@ -33,7 +33,7 @@ class ODBCOpenParameterRule(BaseStatementRule):
             "2. Parameter name must start with 'p' (TI parameter naming convention)\n"
             "3. Parameter must be declared in the process Parameters section"
         ),
-        config_example=("rules:\n" "  odbc_open_parameter:\n" "    enabled: true"),
+        config_example=("rules:\n  odbc_open_parameter:\n    enabled: true"),
         examples=[
             RuleExample(
                 code="ODBCOpen('MyDatasource', 'AdminUser', pPassword);",
@@ -95,8 +95,11 @@ class ODBCOpenParameterRule(BaseStatementRule):
             ]
 
         param_name = third_arg.name
+        declared_parameters = {
+            parameter.lower() for parameter in (context.parameters or [])
+        }
 
-        if param_name not in (context.parameters or {}):
+        if param_name.lower() not in declared_parameters:
             token = get_node_token(expr)
             line, column, position = (
                 (token.line, token.column, token.position) if token else (0, 0, 0)
