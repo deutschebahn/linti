@@ -50,6 +50,12 @@ def test_odbcopen_case_insensitive():
     assert errors == []
 
 
+def test_odbcopen_parameter_match_is_case_insensitive():
+    code = "ODBCOpen('DATASOURCE', 'root', ppassword);"
+    errors = _lint(code, parameters=["pPassword"])
+    assert errors == []
+
+
 def test_other_functions_not_checked():
     code = "LogOutput('INFO', pMessage);"
     errors = _lint(code, parameters=[])
