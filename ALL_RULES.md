@@ -50,6 +50,7 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 |---------|-----------|-------------|----------|
 | S110 | ProcessQuit Placement | Enforces that ProcessQuit() is only at the end of blocks to prevent unreachable code | ❌ |
 | S120 | ItemSkip Block Usage | Enforces that ItemSkip() is only used in metadata or data sections | ❌ |
+| S130 | Empty Block | Flags IF/ELSEIF/ELSE/WHILE blocks that contain no executable code | ✅ |
 | S210 | Read-only Parameters and Variables | Enforces that parameters and data source variables are read-only | ❌ |
 | S220 | Single-assignment Constants | Enforces that constants (c-prefixed variables) are assigned only once | ❌ |
 | S310 | Literal Process Calls | Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument | ❌ |
@@ -597,6 +598,49 @@ ItemSkip();
 
 ---
 
+### S130: Empty Block
+
+Flags IF/ELSEIF/ELSE/WHILE blocks that contain no executable code.
+
+**✨ Auto-fix available:** Use `linti --auto-fix` to automatically fix issues.
+
+Flags control-flow blocks (IF/ELSEIF/ELSE/WHILE) that contain no executable code, either because they are completely empty or because they hold only comments.
+
+Auto-fix removes a block only when it is completely empty (no comments) and deletion is safe: an empty ELSE, an empty WHILE (including its END;), or an empty ELSEIF that is the last branch. An empty ELSEIF followed by another ELSEIF/ELSE is reported only — removing it would change behaviour — as is any empty IF or any block that still holds a comment.
+
+**Configuration:**
+```yaml
+rules:
+  empty_block:
+    enabled: true
+```
+
+**Valid usage:**
+```ti
+# IF block with executable code
+IF (nValue = 1);
+    nResult = 10;
+ENDIF;
+```
+
+**Invalid usage:**
+```ti
+# Empty ELSE block (auto-fixable: branch removed)
+IF (nValue = 1);
+    nResult = 10;
+ELSE;
+ENDIF;
+# Empty IF block
+IF (nValue = 1);
+ENDIF;
+# WHILE block with only a comment
+WHILE (nValue < 10);
+    # todo
+END;
+```
+
+---
+
 ### S210: Read-only Parameters and Variables
 
 Enforces that parameters and data source variables are read-only.
@@ -846,6 +890,9 @@ rules:
     enabled: true
 
   item_skip:
+    enabled: true
+
+  empty_block:
     enabled: true
 
   readonly_parameter_variable:

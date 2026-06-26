@@ -48,6 +48,12 @@ class ItemSkipConfig(BaseModel):
     enabled: bool = True
 
 
+class EmptyBlockConfig(BaseModel):
+    """Configuration for EmptyBlockRule."""
+
+    enabled: bool = True
+
+
 class ParameterNamingConfig(BaseModel):
     """Configuration for ParameterNamingRule."""
 
@@ -127,6 +133,7 @@ class RulesConfig(BaseModel):
     variable_prefix: VariablePrefixConfig = Field(default_factory=VariablePrefixConfig)
     process_quit: ProcessQuitConfig = Field(default_factory=ProcessQuitConfig)
     item_skip: ItemSkipConfig = Field(default_factory=ItemSkipConfig)
+    empty_block: EmptyBlockConfig = Field(default_factory=EmptyBlockConfig)
     parameter_naming: ParameterNamingConfig = Field(
         default_factory=ParameterNamingConfig
     )

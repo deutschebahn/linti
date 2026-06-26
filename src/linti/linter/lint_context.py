@@ -18,6 +18,13 @@ class LintContext:
         parameter_lines: Dict mapping parameter names to their YAML line numbers
         variables: List of data source variable names from YAML Variables section
         block_stack: Stack tracking nested control flow blocks (IF/ELSE)
+        tokens: Full token list of the procedure being linted (including
+            whitespace and comments).  Statement rules that need source-level
+            detail — e.g. to detect comments inside an otherwise empty block —
+            read it here.
+        source: Raw source text of the procedure being linted.  Used to slice
+            the exact text span of an auto-fix; token values cannot be relied
+            on for this because string literals are stored unquoted.
     """
 
     block: Optional[str] = None
@@ -33,6 +40,8 @@ class LintContext:
     block_start_line: Optional[int] = None
     block_end_line: Optional[int] = None
     block_stack: list[str] = field(default_factory=list)
+    tokens: Optional[list] = None
+    source: Optional[str] = None
 
     def in_control_block(self) -> bool:
         """

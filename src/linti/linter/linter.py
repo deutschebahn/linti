@@ -30,7 +30,7 @@ class Linter:
             for stmt_type in rule.interested_in():
                 self.statement_registry.setdefault(stmt_type, []).append(rule)
 
-    def lint(self, tokens, context: LintContext = None, ast=None):
+    def lint(self, tokens, context: LintContext = None, ast=None, source=None):
         """
         Run all linting rules on the given tokens.
 
@@ -39,12 +39,21 @@ class Linter:
             context: Optional LintContext with block, parameters, variables.
             ast: Optional pre-built AST (Program node).  When supplied the
                  parser is *not* invoked again, avoiding duplicate work.
+            source: Optional raw source text.  Lets statement rules slice the
+                 exact span of an auto-fix; without it such rules degrade to
+                 reporting only.
 
         Returns:
             List of issues found (LintIssue objects and error messages).
         """
         if context is None:
             context = LintContext()
+
+        # Expose the raw token stream and source so statement rules can reach
+        # source-level detail (comments, exact fix spans) the AST drops.
+        context.tokens = tokens
+        if source is not None:
+            context.source = source
 
         # Reset mutable rule state so each lint pass starts clean
         for rules in self.token_registry.values():
