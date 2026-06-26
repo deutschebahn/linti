@@ -495,6 +495,43 @@ def test_parse_multiple_elseif():
     assert isinstance(elseif2.else_body[0], Assignment)
 
 
+def test_if_without_else_has_no_else_token():
+    """An IF without ELSE leaves else_token None and else_body empty."""
+    ast = _parse("IF (x = 1);\n    a = 1;\nENDIF;")
+    stmt = ast.statements[0]
+    assert stmt.else_token is None
+    assert stmt.else_body == []
+
+
+def test_empty_else_is_distinguishable_from_no_else():
+    """An empty ELSE sets else_token even though else_body is empty.
+
+    This disambiguates it from an IF that has no ELSE at all, which the AST
+    could not express before.
+    """
+    ast = _parse("IF (x = 1);\n    a = 1;\nELSE;\nENDIF;")
+    stmt = ast.statements[0]
+    assert stmt.else_token is not None
+    assert stmt.else_token.type == TokenType.ELSE
+    assert stmt.else_body == []
+
+
+def test_else_with_body_sets_else_token():
+    """A populated ELSE sets else_token and keeps its statements."""
+    ast = _parse("IF (x = 1);\n    a = 1;\nELSE;\n    a = 2;\nENDIF;")
+    stmt = ast.statements[0]
+    assert stmt.else_token is not None
+    assert len(stmt.else_body) == 1
+
+
+def test_elseif_keeps_else_token_none():
+    """An ELSEIF branch is modelled in else_body, so else_token stays None."""
+    ast = _parse("IF (x = 1);\n    a = 1;\nELSEIF (x = 2);\n    a = 2;\nENDIF;")
+    stmt = ast.statements[0]
+    assert stmt.else_token is None
+    assert isinstance(stmt.else_body[0], IfStatement)
+
+
 def test_parse_elseif_lowercase():
     """Test parsing elseif in lowercase."""
     code = "if (x = 1);a = 1;elseif (x = 2);a = 2;endif;"
