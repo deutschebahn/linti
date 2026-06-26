@@ -55,6 +55,8 @@ INFIX_PRECEDENCE = {
     TokenType.LESS_EQUAL: Precedence.COMPARE,
     TokenType.GREATER_EQUAL: Precedence.COMPARE,
     TokenType.NOT_EQUAL: Precedence.COMPARE,
+    TokenType.STRING_EQUALS: Precedence.COMPARE,
+    TokenType.STRING_NOT_EQUAL: Precedence.COMPARE,
 }
 
 
@@ -317,16 +319,24 @@ class Parser:
                 body.append(stmt)
         return body
 
-    def _parse_if_else_tail(self, endif_token: TokenType) -> list[Statement]:
-        """Parse optional ELSEIF/ELSE branch content of an IF chain."""
+    def _parse_if_else_tail(
+        self, endif_token: TokenType
+    ) -> tuple[list[Statement], Optional[Token]]:
+        """Parse optional ELSEIF/ELSE branch content of an IF chain.
+
+        Returns a ``(else_body, else_token)`` tuple.  ``else_token`` is the
+        ELSE keyword token when a (possibly empty) ELSE clause is present,
+        otherwise ``None``.
+        """
         if not self.at_end() and self.current().type == TokenType.ELSEIF:
-            return [self._parse_elseif_branch()]
+            return [self._parse_elseif_branch()], None
 
-        if self.match(TokenType.ELSE):
+        if not self.at_end() and self.current().type == TokenType.ELSE:
+            else_tok = self.advance()
             self.expect(TokenType.SEMICOLON, "Expected ';' after ELSE")
-            return self._parse_block_until({endif_token})
+            return self._parse_block_until({endif_token}), else_tok
 
-        return []
+        return [], None
 
     def _parse_if_statement(self) -> IfStatement:
         """
@@ -357,12 +367,14 @@ class Parser:
         then_body = self._parse_block_until(
             {TokenType.ELSEIF, TokenType.ELSE, TokenType.ENDIF}
         )
-        else_body = self._parse_if_else_tail(TokenType.ENDIF)
+        else_body, else_tok = self._parse_if_else_tail(TokenType.ENDIF)
 
         self.expect(TokenType.ENDIF, "Expected 'ENDIF' to close IF statement")
         self.expect(TokenType.SEMICOLON, "Expected ';' after ENDIF")
 
-        return IfStatement(condition, then_body, else_body, token=if_tok)
+        return IfStatement(
+            condition, then_body, else_body, token=if_tok, else_token=else_tok
+        )
 
     def _parse_elseif_branch(self) -> IfStatement:
         """
@@ -389,9 +401,11 @@ class Parser:
         then_body = self._parse_block_until(
             {TokenType.ELSEIF, TokenType.ELSE, TokenType.ENDIF}
         )
-        else_body = self._parse_if_else_tail(TokenType.ENDIF)
+        else_body, else_tok = self._parse_if_else_tail(TokenType.ENDIF)
 
-        return IfStatement(condition, then_body, else_body, token=elseif_tok)
+        return IfStatement(
+            condition, then_body, else_body, token=elseif_tok, else_token=else_tok
+        )
 
     def _parse_while_statement(self) -> WhileStatement:
         """
@@ -442,6 +456,9 @@ class Parser:
         """
         expr = self.parse_expression()
         self.expect(TokenType.SEMICOLON, "Expected ';' after expression")
+        # In TM1, a bare identifier used as a statement is a no-arg function call.
+        if isinstance(expr, Identifier):
+            expr = FunctionCall(name=expr.name, args=[], token=expr.token)
         return ExpressionStatement(expr)
 
     def parse_expression(self) -> Expression:

@@ -27,7 +27,7 @@ def lint_process_model(process: ProcessIR, linter: Linter) -> list[ProcedureIssu
         )
         tokens = Lexer(proc_info.code).tokenize()
         ast = Parser(tokens).parse()
-        issues = linter.lint(tokens, lint_ctx, ast=ast)
+        issues = linter.lint(tokens, lint_ctx, ast=ast, source=proc_info.code)
         for issue in issues:
             all_issues.append((proc_name, issue, proc_info.source_line))
 

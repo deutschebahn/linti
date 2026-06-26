@@ -75,13 +75,21 @@ class IfStatement(Statement):
         then_body: List of Statement nodes in the IF block.
         else_body: Optional list of Statement nodes in the ELSE block.
         token: Optional Token for position information (the IF/ELSEIF token).
+        else_token: Optional Token for the ELSE keyword.  Set only when an
+            ELSE clause is present, which lets callers tell an empty ELSE
+            (``else_token`` set, ``else_body`` empty) apart from no ELSE at
+            all (``else_token`` is ``None``).  ELSEIF branches keep this
+            ``None`` — they are modelled as nested IfStatements in else_body.
     """
 
-    def __init__(self, condition, then_body, else_body=None, token=None):
+    def __init__(
+        self, condition, then_body, else_body=None, token=None, else_token=None
+    ):
         self.condition = condition
         self.then_body = then_body
         self.else_body = else_body or []
         self.token = token
+        self.else_token = else_token
 
 
 class WhileStatement(Statement):

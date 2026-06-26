@@ -43,7 +43,7 @@ def collect_fixable_issues(
 ) -> list[LintIssue]:
     """Lint code and return only the fixable issues."""
     tokens = Lexer(code).tokenize()
-    issues = linter.lint(tokens, lint_context)
+    issues = linter.lint(tokens, lint_context, source=code)
     return [issue for issue in issues if issue.fix is not None]
 
 
