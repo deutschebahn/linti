@@ -30,7 +30,7 @@ class ProcessQuitRule(BaseStatementRule):
             "1. It must not be used in the main program body at all\n"
             "2. When used in IF/ELSE blocks, it must be at the end to prevent unreachable code"
         ),
-        config_example=("rules:\n" "  process_quit:\n" "    enabled: true"),
+        config_example=("rules:\n  process_quit:\n    enabled: true"),
         examples=[
             RuleExample(
                 code="IF (nValue = 1);\n    nResult = 10;\n    ProcessQuit();\nENDIF;",
@@ -121,7 +121,11 @@ class ProcessQuitRule(BaseStatementRule):
     def _is_process_quit(self, stmt):
         """Check if a statement is a ProcessQuit() function call."""
         expr = stmt.expression
-        return isinstance(expr, FunctionCall) and expr.name.lower() == "processquit"
+        return (
+            isinstance(expr, FunctionCall)
+            and expr.name.lower() == "processquit"
+            and not expr.args
+        )
 
     def _get_token(self, stmt):
         """Extract token from statement for position info."""

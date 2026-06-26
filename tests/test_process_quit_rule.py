@@ -189,3 +189,81 @@ def test_multiple_process_quit_calls():
     # Both blocks have unreachable code
     assert len(errors) == 2
     assert all("S110" in err.rule_id for err in errors)
+
+
+def test_process_quit_without_parens_valid():
+    """Test that ProcessQuit without parentheses at the end of an IF block is allowed."""
+    code = """
+    IF (nValue = 1);
+        nResult = 10;
+        ProcessQuit;
+    ENDIF;
+    """
+
+    tokens = Lexer(code).tokenize()
+    errors = Linter(statement_rules=[ProcessQuitRule()]).lint(tokens)
+
+    assert len(errors) == 0
+
+
+def test_process_quit_without_parens_unreachable():
+    """Test that ProcessQuit without parentheses followed by code is flagged."""
+    code = """
+    IF (nValue = 1);
+        ProcessQuit;
+        nResult = 10;
+    ENDIF;
+    """
+
+    tokens = Lexer(code).tokenize()
+    errors = Linter(statement_rules=[ProcessQuitRule()]).lint(tokens)
+
+    assert len(errors) == 1
+    assert "S110" in errors[0].rule_id
+    assert "unreachable" in errors[0].message.lower()
+
+
+def test_process_quit_without_parens_in_main_body():
+    """Test that ProcessQuit without parentheses in main body is flagged."""
+    code = """
+    nValue = 5;
+    ProcessQuit;
+    """
+
+    tokens = Lexer(code).tokenize()
+    errors = Linter(statement_rules=[ProcessQuitRule()]).lint(tokens)
+
+    assert len(errors) == 1
+    assert "S110" in errors[0].rule_id
+    assert "main program body" in errors[0].message
+
+
+def test_process_quit_with_string_not_equal_operator():
+    """Test that ProcessQuit inside an IF using @<> is correctly detected."""
+    code = """
+    IF (cString @<> 'ABC');
+        ProcessQuit;
+        LogOutput('INFO', 'msg');
+    ENDIF;
+    """
+
+    tokens = Lexer(code).tokenize()
+    errors = Linter(statement_rules=[ProcessQuitRule()]).lint(tokens)
+
+    assert len(errors) == 1
+    assert "S110" in errors[0].rule_id
+    assert "unreachable" in errors[0].message.lower()
+
+
+def test_process_quit_with_string_equals_operator():
+    """Test that ProcessQuit inside an IF using @= is correctly detected."""
+    code = """
+    IF (cString @= 'ABC');
+        ProcessQuit();
+    ENDIF;
+    """
+
+    tokens = Lexer(code).tokenize()
+    errors = Linter(statement_rules=[ProcessQuitRule()]).lint(tokens)
+
+    assert len(errors) == 0

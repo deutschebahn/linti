@@ -444,6 +444,9 @@ class Parser:
         """
         expr = self.parse_expression()
         self.expect(TokenType.SEMICOLON, "Expected ';' after expression")
+        # In TM1, a bare identifier used as a statement is a no-arg function call.
+        if isinstance(expr, Identifier):
+            expr = FunctionCall(name=expr.name, args=[], token=expr.token)
         return ExpressionStatement(expr)
 
     def parse_expression(self) -> Expression:
