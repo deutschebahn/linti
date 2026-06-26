@@ -55,6 +55,8 @@ INFIX_PRECEDENCE = {
     TokenType.LESS_EQUAL: Precedence.COMPARE,
     TokenType.GREATER_EQUAL: Precedence.COMPARE,
     TokenType.NOT_EQUAL: Precedence.COMPARE,
+    TokenType.STRING_EQUALS: Precedence.COMPARE,
+    TokenType.STRING_NOT_EQUAL: Precedence.COMPARE,
 }
 
 
