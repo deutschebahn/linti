@@ -313,7 +313,7 @@ Use `linti explain` to list all rules or `linti explain <RULE_ID>` for detailed 
 
 ### Auto-Fix Feature
 
-The linter can automatically fix keyword casing issues (F110: Keyword Casing) and block indentation issues (F310: Block Indentation) using the `--auto-fix` flag:
+The linter offers an automatic fix for many rules whenever the fix is safe to apply. In the linting issue report, every issue that can be fixed automatically is marked with a 🔧 indicator, so you can see at a glance which rules will be resolved. Apply the fixes with the `--auto-fix` flag.
 
 ## TM1 Block Context Awareness
 
