@@ -51,6 +51,7 @@ KEYWORDS: dict[str, TokenType] = {
 
 # TM1 predefined system variables (canonical casing)
 TM1_PREDEFINED_VARIABLES: set[str] = {
+    # TurboIntegrator Local Variables
     "DatasourceASCIIDecimalSeparator",
     "DatasourceASCIIThousandSeparator",
     "DatasourceASCIIDelimiter",
@@ -71,6 +72,11 @@ TM1_PREDEFINED_VARIABLES: set[str] = {
     "OnMinorErrorDoItemSkip",
     "SValue",
     "Value_Is_String",
+    # Implicit Global Variables
+    "DataMinorErrorCount",
+    "MetadataMinorErrorCount",
+    "ProcessReturnCode",
+    "PrologMinorErrorCount",
 }
 
 # Case-insensitive lookup set
