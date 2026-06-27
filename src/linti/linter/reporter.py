@@ -71,7 +71,7 @@ def render_file_report(file_path: Path, issues: list[ProcedureIssue]) -> list[st
     total, fixable_count = summary(issues)
     lines = [f"\n{separator()}\nLINTING ISSUES\n{separator()}\n"]
     for proc_name, issue, source_line in issues:
-        indicator = " ✓" if issue.fix is not None else ""
+        indicator = " 🔧" if issue.fix is not None else ""
         lines.append(
             f"{format_issue(file_path, proc_name, issue, source_line)}{indicator}"
         )
@@ -107,7 +107,7 @@ def render_directory_report(
         lines.append(f"  {separator('-', 50)}")
 
         for proc_name, issue, source_line in file_issues:
-            indicator = " ✓" if issue.fix is not None else ""
+            indicator = " 🔧" if issue.fix is not None else ""
             lines.append(
                 f"{format_issue(file_path, proc_name, issue, source_line)}{indicator}"
             )
