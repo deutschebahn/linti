@@ -22,6 +22,7 @@ Example config::
 from linti.lexer.token import TokenType
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import LintIssue
+from linti.rules.generic_process import is_generic_process
 from linti.rules.Rule import BaseRule, RuleExample, RuleMetadata
 
 
@@ -113,10 +114,7 @@ class DocstringRegionRule(BaseRule):
 
     def _is_generic(self, process_name: str | None) -> bool:
         """Return True when the process name starts with a generic prefix."""
-        if not process_name or not self._generic_prefixes:
-            return False
-        name_lower = process_name.lower()
-        return any(name_lower.startswith(p.lower()) for p in self._generic_prefixes)
+        return is_generic_process(process_name, self._generic_prefixes)
 
     def _normalize_header(self, value: str) -> str:
         """Normalize a header for exact comparison."""

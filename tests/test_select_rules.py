@@ -1,5 +1,7 @@
 """Tests for the --select rule filter functionality."""
 
+import pytest
+
 from linti.config import Config
 from linti.rules.rule_factory import _matches_select_pattern, create_rules
 
@@ -143,3 +145,28 @@ def test_removed_rule_is_not_created_when_selected():
     token_rules, stmt_rules = create_rules(cfg, select="F210")
 
     assert token_rules + stmt_rules == []
+
+
+def _rule_by_id(cfg, rule_id: str):
+    token_rules, stmt_rules = create_rules(cfg, select=rule_id)
+    return (token_rules + stmt_rules)[0]
+
+
+def test_top_level_generic_prefixes_shared_with_rules():
+    """The top-level generic_prefixes reaches rules that opt into it."""
+    cfg = Config(generic_prefixes=["}core."])
+
+    s410 = _rule_by_id(cfg, "S410")
+    d410 = _rule_by_id(cfg, "D410")
+
+    assert s410._generic_prefixes == ["}core."]
+    assert d410._generic_prefixes == ["}core."]
+
+
+def test_per_rule_and_top_level_generic_prefixes_conflict_raises():
+    """Setting both the top-level and the deprecated per-rule value is a hard error."""
+    with pytest.raises(ValueError, match="generic_prefixes"):
+        Config(
+            generic_prefixes=["}core."],
+            rules={"docstring_region": {"generic_prefixes": ["}custom."]}},
+        )
