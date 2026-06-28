@@ -1,14 +1,18 @@
 """Main CLI application for linti."""
 
+import warnings
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-import click
 import typer
 from typer.core import TyperGroup
 
 from linti.cli.file_linter import lint_directory, lint_process_file
 from linti.cli.rule_explainer import explain_rule, list_rules
+from linti.config import LintiConfigWarning
+
+if TYPE_CHECKING:
+    from click import Context
 
 
 class _DefaultLintGroup(TyperGroup):
@@ -20,7 +24,7 @@ class _DefaultLintGroup(TyperGroup):
     compatibility is preserved.
     """
 
-    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+    def parse_args(self, ctx: "Context", args: list[str]) -> list[str]:
         # If there are args and the first one isn't a registered command,
         # treat it as an argument to the default "lint" command.
         if args and args[0] not in self.commands:
@@ -124,8 +128,27 @@ def explain(
         list_rules()
 
 
+def _install_config_warning_handler() -> None:
+    """Render linti config warnings cleanly instead of raw Python warnings.
+
+    Only ``LintiConfigWarning`` is intercepted; every other warning keeps the
+    default formatting via the original handler.
+    """
+    default_showwarning = warnings.showwarning
+
+    def showwarning(message, category, filename, lineno, file=None, line=None):
+        if issubclass(category, LintiConfigWarning):
+            typer.secho(f"⚠  {message}", fg=typer.colors.YELLOW, err=True)
+        else:
+            default_showwarning(message, category, filename, lineno, file, line)
+
+    warnings.showwarning = showwarning
+    warnings.simplefilter("always", LintiConfigWarning)
+
+
 def main() -> None:
     """Entry point for the CLI."""
+    _install_config_warning_handler()
     app()
 
 

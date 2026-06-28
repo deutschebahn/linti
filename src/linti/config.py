@@ -5,13 +5,37 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class LintiConfigWarning(UserWarning):
+    """Warning about a linti config file (removed/moved/deprecated settings).
+
+    A dedicated category so the CLI can render these cleanly while non-linti
+    warnings keep their default formatting.
+    """
+
+
+class ConflictingGenericPrefixesError(ValueError):
+    """Raised when generic_prefixes is set both at the top level and via a
+    deprecated per-rule setting.
+
+    There is no sensible precedence to fall back to here: silently picking
+    one side would hide a config mistake, so loading fails instead.
+    """
+
 
 _REMOVED_RULE_CONFIGS = {
     "one_space_before_equals": (
         "Configures removed rule F210 (Equals Spacing). "
         "This setting is ignored; remove 'rules.one_space_before_equals' from the config."
     )
+}
+
+# Per-rule settings that have moved to a top-level config key. Maps the rule
+# config key to the (old setting, new top-level setting) pair.
+_MOVED_TO_TOPLEVEL = {
+    "docstring_region": ("generic_prefixes", "generic_prefixes"),
 }
 
 
@@ -90,6 +114,14 @@ class ODBCOpenParameterConfig(BaseModel):
     enabled: bool = True
 
 
+class UseHierarchyAwareFunctionsConfig(BaseModel):
+    """Configuration for UseHierarchyAwareFunctionsRule (S410)."""
+
+    enabled: bool = True
+    mode: Literal["enforce", "consistent"] = "consistent"
+    # Generic processes are taken from the top-level `generic_prefixes` setting.
+
+
 class NewLinePerStatementConfig(BaseModel):
     """Configuration for NewLinePerStatementRule."""
 
@@ -102,6 +134,8 @@ class DocstringRegionConfig(BaseModel):
     enabled: bool = False
     region_name: str = "Docstring"
     required_headers: list[str] = Field(default_factory=lambda: ["# Description"])
+    # Deprecated: use the top-level `generic_prefixes` instead. Still honoured
+    # (and overrides the top-level value) while present.
     generic_prefixes: list[str] = Field(default_factory=list)
     generic_extra_headers: list[str] = Field(default_factory=lambda: ["# Use Case"])
 
@@ -148,6 +182,9 @@ class RulesConfig(BaseModel):
     odbc_open_parameter: ODBCOpenParameterConfig = Field(
         default_factory=ODBCOpenParameterConfig
     )
+    use_hierarchy_aware_functions: UseHierarchyAwareFunctionsConfig = Field(
+        default_factory=UseHierarchyAwareFunctionsConfig
+    )
     newline_per_statement: NewLinePerStatementConfig = Field(
         default_factory=NewLinePerStatementConfig
     )
@@ -165,6 +202,32 @@ class Config(BaseModel):
     """Configuration for linti."""
 
     rules: RulesConfig = Field(default_factory=RulesConfig)
+    # Names starting with one of these prefixes mark a *generic* (templated)
+    # process. Rules that treat generic processes specially (D410, S410) share
+    # this single definition.
+    generic_prefixes: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check_conflicting_generic_prefixes(self) -> "Config":
+        """Reject configs setting generic_prefixes both top-level and per-rule.
+
+        The per-rule setting is deprecated and going away; rather than pick a
+        side (and risk silently ignoring one of them), fail with guidance to
+        remove the deprecated key.
+        """
+        if not self.generic_prefixes:
+            return self
+
+        for rule_key, (old_key, new_key) in _MOVED_TO_TOPLEVEL.items():
+            rule_cfg = getattr(self.rules, rule_key, None)
+            if rule_cfg is not None and getattr(rule_cfg, old_key, None):
+                raise ConflictingGenericPrefixesError(
+                    f"Both the top-level '{new_key}' and the deprecated "
+                    f"'rules.{rule_key}.{old_key}' are set. Remove "
+                    f"'rules.{rule_key}.{old_key}' from linti.yaml and keep "
+                    f"only the top-level '{new_key}' setting."
+                )
+        return self
 
     @staticmethod
     def _warn_about_removed_rule_configs(config_dict: dict, config_path: Path) -> None:
@@ -177,9 +240,33 @@ class Config(BaseModel):
             if key in rules_cfg:
                 warnings.warn(
                     f"{config_path}: {message}",
-                    UserWarning,
+                    LintiConfigWarning,
                     stacklevel=2,
                 )
+
+    @staticmethod
+    def _warn_about_moved_rule_configs(config_dict: dict, config_path: Path) -> None:
+        """Warn when a setting still lives under a rule but moved to top level."""
+        rules_cfg = config_dict.get("rules")
+        if not isinstance(rules_cfg, dict):
+            return
+
+        for rule_key, (old_key, new_key) in _MOVED_TO_TOPLEVEL.items():
+            rule_cfg = rules_cfg.get(rule_key)
+            uses_deprecated_key = isinstance(rule_cfg, dict) and rule_cfg.get(old_key)
+            both_set = uses_deprecated_key and config_dict.get(new_key)
+            if not uses_deprecated_key or both_set:
+                # Nothing to warn about, or Config's validator raises for the
+                # conflicting case instead of also warning here.
+                continue
+
+            warnings.warn(
+                f"{config_path}: 'rules.{rule_key}.{old_key}' is deprecated; "
+                f"move it to the top-level '{new_key}' setting. The per-rule "
+                "value is still honoured for now.",
+                LintiConfigWarning,
+                stacklevel=2,
+            )
 
     @classmethod
     def load_from_file(cls, config_path: Path) -> "Config":
@@ -203,6 +290,7 @@ class Config(BaseModel):
             config_dict = yaml.safe_load(f) or {}
 
         cls._warn_about_removed_rule_configs(config_dict, config_path)
+        cls._warn_about_moved_rule_configs(config_dict, config_path)
 
         return cls(**config_dict)
 

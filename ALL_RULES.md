@@ -56,6 +56,7 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 | S310 | Literal Process Calls | Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument | ❌ |
 | S320 | No ExecuteCommand | Prohibits the use of ExecuteCommand() (disabled for security reasons) | ❌ |
 | S330 | ODBCOpen Password Parameter | Validates that ODBCOpen() password parameter is a defined TI parameter | ❌ |
+| S410 | Use Hierarchy-Aware Functions | Enforces hierarchy-aware functions, or at least consistent usage of hierarchy-aware vs. standard hierarchy functions | ❌ |
 
 ## Rule Details
 
@@ -801,6 +802,49 @@ ODBCOpen('MyDatasource', 'AdminUser', 'hardcodedPassword');
 
 ---
 
+### S410: Use Hierarchy-Aware Functions
+
+Enforces hierarchy-aware functions, or at least consistent usage of hierarchy-aware vs. standard hierarchy functions.
+
+TM1 offers hierarchy-aware functions (e.g. HierarchyElementExists, ElementParent) that take an explicit hierarchy, alongside standard functions (e.g. DimensionElementExists, ELPAR) that implicitly use a dimension's default hierarchy.
+
+Modes:
+- enforce: only hierarchy-aware functions are allowed; standard functions are reported with their hierarchy-aware replacement.
+- consistent: either style is allowed, but mixing both within the same file is reported.
+
+Generic processes (whose names start with a configured ``generic_prefixes`` entry) are always held to the stricter ``enforce`` mode, regardless of the base ``mode``.
+
+Covers both TI functions and Rules functions that are valid in TI.
+
+**Configuration:**
+```yaml
+# Generic processes (top-level setting) are always enforced
+generic_prefixes:
+  - '}core.'
+rules:
+  use_hierarchy_aware_functions:
+    enabled: true
+    # base mode: 'enforce' or 'consistent'
+    mode: consistent
+```
+
+**Valid usage:**
+```ti
+# hierarchy-aware function (valid in any mode)
+nExists = HierarchyElementExists('Region', 'Region', 'EMEA');
+```
+
+**Invalid usage:**
+```ti
+# enforce mode: standard function (use HierarchyElementExists)
+nExists = DimensionElementExists('Region', 'EMEA');
+# consistent mode: mixes hierarchy-aware and standard styles
+nParent = ElementParent('Region', 'Region', 'EMEA');
+nIndex = DIMIX('Region', 'EMEA');
+```
+
+---
+
 ## Configuration
 
 The linter can be configured using a `linti.yaml` configuration file. The file is automatically discovered and loaded from the same directory as the TI file being analyzed.
@@ -910,6 +954,11 @@ rules:
 
   odbc_open_parameter:
     enabled: true
+
+  use_hierarchy_aware_functions:
+    enabled: true
+    # base mode: 'enforce' or 'consistent'
+    mode: consistent
 
 ```
 

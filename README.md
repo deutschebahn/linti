@@ -116,7 +116,43 @@ rules:
     # Allow constants to start with 'c' (e.g., cRate, cMessage)
     # When enabled, constants may only be assigned once.
     allow_constant_prefix: false
+
+  # S410 - Use Hierarchy-Aware Functions
+  # Prefer hierarchy-aware functions (e.g. HierarchyElementExists,
+  # ElementParent) over standard ones (e.g. DimensionElementExists, ELPAR).
+  use_hierarchy_aware_functions:
+    enabled: true
+    # Base mode:
+    # 'consistent' - either style is allowed, but mixing both in one file is reported
+    # 'enforce'    - only hierarchy-aware functions are allowed
+    mode: consistent
 ```
+
+### Generic Processes
+
+Some rules treat *generic* (templated) processes more strictly. A process is
+considered generic when its name starts with one of the prefixes in the
+top-level `generic_prefixes` setting. This single definition is shared by all
+rules that care about it (currently `D410` Docstring Region and `S410`
+Use Hierarchy-Aware Functions — generic processes are always held to S410's
+`enforce` mode regardless of its base `mode`).
+
+```yaml
+# Top-level (shared across rules)
+generic_prefixes:
+  - '}core.'
+
+rules:
+  docstring_region:
+    enabled: true
+```
+
+> **Deprecation:** `generic_prefixes` used to be configured under the docstring
+> rule (`rules.docstring_region.generic_prefixes`). That still works on its own,
+> but emits a warning — move it to the top-level `generic_prefixes` setting
+> instead. Setting **both** the top-level and the per-rule value is a config
+> error: linting fails immediately with a message telling you to remove the
+> deprecated `rules.docstring_region.generic_prefixes` key.
 
 `rules.one_space_before_equals` has been removed with rule `F210`. If it is still present in an older config, linti warns and ignores it.
 

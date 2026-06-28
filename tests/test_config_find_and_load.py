@@ -26,7 +26,7 @@ def nested_dirs(tmp_path: Path):
     child.mkdir(parents=True)
 
     config = grandparent / "linti.yaml"
-    config.write_text("rules:\n" "  keyword_casing:\n" "    enabled: false\n")
+    config.write_text("rules:\n  keyword_casing:\n    enabled: false\n")
 
     process_file = child / "process.ti"
     process_file.write_text("nValue = 1;")
@@ -43,7 +43,7 @@ def nested_dirs(tmp_path: Path):
 def test_finds_config_in_same_directory(tmp_path: Path):
     """Config in the same directory as the target file is found."""
     config_file = tmp_path / "linti.yaml"
-    config_file.write_text("rules:\n" "  keyword_casing:\n" "    enabled: false\n")
+    config_file.write_text("rules:\n  keyword_casing:\n    enabled: false\n")
     target = tmp_path / "process.ti"
     target.write_text("")
 
@@ -61,7 +61,7 @@ def test_closest_config_wins(nested_dirs):
     """A config in the immediate parent overrides one further up."""
     closer_config = nested_dirs["child"] / "linti.yaml"
     closer_config.write_text(
-        "rules:\n" "  keyword_casing:\n" "    enabled: true\n" "    style: lowercase\n"
+        "rules:\n  keyword_casing:\n    enabled: true\n    style: lowercase\n"
     )
 
     cfg = Config.find_and_load(nested_dirs["process_file"])
@@ -84,9 +84,7 @@ def test_returns_default_when_no_config_found(tmp_path: Path):
 def test_invalid_config_raises_value_error(tmp_path: Path):
     """A malformed config file raises ValueError, not silently ignored."""
     config_file = tmp_path / "linti.yaml"
-    config_file.write_text(
-        "rules:\n" "  keyword_casing:\n" "    style: INVALID_STYLE\n"
-    )
+    config_file.write_text("rules:\n  keyword_casing:\n    style: INVALID_STYLE\n")
     target = tmp_path / "process.ti"
     target.write_text("")
 
@@ -109,6 +107,50 @@ def test_removed_rule_config_emits_warning(tmp_path: Path):
         cfg = Config.load_from_file(config_file)
 
     assert cfg.rules.keyword_casing.enabled is False
+
+
+def test_per_rule_generic_prefixes_emits_deprecation_warning(tmp_path: Path):
+    """Per-rule generic_prefixes warns and points to the top-level setting."""
+    config_file = tmp_path / "linti.yaml"
+    config_file.write_text(
+        "rules:\n  docstring_region:\n    generic_prefixes:\n      - '}core.'\n"
+    )
+
+    with pytest.warns(UserWarning, match="generic_prefixes.*deprecated"):
+        cfg = Config.load_from_file(config_file)
+
+    # The value is still loaded (honoured for now).
+    assert cfg.rules.docstring_region.generic_prefixes == ["}core."]
+
+
+def test_conflicting_generic_prefixes_raises(tmp_path: Path):
+    """Both top-level and deprecated per-rule generic_prefixes is a hard error."""
+    config_file = tmp_path / "linti.yaml"
+    config_file.write_text(
+        "generic_prefixes:\n"
+        "  - '}core.'\n"
+        "rules:\n"
+        "  docstring_region:\n"
+        "    generic_prefixes:\n"
+        "      - '}custom.'\n"
+    )
+
+    with pytest.raises(ValueError, match="generic_prefixes"):
+        Config.load_from_file(config_file)
+
+
+def test_top_level_generic_prefixes_does_not_warn(tmp_path: Path):
+    """The new top-level location loads cleanly without a deprecation warning."""
+    import warnings
+
+    config_file = tmp_path / "linti.yaml"
+    config_file.write_text("generic_prefixes:\n  - '}core.'\n")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # any warning would fail the test
+        cfg = Config.load_from_file(config_file)
+
+    assert cfg.generic_prefixes == ["}core."]
 
 
 def test_stops_at_git_root(tmp_path: Path):

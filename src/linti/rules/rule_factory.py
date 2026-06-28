@@ -107,6 +107,11 @@ def create_rules(cfg: Config, select: str | None = None) -> tuple:
                 else vars(rule_cfg)
             )
 
+        # Share the top-level generic_prefixes with rules that opt into it.
+        # A non-empty per-rule value still wins (deprecated override path).
+        if not cfg_dict.get("generic_prefixes") and cfg.generic_prefixes:
+            cfg_dict = {**cfg_dict, "generic_prefixes": cfg.generic_prefixes}
+
         instances = rule_cls.from_config(cfg_dict)
 
         for inst in instances:
