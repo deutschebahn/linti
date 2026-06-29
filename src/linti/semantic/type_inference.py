@@ -27,6 +27,7 @@ BUILTIN_RETURN_TYPES = {
     "ATTRS": "string",
     "DIMNM": "string",
     "TABDIM": "string",
+    "DTYPE": "string",
     # Numeric functions
     "DIMSIZ": "number",
     "NUMBR": "number",
@@ -46,7 +47,6 @@ BUILTIN_RETURN_TYPES = {
     "ELLEV": "number",
     "ELPAR": "number",
     "ELPARN": "number",
-    "DTYPE": "number",
 }
 
 
