@@ -34,15 +34,20 @@ class Precedence:
     # higher number = binds stronger
     NONE: int = 0
     ASSIGN: int = 1
-    COMPARE: int = 2
-    SUM: int = 3
-    PRODUCT: int = 4
-    PREFIX: int = 5
-    CALL: int = 6
+    LOGIC_OR: int = 2
+    LOGIC_AND: int = 3
+    COMPARE: int = 4
+    SUM: int = 5
+    PRODUCT: int = 6
+    PREFIX: int = 7
+    CALL: int = 8
 
 
 # Pratt binding powers for infix operators
 INFIX_PRECEDENCE = {
+    # Logical operators (TI: & = AND, % = OR); bind weaker than comparisons
+    TokenType.OR: Precedence.LOGIC_OR,
+    TokenType.AND: Precedence.LOGIC_AND,
     TokenType.PLUS: Precedence.SUM,
     TokenType.MINUS: Precedence.SUM,
     TokenType.PIPE: Precedence.SUM,
