@@ -1,6 +1,7 @@
 """High-level linting operations on ProcessIR and providers."""
 
 from linti.lexer.lexer import Lexer
+from linti.linter.constant_propagation import ConstantPropagationIndex
 from linti.linter.fixer import auto_fix_process
 from linti.linter.lint_context import LintContext
 from linti.linter.linter import Linter
@@ -19,6 +20,9 @@ def lint_process_model(process: ProcessIR, linter: Linter) -> list[ProcedureIssu
     """Lint one process model and return procedure-scoped issues."""
     all_issues: list[ProcedureIssue] = []
 
+    # One shared index per process; it builds lazily on first rule access.
+    constants = ConstantPropagationIndex(process)
+
     for proc_name, proc_info in extract_procedures(process).items():
         lint_ctx = LintContext(
             block=proc_name,
@@ -29,6 +33,7 @@ def lint_process_model(process: ProcessIR, linter: Linter) -> list[ProcedureIssu
             variable_lines=process.variable_lines,
             block_start_line=proc_info.source_line,
             block_end_line=proc_info.source_end_line,
+            constants=constants,
         )
         tokens = Lexer(proc_info.code).tokenize()
         try:

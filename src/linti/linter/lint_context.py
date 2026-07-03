@@ -1,7 +1,10 @@
 """Context object for linting operations."""
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import TYPE_CHECKING, Optional, Union
+
+if TYPE_CHECKING:
+    from linti.linter.constant_propagation import ConstantPropagationIndex
 
 
 @dataclass
@@ -25,6 +28,9 @@ class LintContext:
         source: Raw source text of the procedure being linted.  Used to slice
             the exact text span of an auto-fix; token values cannot be relied
             on for this because string literals are stored unquoted.
+        constants: Process-wide ConstantPropagationIndex shared by all
+            sections of the process, or None (e.g. in the auto-fix pass).
+            Rules read it through :meth:`constant_value`.
     """
 
     block: Optional[str] = None
@@ -38,6 +44,19 @@ class LintContext:
     block_stack: list[str] = field(default_factory=list)
     tokens: Optional[list] = None
     source: Optional[str] = None
+    constants: Optional["ConstantPropagationIndex"] = None
+
+    def constant_value(self, name: str, line: int) -> Optional[Union[str, float]]:
+        """Return the statically known value of *name* at *line*, or ``None``.
+
+        *line* is 1-based and relative to the current block's code — the same
+        coordinates rule tokens and AST nodes carry.  ``None`` means the value
+        is unknown (dynamic, conditional, or never assigned) or no constant
+        propagation index is available in this context.
+        """
+        if self.constants is None or self.block is None:
+            return None
+        return self.constants.value_at(name, self.block, line)
 
     def in_control_block(self) -> bool:
         """
