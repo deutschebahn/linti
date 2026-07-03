@@ -1,0 +1,30 @@
+name: ✨ Feature Request
+description: Suggest a new feature or improvement for linti
+title: "✨ "
+labels: ["feature"]
+body:
+  - type: textarea
+    id: user-story
+    attributes:
+      label: 🧑‍💻 User Story
+      description: Describe the feature from a user's perspective.
+      placeholder: As a ..., I ..., so that ... .
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Description
+      description: Describe the feature in more detail.
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: ✅ Acceptance Criteria
+      description: What must be true for this feature to be considered done?
+      value: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: false

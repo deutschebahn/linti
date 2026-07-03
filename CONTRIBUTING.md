@@ -4,15 +4,13 @@ Thank you for your interest in contributing to Linti!
 
 ## Reporting Bugs & Feature Proposals
 
-Please [open a GitHub Issue](https://github.com/your-org/linti/issues) to report bugs or propose new features.
+Please [open a GitHub Issue](https://github.com/deutschebahn/linti/issues/new/choose) to report bugs or propose new features. Issue templates are provided for:
 
-When reporting a bug, please include:
+- 🐛 **Bug Report** — for reporting problems with linti
+- ✨ **Feature Request** — for suggesting new features or improvements
+- 📜 **Rule Proposal** — for proposing new lint rules
 
-- **Description**: A clear summary of the problem
-- **Expected behavior**: What you expected to happen
-- **Current behavior**: What actually happens
-- **Steps to reproduce**: A minimal example that triggers the issue
-- **Environment** (if relevant): OS, Python version, Linti version
+Simply pick the matching template — it will guide you through the information we need (e.g. for bugs: description, expected/current behavior, steps to reproduce, and your environment).
 
 ## Pull Requests
 

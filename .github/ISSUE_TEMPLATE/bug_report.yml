@@ -1,0 +1,48 @@
+name: 🐛 Bug Report
+description: Report a bug in linti
+title: "🐛 "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Description
+      description: A clear summary of the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: ✅ Expected behavior
+      description: What you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: ❌ Current behavior
+      description: What actually happens.
+    validations:
+      required: true
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: 🔁 Steps to reproduce
+      description: A minimal example that triggers the issue.
+      placeholder: |
+        1. Create a TI file with ...
+        2. Run `linti ...`
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 🖥️ Environment
+      description: If relevant — OS, Python version, Linti version.
+      placeholder: |
+        - OS:
+        - Python version:
+        - Linti version:
+    validations:
+      required: false

@@ -1,0 +1,30 @@
+name: 📜 Rule Proposal
+description: Propose a new lint rule for linti
+title: "📜 "
+labels: ["rule"]
+body:
+  - type: textarea
+    id: user-story
+    attributes:
+      label: 🧑‍💻 User Story
+      description: Describe the rule from a user's perspective.
+      placeholder: As a ..., I ..., so that ... .
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 📝 Description
+      description: Describe the rule in more detail, e.g. what it should check and examples of bad/good code.
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: ✅ Acceptance Criteria
+      description: What must be true for this rule to be considered done?
+      value: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: false
