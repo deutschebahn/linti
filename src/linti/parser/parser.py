@@ -26,6 +26,20 @@ class ParseError(Exception):
     pass
 
 
+class NestingDepthExceeded(ParseError):
+    """Raised when control-flow nesting exceeds the configured maximum.
+
+    A subclass of ParseError so it is catchable as one, but distinguishable so
+    the statement-level error recovery re-raises it instead of swallowing it
+    into an UnknownStatement — letting it unwind the whole recursive descent.
+    """
+
+
+# Default cap on control-flow nesting depth. Well under Python's recursion
+# limit (~1000), far deeper than any realistic TI process.
+DEFAULT_MAX_NESTING_DEPTH = 150
+
+
 IGNORED_FOR_PARSING = {TokenType.WHITESPACE, TokenType.NEWLINE, TokenType.COMMENT}
 
 
@@ -77,7 +91,12 @@ class Parser:
       call        := IDENTIFIER "(" [expression ("," expression)*] ")"
     """
 
-    def __init__(self, tokens: Sequence[Token], ignore_whitespace: bool = True):
+    def __init__(
+        self,
+        tokens: Sequence[Token],
+        ignore_whitespace: bool = True,
+        max_nesting_depth: int = DEFAULT_MAX_NESTING_DEPTH,
+    ):
         """
         Initialize the parser with a sequence of tokens.
 
@@ -85,6 +104,9 @@ class Parser:
             tokens: Sequence of Token objects to parse.
             ignore_whitespace: If True, filters out WHITESPACE and NEWLINE tokens.
                               Default is True.
+            max_nesting_depth: Maximum control-flow nesting depth before a
+                              NestingDepthExceeded is raised (guards against a
+                              RecursionError on pathological input).
         """
         if ignore_whitespace:
             self.tokens = [t for t in tokens if t.type not in IGNORED_FOR_PARSING]
@@ -92,6 +114,8 @@ class Parser:
             self.tokens = list(tokens)
 
         self.pos = 0
+        self._max_nesting_depth = max_nesting_depth
+        self._depth = 0
 
     # -----------------------------
     # basic stream helpers
@@ -236,6 +260,24 @@ class Parser:
         if self.at_end():
             return None
 
+        self._depth += 1
+        try:
+            if self._depth > self._max_nesting_depth:
+                raise NestingDepthExceeded(
+                    f"Maximum nesting depth ({self._max_nesting_depth}) exceeded"
+                )
+            return self._parse_statement_dispatch()
+        finally:
+            self._depth -= 1
+
+    def _parse_statement_dispatch(self) -> Optional[Statement]:
+        """Dispatch to the concrete statement parser, with error recovery.
+
+        On a ParseError the offending tokens are collected into an
+        UnknownStatement so parsing can continue.  A NestingDepthExceeded is
+        deliberately *not* recovered — it propagates so the whole recursive
+        descent unwinds instead of hitting a RecursionError.
+        """
         try:
             # Check for IF statement
             if self.current().type == TokenType.IF:
@@ -254,6 +296,9 @@ class Parser:
             # Otherwise it's an expression statement: expression ";"
             return self._parse_expression_statement()
 
+        except NestingDepthExceeded:
+            # Never recover a depth overflow — let it unwind to the caller.
+            raise
         except ParseError as e:
             # Error recovery: skip to next semicolon but stop at block
             # boundary keywords so outer block parsers can still see them.

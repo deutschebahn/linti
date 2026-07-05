@@ -156,6 +156,26 @@ rules:
 
 `rules.one_space_before_equals` has been removed with rule `F210`. If it is still present in an older config, linti warns and ignores it.
 
+### Input Limits
+
+To stay robust on large or untrusted process files, linti bounds two things via
+top-level settings (safe defaults; normal files are unaffected):
+
+```yaml
+# Reject files larger than this many bytes before reading them into memory.
+max_file_size: 10485760   # 10 MB (default)
+
+# Cap on control-flow (IF/WHILE) nesting depth. Deeper nesting is reported as
+# an S900 diagnostic instead of being parsed unboundedly.
+max_nesting_depth: 150    # default
+```
+
+- A file above `max_file_size` fails with a clear error rather than being read.
+- A procedure nested beyond `max_nesting_depth` produces a single `S900`
+  diagnostic (`Maximum nesting depth (N) exceeded`) for that procedure and
+  linting continues. `S900` is a built-in parser diagnostic, not a configurable
+  rule, so it does not appear in `linti explain` / `ALL_RULES.md`.
+
 ### All rules
 
 For a complete reference of all linting rules with detailed configuration examples and usage instructions, see [ALL_RULES.md](ALL_RULES.md).

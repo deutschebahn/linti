@@ -99,8 +99,20 @@ def lint_process_file(
     select: Optional[str] = None,
 ) -> Optional[list]:
     """Lint one process file through a provider-backed flow."""
+    # Resolve the linter (and thus the input-hardening limits) before opening
+    # the provider, so the file-size ceiling is enforced on the initial read.
+    if linter is None:
+        cfg = load_config(file_path, config)
+        token_rules, statement_rules = create_rules(cfg, select=select)
+        linter = Linter(
+            rules=token_rules,
+            statement_rules=statement_rules,
+            max_nesting_depth=cfg.max_nesting_depth,
+            max_file_size=cfg.max_file_size,
+        )
+
     try:
-        provider = provider_for_path(file_path)
+        provider = provider_for_path(file_path, max_file_size=linter.max_file_size)
         process_name = require_single_process_name(provider)
         process = provider.get_process(process_name)
     except Exception as e:
@@ -108,11 +120,6 @@ def lint_process_file(
             return None
         typer.echo(f"Error loading file: {e}", err=True)
         raise typer.Exit(code=1) from e
-
-    if linter is None:
-        cfg = load_config(file_path, config)
-        token_rules, statement_rules = create_rules(cfg, select=select)
-        linter = Linter(rules=token_rules, statement_rules=statement_rules)
 
     if auto_fix:
         typer.echo(f"Applying auto-fixes where supported in {file_path}")
@@ -154,7 +161,12 @@ def lint_directory(
 
     for proc_file in process_files:
         token_rules, statement_rules = create_rules(cfg, select=select)
-        linter = Linter(rules=token_rules, statement_rules=statement_rules)
+        linter = Linter(
+            rules=token_rules,
+            statement_rules=statement_rules,
+            max_nesting_depth=cfg.max_nesting_depth,
+            max_file_size=cfg.max_file_size,
+        )
 
         file_issues = lint_process_file(
             proc_file,

@@ -3,7 +3,12 @@
 from pathlib import Path
 
 from linti.model.process_ir import ProcessIR
-from linti.provider.base import ProcessProvider, load_single_process
+from linti.provider.base import (
+    DEFAULT_MAX_FILE_SIZE,
+    ProcessProvider,
+    ensure_within_size_limit,
+    load_single_process,
+)
 from linti.provider.git import GitProvider
 from linti.provider.pa_code import PaCodeProvider, is_pa_code_content
 from linti.provider.ti import TiProvider
@@ -35,18 +40,21 @@ def _peek_pa_detection_text(file_path: Path) -> str:
     )
 
 
-def provider_for_path(file_path: Path) -> ProcessProvider:
+def provider_for_path(
+    file_path: Path, max_file_size: int = DEFAULT_MAX_FILE_SIZE
+) -> ProcessProvider:
     """Return the provider implementation for *file_path*."""
+    ensure_within_size_limit(file_path, max_file_size)
     suffix = file_path.suffix.lower()
     if suffix in (".yaml", ".yml"):
         return YamlProvider(file_path)
     if suffix == ".json":
-        return GitProvider(file_path)
+        return GitProvider(file_path, max_file_size=max_file_size)
     if suffix == ".ti":
         # Check for a sibling JSON file (Git-deploy format).
         json_sibling = file_path.with_suffix(".json")
         if json_sibling.exists():
-            return GitProvider(json_sibling)
+            return GitProvider(json_sibling, max_file_size=max_file_size)
 
         # Check for PA code format (#SECTION + #JSON_PROPERTIES).
         if is_pa_code_content(_peek_pa_detection_text(file_path)):

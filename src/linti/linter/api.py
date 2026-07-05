@@ -4,10 +4,15 @@ from linti.lexer.lexer import Lexer
 from linti.linter.fixer import auto_fix_process
 from linti.linter.lint_context import LintContext
 from linti.linter.linter import Linter
+from linti.linter.lint_issue import LintIssue
 from linti.linter.reporter import ProcedureIssue
 from linti.model.process_ir import ProcessIR, extract_procedures
-from linti.parser.parser import Parser
+from linti.parser.parser import NestingDepthExceeded, Parser
 from linti.provider.base import ProcessProvider
+
+# Pseudo rule id for the parser-level "nesting too deep" diagnostic. Not a
+# registry rule — enforced in the parser, surfaced here as a LintIssue.
+NESTING_DEPTH_RULE_ID = "S900"
 
 
 def lint_process_model(process: ProcessIR, linter: Linter) -> list[ProcedureIssue]:
@@ -26,7 +31,18 @@ def lint_process_model(process: ProcessIR, linter: Linter) -> list[ProcedureIssu
             block_end_line=proc_info.source_end_line,
         )
         tokens = Lexer(proc_info.code).tokenize()
-        ast = Parser(tokens).parse()
+        try:
+            ast = Parser(tokens, max_nesting_depth=linter.max_nesting_depth).parse()
+        except NestingDepthExceeded as e:
+            issue = LintIssue(
+                message=str(e),
+                line=1,
+                column=1,
+                position=0,
+                rule_id=NESTING_DEPTH_RULE_ID,
+            )
+            all_issues.append((proc_name, issue, proc_info.source_line))
+            continue
         issues = linter.lint(tokens, lint_ctx, ast=ast, source=proc_info.code)
         for issue in issues:
             all_issues.append((proc_name, issue, proc_info.source_line))

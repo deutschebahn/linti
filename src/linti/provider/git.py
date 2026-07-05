@@ -17,15 +17,22 @@ import json
 from pathlib import Path
 
 from linti.model.process_ir import ProcessIR
-from linti.provider.base import extract_named_entries, validate_process_name
+from linti.provider.base import (
+    DEFAULT_MAX_FILE_SIZE,
+    ensure_within_size_limit,
+    extract_named_entries,
+    validate_process_name,
+)
 from linti.provider.ti_regions import parse_ti_regions, serialize_ti_regions
 
 
 class GitProvider:
     """Provider for the TM1 Git-deploy format (JSON + .ti file pair)."""
 
-    def __init__(self, json_path: Path):
+    def __init__(self, json_path: Path, max_file_size: int = DEFAULT_MAX_FILE_SIZE):
         self.json_path = json_path
+        self._max_file_size = max_file_size
+        ensure_within_size_limit(json_path, max_file_size)
         try:
             self._meta = json.loads(json_path.read_text())
         except json.JSONDecodeError as exc:
@@ -69,6 +76,7 @@ class GitProvider:
         if name != expected_name:
             raise ValueError(f"Unknown process: {name!r} (expected {expected_name!r})")
 
+        ensure_within_size_limit(self._ti_path, self._max_file_size)
         code = self._ti_path.read_text()
         sections = parse_ti_regions(code)
         parameters, parameter_lines = extract_named_entries(
