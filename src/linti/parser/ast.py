@@ -144,7 +144,7 @@ class Number(Expression):
     Represents a numeric literal.
 
     Attributes:
-        value: String representation of the number.
+        value: The number as a float (TM1 numbers are IEEE-754 doubles).
         token: Optional Token for position information.
     """
 

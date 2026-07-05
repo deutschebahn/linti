@@ -558,8 +558,8 @@ class Parser:
         # Number literal
         if tok.type == TokenType.NUMBER:
             self.advance()
-            # keep as int for now; extend later for float
-            return Number(int(tok.value), token=tok)
+            # TM1 has no integer type; all numbers are IEEE-754 doubles.
+            return Number(float(tok.value), token=tok)
 
         # String literal
         if tok.type == TokenType.STRING:
