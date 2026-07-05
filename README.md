@@ -267,8 +267,11 @@ linti processes/ --auto-fix
 ### Command Help
 
 ```bash
-linti --help
+linti --help       # Overview of all commands and global options
+linti lint --help  # All linting arguments and options (--auto-fix, --select, ...)
 ```
+
+`lint` is the default command — `linti process.ti` is a shortcut for `linti lint process.ti`.
 
 ### Selecting Specific Rules
 
