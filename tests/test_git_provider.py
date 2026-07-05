@@ -141,6 +141,54 @@ class TestGitProvider:
         with pytest.raises(ValueError, match="Code@Code.link"):
             GitProvider(json_path)
 
+    def test_invalid_json_raises_clear_error(self, tmp_path: Path):
+        json_path = tmp_path / "broken.json"
+        json_path.write_text("{ not valid json")
+        with pytest.raises(ValueError, match="Invalid JSON"):
+            GitProvider(json_path)
+
+    def test_code_link_traversal_rejected(self, tmp_path: Path):
+        secret = tmp_path / "secret.ti"
+        secret.write_text("#region Prolog\nx=1;\n#endregion\n")
+        proc_dir = tmp_path / "proc"
+        proc_dir.mkdir()
+        json_path = proc_dir / "proc.json"
+        meta = {**JSON_META, "Code@Code.link": "../secret.ti"}
+        json_path.write_text(json.dumps(meta))
+        with pytest.raises(ValueError, match="escapes the process directory"):
+            GitProvider(json_path)
+
+    def test_code_link_absolute_path_rejected(self, tmp_path: Path):
+        json_path = tmp_path / "proc.json"
+        target = tmp_path / "elsewhere.ti"
+        target.write_text("#region Prolog\nx=1;\n#endregion\n")
+        meta = {**JSON_META, "Code@Code.link": str(target)}
+        json_path.write_text(json.dumps(meta))
+        with pytest.raises(ValueError, match="must be a relative path"):
+            GitProvider(json_path)
+
+    def test_valid_relative_link_in_subdir(self, tmp_path: Path):
+        json_path = tmp_path / "test-process.json"
+        sub = tmp_path / "code"
+        sub.mkdir()
+        (sub / "test-process.ti").write_text(TI_CODE)
+        meta = {**JSON_META, "Code@Code.link": "code/test-process.ti"}
+        json_path.write_text(json.dumps(meta))
+        provider = GitProvider(json_path)
+        process = provider.get_process("test-process")
+        assert process.prolog is not None
+
+    def test_save_process_traversal_rejected(self, tmp_path: Path):
+        # A crafted link must not be usable as a write primitive either;
+        # rejection happens up front, so save_process is never reachable.
+        proc_dir = tmp_path / "proc"
+        proc_dir.mkdir()
+        json_path = proc_dir / "proc.json"
+        meta = {**JSON_META, "Code@Code.link": "../../evil.ti"}
+        json_path.write_text(json.dumps(meta))
+        with pytest.raises(ValueError, match="escapes the process directory"):
+            GitProvider(json_path)
+
 
 class TestFactoryGitDetection:
     def test_json_gives_git_provider(self, tmp_path: Path):

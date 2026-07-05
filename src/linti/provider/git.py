@@ -26,13 +26,40 @@ class GitProvider:
 
     def __init__(self, json_path: Path):
         self.json_path = json_path
-        self._meta = json.loads(json_path.read_text())
+        try:
+            self._meta = json.loads(json_path.read_text())
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSON in {json_path}: {exc}") from exc
         code_link = self._meta.get("Code@Code.link")
         if not code_link:
             raise ValueError(
                 f"JSON metadata missing 'Code@Code.link' field: {json_path}"
             )
-        self._ti_path = json_path.parent / code_link
+        self._ti_path = self._resolve_code_link(json_path, code_link)
+
+    @staticmethod
+    def _resolve_code_link(json_path: Path, code_link: str) -> Path:
+        """Resolve ``code_link`` against the JSON file's directory, confined to it.
+
+        The ``Code@Code.link`` value comes from untrusted metadata. Reject
+        absolute paths and any relative path that escapes the JSON file's
+        parent directory (e.g. ``../../etc/passwd``) to prevent linti from
+        reading or overwriting arbitrary files when run on untrusted repos.
+        """
+        link = Path(code_link)
+        if link.is_absolute():
+            raise ValueError(
+                f"'Code@Code.link' must be a relative path, got absolute: "
+                f"{code_link!r} in {json_path}"
+            )
+        base = json_path.parent.resolve()
+        resolved = (base / link).resolve()
+        if not resolved.is_relative_to(base):
+            raise ValueError(
+                f"'Code@Code.link' escapes the process directory: "
+                f"{code_link!r} in {json_path}"
+            )
+        return resolved
 
     def list_processes(self) -> list[str]:
         return [self._meta["Name"]]
