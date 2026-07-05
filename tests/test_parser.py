@@ -46,6 +46,17 @@ def test_parse_single_assignment():
     assert stmt.right.value == 5
 
 
+def test_parse_assignment_with_decimal_number():
+    """Test parsing assignment with a decimal number literal."""
+    ast = _parse("x = 5.25;")
+
+    stmt = ast.statements[0]
+    assert isinstance(stmt, Assignment)
+    assert isinstance(stmt.right, Number)
+    assert stmt.right.value == 5.25
+    assert isinstance(stmt.right.value, float)
+
+
 def test_parse_assignment_with_string():
     """Test parsing assignment with string literal."""
     ast = _parse("name = 'hello';")

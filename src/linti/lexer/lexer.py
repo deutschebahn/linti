@@ -187,9 +187,17 @@ class Lexer:
 
         chars: list[str] = []
 
-        while self.current_char != EOF_CHAR and self.current_char.isdigit():
+        def consume_digits():
+            while self.current_char != EOF_CHAR and self.current_char.isdigit():
+                chars.append(self.current_char)
+                self.advance()
+
+        consume_digits()
+
+        if self.current_char == "." and self.peek().isdigit():
             chars.append(self.current_char)
             self.advance()
+            consume_digits()
 
         return Token(TokenType.NUMBER, "".join(chars), start_pos, line, column)
 
@@ -211,7 +219,6 @@ class Lexer:
         last_non_ws_type = None
 
         while self.current_char != EOF_CHAR:
-
             if self.current_char == "\n":
                 tok = self.newline()
                 tokens.append(tok)

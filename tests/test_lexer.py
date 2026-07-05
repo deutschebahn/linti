@@ -111,6 +111,31 @@ def test_string_method(text, expected_value, should_raise):
     assert token.value == expected_value
 
 
+@pytest.mark.parametrize(
+    "text, expected_value",
+    [
+        ("123.45", "123.45"),
+        ("0.5", "0.5"),
+    ],
+)
+def test_tokenize_decimal_number(text, expected_value):
+    lexer = Lexer(text)
+    tokens = [t for t in lexer.tokenize() if t.type == TokenType.NUMBER]
+
+    assert len(tokens) == 1
+    assert tokens[0].value == expected_value
+
+
+def test_tokenize_number_trailing_dot_not_consumed():
+    lexer = Lexer("123.")
+    tokens = lexer.tokenize()
+
+    assert _simplify(tokens) == [
+        (TokenType.NUMBER, "123", 0),
+        (TokenType.UNKNOWN, ".", 3),
+    ]
+
+
 def test_tokenize_parentheses_tokens():
     lexer = Lexer("()")
     tokens = lexer.tokenize()
