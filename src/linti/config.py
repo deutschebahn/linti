@@ -206,6 +206,12 @@ class Config(BaseModel):
     # process. Rules that treat generic processes specially (D410, S410) share
     # this single definition.
     generic_prefixes: list[str] = Field(default_factory=list)
+    # Input-hardening limits (defend against pathological / untrusted input).
+    # Control-flow nesting beyond this depth yields an S900 diagnostic instead
+    # of recursing until a RecursionError.
+    max_nesting_depth: int = Field(default=150)
+    # Files larger than this (bytes) are rejected before being read into memory.
+    max_file_size: int = Field(default=10 * 1024 * 1024)  # 10 MB
 
     @model_validator(mode="after")
     def _check_conflicting_generic_prefixes(self) -> "Config":

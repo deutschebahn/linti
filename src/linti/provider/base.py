@@ -1,8 +1,22 @@
 """Provider protocol for loading and persisting process IR objects."""
 
+from pathlib import Path
 from typing import Any, Protocol
 
 from linti.model.process_ir import ProcessIR
+
+# Default file-size ceiling (bytes). Files above this are rejected before being
+# read into memory, guarding against resource exhaustion on untrusted input.
+DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+def ensure_within_size_limit(path: Path, max_bytes: int) -> None:
+    """Raise if *path* exceeds *max_bytes*, checking size without reading it."""
+    size = path.stat().st_size
+    if size > max_bytes:
+        raise ValueError(
+            f"File exceeds size limit ({size} > {max_bytes} bytes): {path}"
+        )
 
 
 class ProcessProvider(Protocol):

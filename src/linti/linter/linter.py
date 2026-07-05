@@ -1,7 +1,8 @@
 from linti.lexer.token_window import TokenWindow
 from linti.linter.lint_context import LintContext
 from linti.linter.noqa import filter_issues, parse_noqa
-from linti.parser.parser import Parser
+from linti.parser.parser import DEFAULT_MAX_NESTING_DEPTH, Parser
+from linti.provider.base import DEFAULT_MAX_FILE_SIZE
 from linti.rules.Rule import BaseRule, BaseStatementRule
 
 
@@ -10,6 +11,8 @@ class Linter:
         self,
         rules: list[BaseRule] = None,
         statement_rules: list[BaseStatementRule] = None,
+        max_nesting_depth: int = DEFAULT_MAX_NESTING_DEPTH,
+        max_file_size: int = DEFAULT_MAX_FILE_SIZE,
     ):
         """
         Initialize the linter with token-based and statement-based rules.
@@ -17,7 +20,12 @@ class Linter:
         Args:
             rules: List of token-based rules (BaseRule instances).
             statement_rules: List of AST statement-based rules (BaseStatementRule instances).
+            max_nesting_depth: Control-flow nesting cap forwarded to the parser.
+            max_file_size: File-size ceiling (bytes) carried for the CLI flows
+                that construct providers from a pre-built linter.
         """
+        self.max_nesting_depth = max_nesting_depth
+        self.max_file_size = max_file_size
         # Registry for token-based rules
         self.token_registry = {}
         for rule in rules or []:
@@ -76,7 +84,7 @@ class Linter:
                 issues.extend(rule.visit(token, window, context))
 
         if ast is None:
-            ast = Parser(tokens).parse()
+            ast = Parser(tokens, max_nesting_depth=self.max_nesting_depth).parse()
 
         # Let statement rules pre-scan the full AST (e.g. for lookahead)
         seen_prepare: set[int] = set()
