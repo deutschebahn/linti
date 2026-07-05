@@ -28,14 +28,16 @@ def apply_fixes(code: str, issues: list[LintIssue]) -> tuple[str, int]:
     fixable.sort(key=lambda i: (-i.fix.position, len(i.fix.old_value) == 0))
 
     fixed_code = code
+    applied = 0
     for issue in fixable:
         fix = issue.fix
         start = fix.position
         end = start + len(fix.old_value)
         if fixed_code[start:end] == fix.old_value:
             fixed_code = fixed_code[:start] + fix.new_value + fixed_code[end:]
+            applied += 1
 
-    return fixed_code, len(fixable)
+    return fixed_code, applied
 
 
 def collect_fixable_issues(
