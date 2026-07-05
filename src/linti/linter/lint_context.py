@@ -29,14 +29,10 @@ class LintContext:
 
     block: Optional[str] = None
     process_name: Optional[str] = None
-    parameters: Optional[list[str]] = field(default_factory=lambda: None)
-    parameter_lines: Optional[dict] = field(
-        default_factory=lambda: None
-    )  # {param_name: source_line}
-    variables: Optional[list[str]] = field(default_factory=lambda: None)
-    variable_lines: Optional[dict] = field(
-        default_factory=lambda: None
-    )  # {var_name: source_line}
+    parameters: Optional[list[str]] = None
+    parameter_lines: Optional[dict] = None  # {param_name: source_line}
+    variables: Optional[list[str]] = None
+    variable_lines: Optional[dict] = None  # {var_name: source_line}
     block_start_line: Optional[int] = None
     block_end_line: Optional[int] = None
     block_stack: list[str] = field(default_factory=list)
