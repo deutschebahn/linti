@@ -65,6 +65,33 @@ def test_apply_fixes_with_no_issues():
     assert num_fixes == 0
 
 
+def test_apply_fixes_counts_only_applied_fixes():
+    """A fix skipped on old_value mismatch must not be counted as applied."""
+    code = "if (x = 1);"
+    issues = [
+        LintIssue(
+            message="applied",
+            line=1,
+            column=1,
+            position=0,
+            rule_id="F110",
+            fix=Fix(position=0, old_value="if", new_value="IF"),
+        ),
+        LintIssue(
+            message="stale",
+            line=1,
+            column=5,
+            position=4,
+            rule_id="F110",
+            # old_value does not match the text at this position -> skipped
+            fix=Fix(position=4, old_value="zzz", new_value="YYY"),
+        ),
+    ]
+    fixed_code, num_fixes = apply_fixes(code, issues)
+    assert fixed_code == "IF (x = 1);"
+    assert num_fixes == 1
+
+
 # --- Integration tests: keyword casing via collect + apply ---
 
 
