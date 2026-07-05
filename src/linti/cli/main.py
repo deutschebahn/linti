@@ -26,15 +26,21 @@ class _DefaultLintGroup(TyperGroup):
 
     def parse_args(self, ctx: "Context", args: list[str]) -> list[str]:
         # If there are args and the first one isn't a registered command,
-        # treat it as an argument to the default "lint" command.
-        if args and args[0] not in self.commands:
+        # treat it as an argument to the default "lint" command.  Top-level
+        # help flags are left alone so ``linti --help`` shows the group help
+        # instead of being rewritten to ``linti lint --help``.
+        if args and args[0] not in ("--help", "-h") and args[0] not in self.commands:
             args = ["lint", *args]
         return super().parse_args(ctx, args)
 
 
 app = typer.Typer(
     name="linti",
-    help="Linter for TM1-like TI process scripts",
+    help=(
+        "Linter for TM1-like TI process scripts.\n\n"
+        "'lint' is the default command: 'linti PATH' is a shortcut for "
+        "'linti lint PATH' — both do exactly the same."
+    ),
     cls=_DefaultLintGroup,
 )
 
@@ -80,7 +86,9 @@ def lint(
     select: Optional[str] = SELECT_OPT,
 ) -> None:
     """
-    Lint a TM1 TI process file, YAML ProcessObject, or directory of YAMLs.
+    Lint a TM1 TI process file, YAML ProcessObject, or directory of YAMLs (default command).
+
+    This is the default command: 'linti PATH' is a shortcut for 'linti lint PATH'.
 
     Example:
         linti process.ti
