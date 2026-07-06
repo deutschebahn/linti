@@ -812,6 +812,8 @@ Modes:
 - enforce: only hierarchy-aware functions are allowed; standard functions are reported with their hierarchy-aware replacement.
 - consistent: either style is allowed, but mixing both within the same file is reported.
 
+Independently of the mode, a standard function whose dimension argument provably addresses a hierarchy ('Dimension:Hierarchy') is reported — whether the colon comes from a string literal, a literal concatenation (sDim | ':' | sHier), or a variable whose statically known value always contains a colon. In enforce mode the call is already reported by name, so this extra check adds signal in consistent mode. Unknown/dynamic values are never reported.
+
 Generic processes (whose names start with a configured ``generic_prefixes`` entry) are always held to the stricter ``enforce`` mode, regardless of the base ``mode``.
 
 Covers both TI functions and Rules functions that are valid in TI.
@@ -841,6 +843,8 @@ nExists = DimensionElementExists('Region', 'EMEA');
 # consistent mode: mixes hierarchy-aware and standard styles
 nParent = ElementParent('Region', 'Region', 'EMEA');
 nIndex = DIMIX('Region', 'EMEA');
+# dimension argument addresses a hierarchy; use HierarchyElementExists with an explicit hierarchy
+nExists = DimensionElementExists('Region:Detail', 'EMEA');
 ```
 
 ---
