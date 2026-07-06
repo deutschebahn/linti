@@ -35,6 +35,9 @@ class LintContext:
         constants: Process-wide ConstantPropagationIndex shared by all
             sections of the process, or None (e.g. in the auto-fix pass).
             Rules read it through :meth:`constant_value`.
+        datasource_type: Data source type of the process (``ODBC``, ``ASCII``,
+            ``None``, …), or None when the format carries no datasource metadata.
+        datasource_query: SQL query of an ODBC data source, or None.
     """
 
     block: Optional[str] = None
@@ -49,6 +52,8 @@ class LintContext:
     tokens: Optional[list] = None
     source: Optional[str] = None
     constants: Optional["ConstantPropagationIndex"] = None
+    datasource_type: Optional[str] = None
+    datasource_query: Optional[str] = None
 
     def constant_value(self, name: str, line: int) -> Optional[Union[str, float]]:
         """Return the statically known value of *name* at *line*, or ``None``.

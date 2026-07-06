@@ -38,6 +38,8 @@ def lint_process_model(process: ProcessIR, linter: Linter) -> list[ProcedureIssu
             block_start_line=proc_info.source_line,
             block_end_line=proc_info.source_end_line,
             constants=constants,
+            datasource_type=process.datasource_type,
+            datasource_query=process.datasource_query,
         )
         parsed = parse_cache.get(proc_name)
         if parsed.error is not None:

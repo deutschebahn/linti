@@ -1,7 +1,7 @@
 """Provider protocol for loading and persisting process IR objects."""
 
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Optional, Protocol
 
 from linti.model.process_ir import ProcessIR
 
@@ -67,3 +67,24 @@ def extract_named_entries(
         item["Name"] for item in items if isinstance(item, dict) and "Name" in item
     ]
     return names, {name: default_line for name in names}
+
+
+def extract_datasource(meta: Any) -> tuple[Optional[str], Optional[str]]:
+    """Extract ``(datasource_type, datasource_query)`` from process metadata.
+
+    *meta* is the format-specific metadata mapping (the JSON object, the parsed
+    YAML ``definition``, …).  Returns ``(None, None)`` when no ``DataSource`` is
+    present.  The query is only meaningful for ODBC sources; other types leave
+    it ``None``.
+    """
+    if not isinstance(meta, dict):
+        return None, None
+    datasource = meta.get("DataSource")
+    if not isinstance(datasource, dict):
+        return None, None
+    ds_type = datasource.get("Type")
+    query = datasource.get("Query")
+    return (
+        ds_type if isinstance(ds_type, str) else None,
+        query if isinstance(query, str) else None,
+    )

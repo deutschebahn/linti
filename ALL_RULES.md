@@ -56,6 +56,7 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 | S310 | Literal Process Calls | Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument | ❌ |
 | S320 | No ExecuteCommand | Prohibits the use of ExecuteCommand() (disabled for security reasons) | ❌ |
 | S330 | ODBCOpen Password Parameter | Validates that ODBCOpen() password parameter is a defined TI parameter | ❌ |
+| S340 | Filter ODBC Rows in SQL | Flags ItemSkip() or exclusively conditional writes in Metadata/Data when the ODBC data source query has no WHERE clause | ❌ |
 | S410 | Use Hierarchy-Aware Functions | Enforces hierarchy-aware functions, or at least consistent usage of hierarchy-aware vs. standard hierarchy functions | ❌ |
 
 ## Rule Details
@@ -802,6 +803,48 @@ ODBCOpen('MyDatasource', 'AdminUser', 'hardcodedPassword');
 
 ---
 
+### S340: Filter ODBC Rows in SQL
+
+Flags ItemSkip() or exclusively conditional writes in Metadata/Data when the ODBC data source query has no WHERE clause.
+
+When an ODBC data source returns all rows and the filtering happens only in the TI script, the server pulls rows it immediately discards. This is reported in the Metadata and Data blocks when the data source query has no WHERE clause and either:
+- ItemSkip() is used to skip records, or
+- every cube write (CellPutN, CellPutS, CellIncrementN) is guarded by an IF, so no unconditional write ever happens.
+
+Move the filter into a SQL WHERE clause so the database returns only the rows the process needs.
+
+Inspired by the Bedrock TM1 best practices (https://github.com/cubewise-code/bedrock).
+
+**Configuration:**
+```yaml
+rules:
+  sql_where_filtering:
+    enabled: true
+```
+
+**Valid usage:**
+```ti
+# filtering done in SQL WHERE clause
+# Data block, ODBC query: SELECT ... FROM t WHERE region = ?
+CellPutN(vAmount, 'Sales', vRegion, vMonth);
+```
+
+**Invalid usage:**
+```ti
+# all writes conditional, no WHERE — filter in SQL
+# Data block, ODBC query: SELECT ... FROM t
+IF(vRegion @= 'EMEA');
+  CellPutN(vAmount, 'Sales', vRegion, vMonth);
+ENDIF;
+# ItemSkip() filters rows, no WHERE — filter in SQL
+# Data block, ODBC query: SELECT ... FROM t
+IF(vRegion @= 'EMEA');
+  ItemSkip();
+ENDIF;
+```
+
+---
+
 ### S410: Use Hierarchy-Aware Functions
 
 Enforces hierarchy-aware functions, or at least consistent usage of hierarchy-aware vs. standard hierarchy functions.
@@ -957,6 +1000,9 @@ rules:
     enabled: true
 
   odbc_open_parameter:
+    enabled: true
+
+  sql_where_filtering:
     enabled: true
 
   use_hierarchy_aware_functions:
