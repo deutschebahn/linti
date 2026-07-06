@@ -218,3 +218,66 @@ def test_lint_pipeline_exposes_constants_to_rules():
     lint_process_model(process, linter)
 
     assert seen["data"] == "Region:Default"
+
+
+# -- shared parse cache (each section lexed/parsed at most once) --------------
+
+
+def _count_parses(monkeypatch):
+    """Return a dict whose ``n`` counts ``Parser.parse()`` invocations."""
+    import linti.parser.parser as parser_module
+
+    counts = {"n": 0}
+    original = parser_module.Parser.parse
+
+    def counting_parse(self):
+        counts["n"] += 1
+        return original(self)
+
+    monkeypatch.setattr(parser_module.Parser, "parse", counting_parse)
+    return counts
+
+
+def test_lint_run_parses_each_section_once_even_with_index(monkeypatch):
+    """A rule querying the index must not trigger a second parse pass."""
+    counts = _count_parses(monkeypatch)
+
+    class _QueryRule(BaseStatementRule):
+        CONFIG_KEY = ""
+
+        @property
+        def RULE_ID(self):
+            return "T998"
+
+        def interested_in(self):
+            return [Program]
+
+        def visit(self, statement, context):
+            # Force the index to build during the metadata pass.
+            context.constant_value("sDim", 1)
+            return []
+
+    process = _process(
+        prolog="sDim = 'Region';",
+        metadata="a = 1;",
+        data="b = 2;",
+        epilog="c = 3;",
+    )
+    linter = Linter(rules=[], statement_rules=[_QueryRule()])
+    lint_process_model(process, linter)
+
+    # Four sections, each parsed exactly once.
+    assert counts["n"] == 4
+
+
+def test_index_without_shared_cache_parses_each_section_once(monkeypatch):
+    """A stand-alone index still parses every section a single time."""
+    counts = _count_parses(monkeypatch)
+
+    index = ConstantPropagationIndex(
+        _process(prolog="x = 1;", metadata="y = 2;", data="z = 3;", epilog="w = 4;")
+    )
+    index.value_at("x", "epilog", 1)
+    index.value_at("y", "epilog", 1)  # second query must not re-parse
+
+    assert counts["n"] == 4

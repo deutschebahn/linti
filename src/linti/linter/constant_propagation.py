@@ -28,17 +28,20 @@ Tracking semantics
 
 Cost / laziness
 ---------------
-Building the index lexes and parses each section once — the same work as
-one lint pass — followed by a linear AST walk.  Because that is not free
-and most rules never ask for values, the index builds *lazily* on the
-first query and is then cached for the lifetime of the process model.
-Rules that do not use it cost nothing.
+Building the index reads each section's AST from the shared per-run
+``SectionParseCache`` — which the lint loop populates anyway — and walks it
+linearly.  Sections already linted are cache hits; any not yet reached are
+parsed once here and reused when the lint loop gets to them, so no section
+is ever lexed or parsed twice.  Because the walk still is not free and most
+rules never ask for values, the index builds *lazily* on the first query
+and is then cached for the lifetime of the process model.  Rules that do
+not use it cost nothing.
 """
 
 from typing import Optional, Union
 
-from linti.lexer.lexer import Lexer
 from linti.lexer.token import TokenType
+from linti.linter.parse_cache import SectionParseCache
 from linti.model.process_ir import ProcessIR
 from linti.parser.ast import (
     Assignment,
@@ -52,7 +55,6 @@ from linti.parser.ast import (
     UnknownStatement,
     WhileStatement,
 )
-from linti.parser.parser import Parser
 
 
 class _Unknown:
@@ -85,8 +87,15 @@ class ConstantPropagationIndex:
     on the first :meth:`value_at` call.
     """
 
-    def __init__(self, process: ProcessIR) -> None:
+    def __init__(
+        self,
+        process: ProcessIR,
+        cache: Optional[SectionParseCache] = None,
+    ) -> None:
         self._process = process
+        # Shared per-run lex/parse cache; own it when none is supplied (e.g.
+        # in tests) so the index still parses each section only once.
+        self._cache = cache if cache is not None else SectionParseCache(process)
         # name (lower-cased) -> events sorted by (section index, line)
         self._events: Optional[dict[str, list[_Event]]] = None
         # name (lower-cased) -> value at the current build position
@@ -134,8 +143,10 @@ class ConstantPropagationIndex:
             if proc_info is None:
                 continue
 
-            tokens = Lexer(proc_info.code).tokenize()
-            ast = Parser(tokens).parse()
+            ast = self._cache.get(section).ast
+            if ast is None:
+                # Section failed to parse (nesting too deep); skip it.
+                continue
 
             if section in _REPEATING_SECTIONS:
                 # Reads before the first write would see the previous
