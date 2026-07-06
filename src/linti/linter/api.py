@@ -23,7 +23,9 @@ def lint_process_model(process: ProcessIR, linter: Linter) -> list[ProcedureIssu
     # this cache and the index reads from it instead of re-parsing.
     parse_cache = SectionParseCache(process, max_nesting_depth=linter.max_nesting_depth)
     # One shared index per process; it builds lazily on first rule access.
-    constants = ConstantPropagationIndex(process, cache=parse_cache)
+    constants = ConstantPropagationIndex(
+        process, cache=parse_cache, max_variants=linter.max_variants
+    )
 
     for proc_name, proc_info in extract_procedures(process).items():
         lint_ctx = LintContext(

@@ -1,4 +1,5 @@
 from linti.lexer.token_window import TokenWindow
+from linti.linter.constant_propagation import DEFAULT_MAX_VARIANTS
 from linti.linter.lint_context import LintContext
 from linti.linter.noqa import filter_issues, parse_noqa
 from linti.parser.parser import DEFAULT_MAX_NESTING_DEPTH, Parser
@@ -13,6 +14,7 @@ class Linter:
         statement_rules: list[BaseStatementRule] = None,
         max_nesting_depth: int = DEFAULT_MAX_NESTING_DEPTH,
         max_file_size: int = DEFAULT_MAX_FILE_SIZE,
+        max_variants: int = DEFAULT_MAX_VARIANTS,
     ):
         """
         Initialize the linter with token-based and statement-based rules.
@@ -23,9 +25,13 @@ class Linter:
             max_nesting_depth: Control-flow nesting cap forwarded to the parser.
             max_file_size: File-size ceiling (bytes) carried for the CLI flows
                 that construct providers from a pre-built linter.
+            max_variants: Cap on how many distinct values the constant
+                propagation index tracks per variable before degrading to
+                UNKNOWN.
         """
         self.max_nesting_depth = max_nesting_depth
         self.max_file_size = max_file_size
+        self.max_variants = max_variants
         # Registry for token-based rules
         self.token_registry = {}
         for rule in rules or []:

@@ -1,7 +1,11 @@
 """Tests for the ConstantPropagationIndex (cross-block variable tracking)."""
 
 from linti.linter.api import lint_process_model
-from linti.linter.constant_propagation import ConstantPropagationIndex
+from linti.linter.constant_propagation import (
+    ConstantPropagationIndex,
+    PartialString,
+    PossibleValues,
+)
 from linti.linter.lint_context import LintContext
 from linti.linter.linter import Linter
 from linti.model.process_ir import ProcedureInfo, ProcessIR
@@ -104,6 +108,61 @@ def test_never_assigned_variable_is_unknown():
     assert index.value_at("sNope", "prolog", 5) is None
 
 
+# -- partial string values ----------------------------------------------------
+
+
+def test_partial_string_keeps_known_prefix():
+    index = ConstantPropagationIndex(_process(prolog="sName = 'prefix_' | pDyn;"))
+    # Not fully known -> value_at stays None.
+    assert index.value_at("sName", "prolog", 2) is None
+    partial = index.partial_value_at("sName", "prolog", 2)
+    assert isinstance(partial, PartialString)
+    assert partial.known_prefix == "prefix_"
+    assert partial.known_suffix == ""
+    assert partial.known_fragments == ("prefix_",)
+
+
+def test_partial_string_keeps_prefix_and_suffix():
+    index = ConstantPropagationIndex(_process(prolog="sName = 'a_' | pDyn | '_z';"))
+    partial = index.partial_value_at("sName", "prolog", 2)
+    assert isinstance(partial, PartialString)
+    assert partial.known_prefix == "a_"
+    assert partial.known_suffix == "_z"
+    assert partial.known_fragments == ("a_", "_z")
+
+
+def test_partial_string_composes_through_further_concatenation():
+    code = "sMid = 'x_' | pDyn;\nsFull = sMid | '_y';"
+    index = ConstantPropagationIndex(_process(prolog=code))
+    partial = index.partial_value_at("sFull", "prolog", 3)
+    assert isinstance(partial, PartialString)
+    assert partial.known_prefix == "x_"
+    assert partial.known_suffix == "_y"
+
+
+def test_fully_known_concatenation_is_not_partial():
+    index = ConstantPropagationIndex(_process(prolog="sFull = 'a' | 'b' | 'c';"))
+    assert index.value_at("sFull", "prolog", 2) == "abc"
+    assert index.partial_value_at("sFull", "prolog", 2) is None
+
+
+def test_fully_unknown_concatenation_is_not_partial():
+    index = ConstantPropagationIndex(
+        _process(prolog="sFull = CellGetS('c', 'x') | pDyn;")
+    )
+    assert index.value_at("sFull", "prolog", 2) is None
+    assert index.partial_value_at("sFull", "prolog", 2) is None
+
+
+def test_partial_value_visible_across_sections():
+    index = ConstantPropagationIndex(
+        _process(prolog="sName = 'p_' | pDyn;", epilog="x = 1;")
+    )
+    partial = index.partial_value_at("sName", "epilog", 1)
+    assert isinstance(partial, PartialString)
+    assert partial.known_prefix == "p_"
+
+
 # -- conditional and loop invalidation ----------------------------------------
 
 
@@ -175,6 +234,108 @@ def test_prolog_value_survives_data_section_that_does_not_assign_it():
     assert index.value_at("sDim", "data", 99) == "Region"
 
 
+# -- branch variants (if/elseif/else joins, forall/exists) --------------------
+
+
+def test_if_else_tracks_both_variants():
+    code = "IF(pFlag = 1);\n  sDim = 'Region';\nELSE;\n  sDim = 'Product';\nENDIF;"
+    index = ConstantPropagationIndex(_process(prolog=code))
+    pv = index.possible_values_at("sDim", "prolog", 6)
+    assert isinstance(pv, PossibleValues)
+    assert pv.values == frozenset({"Region", "Product"})
+    assert pv.exhaustive
+    # Not a single scalar -> value_at stays None.
+    assert index.value_at("sDim", "prolog", 6) is None
+
+
+def test_all_of_and_any_of_over_variants():
+    code = "IF(pFlag = 1);\n  sDim = 'Region';\nELSE;\n  sDim = 'Product';\nENDIF;"
+    index = ConstantPropagationIndex(_process(prolog=code))
+    pv = index.possible_values_at("sDim", "prolog", 6)
+    assert pv.all_of(lambda v: v in {"Region", "Product"})
+    assert not pv.all_of(lambda v: v == "Region")
+    assert pv.any_of(lambda v: v == "Region")
+    assert pv.any_of(lambda v: v == "Product")
+    assert not pv.any_of(lambda v: v == "Other")
+
+
+def test_no_else_keeps_pre_value_as_variant():
+    code = "sDim = 'Default';\nIF(pFlag = 1);\n  sDim = 'Region';\nENDIF;"
+    index = ConstantPropagationIndex(_process(prolog=code))
+    pv = index.possible_values_at("sDim", "prolog", 5)
+    assert pv.values == frozenset({"Default", "Region"})
+    assert pv.exhaustive
+    # Before the IF the pre-value is still the single known value.
+    assert index.value_at("sDim", "prolog", 1) == "Default"
+
+
+def test_dynamic_branch_keeps_exists_but_not_forall():
+    code = (
+        "IF(pFlag = 1);\n"
+        "  sDim = 'Region';\n"
+        "ELSE;\n"
+        "  sDim = CellGetS('c', 'x');\n"
+        "ENDIF;"
+    )
+    index = ConstantPropagationIndex(_process(prolog=code))
+    pv = index.possible_values_at("sDim", "prolog", 6)
+    assert not pv.exhaustive
+    assert pv.any_of(lambda v: v == "Region")  # exists still holds
+    assert not pv.all_of(lambda v: v == "Region")  # forall cannot
+    assert index.value_at("sDim", "prolog", 6) is None
+
+
+def test_elseif_chain_enumerates_all_variants():
+    code = (
+        "IF(a = 1);\n"
+        "  sV = 'x';\n"
+        "ELSEIF(a = 2);\n"
+        "  sV = 'y';\n"
+        "ELSE;\n"
+        "  sV = 'z';\n"
+        "ENDIF;"
+    )
+    index = ConstantPropagationIndex(_process(prolog=code))
+    pv = index.possible_values_at("sV", "prolog", 8)
+    assert pv.values == frozenset({"x", "y", "z"})
+    assert pv.exhaustive
+
+
+def test_variants_fold_through_expression():
+    code = "IF(a = 1);\n  sV = 'A';\nELSE;\n  sV = 'B';\nENDIF;\nsFull = sV | '_x';"
+    index = ConstantPropagationIndex(_process(prolog=code))
+    pv = index.possible_values_at("sFull", "prolog", 7)
+    assert pv.values == frozenset({"A_x", "B_x"})
+    assert pv.exhaustive
+    assert pv.all_of(lambda v: v.endswith("_x"))
+
+
+def test_too_many_variants_degrade_to_unknown():
+    code = (
+        "IF(a = 1);\n"
+        "  sV = 'x';\n"
+        "ELSEIF(a = 2);\n"
+        "  sV = 'y';\n"
+        "ELSE;\n"
+        "  sV = 'z';\n"
+        "ENDIF;"
+    )
+    index = ConstantPropagationIndex(_process(prolog=code), max_variants=2)
+    pv = index.possible_values_at("sV", "prolog", 8)
+    assert pv.is_unknown
+    assert index.value_at("sV", "prolog", 8) is None
+
+
+def test_possible_values_unknown_when_never_assigned():
+    index = ConstantPropagationIndex(_process(prolog="x = 1;"))
+    assert index.possible_values_at("sNope", "prolog", 5).is_unknown
+
+
+def test_context_possible_values_without_index_is_unknown():
+    ctx = LintContext(block="prolog")
+    assert ctx.possible_values("x", 1).is_unknown
+
+
 # -- laziness and integration ---------------------------------------------------
 
 
@@ -218,6 +379,35 @@ def test_lint_pipeline_exposes_constants_to_rules():
     lint_process_model(process, linter)
 
     assert seen["data"] == "Region:Default"
+
+
+def test_lint_pipeline_exposes_variants_to_rules():
+    """Rules reach branch variants through context.possible_values()."""
+    seen = {}
+
+    class _VariantRule(BaseStatementRule):
+        CONFIG_KEY = ""
+
+        @property
+        def RULE_ID(self):
+            return "T997"
+
+        def interested_in(self):
+            return [Program]
+
+        def visit(self, statement, context):
+            pv = context.possible_values("sDim", 99)
+            seen["all"] = pv.all_of(lambda v: v in {"Region", "Product"})
+            seen["values"] = pv.values
+            return []
+
+    code = "IF(pFlag = 1);\n  sDim = 'Region';\nELSE;\n  sDim = 'Product';\nENDIF;"
+    process = _process(prolog=code)
+    linter = Linter(rules=[], statement_rules=[_VariantRule()])
+    lint_process_model(process, linter)
+
+    assert seen["values"] == frozenset({"Region", "Product"})
+    assert seen["all"] is True
 
 
 # -- shared parse cache (each section lexed/parsed at most once) --------------

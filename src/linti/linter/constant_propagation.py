@@ -14,10 +14,22 @@ Tracking semantics
 * Expressions over known values are folded: ``+ - * /`` on numbers and
   ``|`` (concatenation) on strings.  ``sFull = sDim | ':' | sHier;`` yields
   a known value when both variables are known.
+* A concatenation that mixes known and dynamic parts —
+  ``sName = 'prefix_' | pDyn;`` — keeps its literal fragments as a
+  :class:`PartialString` rather than collapsing to UNKNOWN.  Rules read it
+  through :meth:`~ConstantPropagationIndex.partial_value_at`; :meth:`value_at`
+  still reports only *fully* known values.
 * Anything dynamic — function calls, parameters, datasource variables,
   predefined variables — is UNKNOWN.  The index never guesses.
-* An assignment inside an ``IF`` branch marks the variable UNKNOWN from
-  that line on (the branch may not execute).
+* ``IF``/``ELSEIF``/``ELSE`` branches are joined: after the construct the
+  variable holds the *set* of values its branches assign (plus its pre-IF
+  value when a branch does not assign it).  Rules query that set through
+  :meth:`~ConstantPropagationIndex.possible_values_at` and ask ∀/∃ questions
+  (:meth:`PossibleValues.all_of` / :meth:`PossibleValues.any_of`).  A branch
+  with a dynamic value makes the set non-exhaustive — ∃ still holds, ∀ cannot.
+  At most ``max_variants`` distinct values are kept; beyond that the variable
+  degrades to UNKNOWN.  :meth:`value_at` still reports a value only when it is
+  a single fully known scalar.
 * An assignment inside a ``WHILE`` body marks the variable UNKNOWN from
   the ``WHILE`` line on (the loop body may run zero or many times).
 * Metadata and Data execute once *per datasource record*.  A variable that
@@ -38,6 +50,7 @@ and is then cached for the lifetime of the process model.  Rules that do
 not use it cost nothing.
 """
 
+from dataclasses import dataclass
 from typing import Optional, Union
 
 from linti.lexer.token import TokenType
@@ -45,6 +58,7 @@ from linti.linter.parse_cache import SectionParseCache
 from linti.model.process_ir import ProcessIR
 from linti.parser.ast import (
     Assignment,
+    ASTNode,
     BinaryExpression,
     Expression,
     Identifier,
@@ -54,6 +68,7 @@ from linti.parser.ast import (
     UnaryExpression,
     UnknownStatement,
     WhileStatement,
+    get_node_token,
 )
 
 
@@ -66,8 +81,153 @@ class _Unknown:
 
 UNKNOWN = _Unknown()
 
-#: A tracked value: a string, a number, or the UNKNOWN sentinel.
-Value = Union[str, float, _Unknown]
+
+@dataclass(frozen=True)
+class PartialString:
+    """A string whose value is only partially known statically.
+
+    A concatenation such as ``'prefix_' | pDyn | '_suffix'`` cannot be folded
+    to a single string, but its literal fragments are still worth keeping.
+    ``PartialString`` records them as a *normalized* sequence of segments:
+    each segment is either a known ``str`` chunk or the :data:`UNKNOWN`
+    sentinel (a gap).  Normalization guarantees no two adjacent chunks and no
+    two adjacent gaps, and that a partial always contains at least one gap
+    (a fully known concatenation folds back to a plain ``str`` instead).
+    """
+
+    segments: tuple[Union[str, _Unknown], ...]
+
+    @property
+    def known_prefix(self) -> str:
+        """The known leading chunk, or ``""`` when the value starts unknown."""
+        first = self.segments[0] if self.segments else UNKNOWN
+        return first if isinstance(first, str) else ""
+
+    @property
+    def known_suffix(self) -> str:
+        """The known trailing chunk, or ``""`` when the value ends unknown."""
+        last = self.segments[-1] if self.segments else UNKNOWN
+        return last if isinstance(last, str) else ""
+
+    @property
+    def known_fragments(self) -> tuple[str, ...]:
+        """All known chunks, in order (the unknown gaps omitted)."""
+        return tuple(seg for seg in self.segments if isinstance(seg, str))
+
+
+def _normalize_segments(
+    segments: list[Union[str, _Unknown]],
+) -> Union[str, PartialString, _Unknown]:
+    """Collapse a raw segment list into a ``str``, ``PartialString`` or UNKNOWN.
+
+    Adjacent known chunks are merged and adjacent gaps collapsed.  A result
+    with no gaps folds to a plain ``str``; a result with no known chunks is
+    just :data:`UNKNOWN`.
+    """
+    merged: list[Union[str, _Unknown]] = []
+    for seg in segments:
+        if isinstance(seg, str):
+            if seg == "":
+                continue
+            if merged and isinstance(merged[-1], str):
+                merged[-1] = merged[-1] + seg
+                continue
+        elif merged and merged[-1] is UNKNOWN:
+            continue
+        merged.append(seg)
+
+    if not merged:
+        return ""
+    if all(isinstance(seg, str) for seg in merged):
+        return "".join(seg for seg in merged if isinstance(seg, str))
+    if not any(isinstance(seg, str) for seg in merged):
+        return UNKNOWN
+    return PartialString(tuple(merged))
+
+
+def _as_segments(value: "Value") -> list[Union[str, _Unknown]]:
+    """Promote a tracked value to a segment list for concatenation."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, PartialString):
+        return list(value.segments)
+    # Numbers and the UNKNOWN sentinel contribute an opaque gap.
+    return [UNKNOWN]
+
+
+#: A single (possibly partial) value: string, number, or partial string.
+AtomicValue = Union[str, float, PartialString]
+
+#: A tracked value: an atomic value or the UNKNOWN sentinel.
+Value = Union[AtomicValue, _Unknown]
+
+#: Default cap on how many distinct values are tracked per variable before the
+#: index degrades to "unknown" (see :class:`PossibleValues`).
+DEFAULT_MAX_VARIANTS = 8
+
+
+@dataclass(frozen=True)
+class PossibleValues:
+    """The set of values a variable may hold at a program point.
+
+    ``values`` are the concrete (possibly partial) possibilities; ``exhaustive``
+    says whether they enumerate *every* possibility.  When ``exhaustive`` is
+    ``False`` the variable may additionally hold some fully dynamic value that
+    could not be represented — so ``values`` still answers "could it be X?"
+    (∃) but not "is it always one of these?" (∀).
+
+    The fully unknown value (``TOP``) is ``PossibleValues(frozenset(), False)``.
+    """
+
+    values: frozenset  # of AtomicValue; never contains the UNKNOWN sentinel
+    exhaustive: bool
+
+    @property
+    def is_unknown(self) -> bool:
+        """True when nothing at all is known (the top element)."""
+        return not self.values and not self.exhaustive
+
+    def known_scalar(self) -> Optional[Union[str, float]]:
+        """The single, fully known ``str``/``float`` value, or ``None``."""
+        if self.exhaustive and len(self.values) == 1:
+            (only,) = tuple(self.values)
+            if isinstance(only, (str, float)):
+                return only
+        return None
+
+    def single_partial(self) -> Optional[PartialString]:
+        """The sole value when it is a :class:`PartialString`, else ``None``."""
+        if len(self.values) == 1:
+            (only,) = tuple(self.values)
+            if isinstance(only, PartialString):
+                return only
+        return None
+
+    def all_of(self, predicate) -> bool:
+        """True iff every possible value is known and satisfies *predicate* (∀).
+
+        Requires the set to be exhaustive and non-empty; a dynamic possibility
+        (``exhaustive is False``) makes a universal guarantee impossible.
+        """
+        return (
+            self.exhaustive
+            and bool(self.values)
+            and all(predicate(value) for value in self.values)
+        )
+
+    def any_of(self, predicate) -> bool:
+        """True iff at least one known possible value satisfies *predicate* (∃)."""
+        return any(predicate(value) for value in self.values)
+
+
+#: The fully unknown value: could be anything, nothing enumerated.
+TOP = PossibleValues(frozenset(), False)
+
+
+def _single(value: AtomicValue) -> PossibleValues:
+    """A PossibleValues holding exactly one known value."""
+    return PossibleValues(frozenset({value}), True)
+
 
 #: TI execution order of the four sections.
 SECTION_ORDER = ("prolog", "metadata", "data", "epilog")
@@ -76,7 +236,7 @@ SECTION_ORDER = ("prolog", "metadata", "data", "epilog")
 _REPEATING_SECTIONS = frozenset({"metadata", "data"})
 
 #: A value event: the variable holds *value* from (section, line) onward.
-_Event = tuple[int, int, Value]
+_Event = tuple[int, int, PossibleValues]
 
 
 class ConstantPropagationIndex:
@@ -91,18 +251,18 @@ class ConstantPropagationIndex:
         self,
         process: ProcessIR,
         cache: Optional[SectionParseCache] = None,
+        max_variants: int = DEFAULT_MAX_VARIANTS,
     ) -> None:
         self._process = process
         # Shared per-run lex/parse cache; own it when none is supplied (e.g.
         # in tests) so the index still parses each section only once.
         self._cache = cache if cache is not None else SectionParseCache(process)
+        self._max_variants = max_variants
         # name (lower-cased) -> events sorted by (section index, line)
         self._events: Optional[dict[str, list[_Event]]] = None
-        # name (lower-cased) -> value at the current build position
-        self._current: dict[str, Value] = {}
 
-    def value_at(self, name: str, block: str, line: int) -> Optional[Value]:
-        """Return the constant value *name* holds at *line* of *block*.
+    def value_at(self, name: str, block: str, line: int) -> Optional[Union[str, float]]:
+        """Return the fully known constant value *name* holds at *line* of *block*.
 
         Args:
             name: Variable name (case-insensitive).
@@ -112,8 +272,31 @@ class ConstantPropagationIndex:
                 same coordinates rule tokens and AST nodes carry.
 
         Returns:
-            The value (``str`` or ``float``) if it is statically known at
-            that point, or ``None`` when it is unknown or never assigned.
+            The value (``str`` or ``float``) when it is *fully* known at that
+            point, or ``None`` when it is unknown, only partially known, one of
+            several variants, or never assigned.
+        """
+        return self.possible_values_at(name, block, line).known_scalar()
+
+    def partial_value_at(
+        self, name: str, block: str, line: int
+    ) -> Optional[PartialString]:
+        """Return the partially known value of *name* at *line*, or ``None``.
+
+        Only yields a :class:`PartialString` when the value is a single mix of
+        known fragments and dynamic gaps.  Fully known values (use
+        :meth:`value_at`), fully unknown values, and multi-variant values all
+        return ``None``.
+        """
+        return self.possible_values_at(name, block, line).single_partial()
+
+    def possible_values_at(self, name: str, block: str, line: int) -> PossibleValues:
+        """Return the set of values *name* may hold at *line* of *block*.
+
+        Returns the fully unknown value (:data:`TOP`) when the variable is
+        dynamic at that point or was never assigned.  Rules use
+        :meth:`PossibleValues.all_of` (∀) and :meth:`PossibleValues.any_of` (∃)
+        to reason across branch variants.
         """
         if self._events is None:
             self._build()
@@ -121,22 +304,24 @@ class ConstantPropagationIndex:
         try:
             section_idx = SECTION_ORDER.index(block.lower())
         except ValueError:
-            return None
+            return TOP
 
         events = self._events.get(name.lower())
         if not events:
-            return None
+            return TOP
 
         for event_section, event_line, value in reversed(events):
             if (event_section, event_line) <= (section_idx, line):
-                return None if value is UNKNOWN else value
-        return None
+                return value
+        return TOP
 
     # -- build ------------------------------------------------------------
 
     def _build(self) -> None:
         self._events = {}
-        self._current = {}
+        # name (lower-cased) -> PossibleValues at the current build position.
+        # Persists across sections so a Prolog value stays visible in Data.
+        env: dict[str, PossibleValues] = {}
 
         for section_idx, section in enumerate(SECTION_ORDER):
             proc_info = getattr(self._process, section)
@@ -152,111 +337,218 @@ class ConstantPropagationIndex:
                 # Reads before the first write would see the previous
                 # record's value — invalidate every name assigned here.
                 for name in sorted(_assigned_names(ast.statements)):
-                    self._record(name, section_idx, 0, UNKNOWN)
+                    self._record(env, name, section_idx, 0, TOP)
 
-            self._walk_top_level(ast.statements, section_idx)
+            self._interpret(ast.statements, section_idx, env)
 
-    def _walk_top_level(self, statements: list, section_idx: int) -> None:
-        """Walk unconditional statements, folding values as we go."""
+    def _interpret(
+        self, statements: list, section_idx: int, env: dict[str, PossibleValues]
+    ) -> None:
+        """Abstract-interpret straight-line statements, updating *env*."""
         for stmt in statements:
             if isinstance(stmt, Assignment):
                 line = stmt.token.line if stmt.token else 0
                 self._record(
-                    stmt.left.name, section_idx, line, self._evaluate(stmt.right)
+                    env,
+                    stmt.left.name,
+                    section_idx,
+                    line,
+                    self._evaluate(stmt.right, env),
                 )
             elif isinstance(stmt, IfStatement):
-                self._mark_conditional(stmt.then_body, section_idx, None)
-                self._mark_conditional(stmt.else_body, section_idx, None)
+                self._interpret_if(stmt, section_idx, env)
             elif isinstance(stmt, WhileStatement):
-                loop_line = stmt.token.line if stmt.token else None
-                self._mark_conditional(stmt.body, section_idx, loop_line)
+                self._invalidate_loop(stmt, section_idx, env)
             elif isinstance(stmt, UnknownStatement):
                 for name, line in _unknown_statement_assignments(stmt):
-                    self._record(name, section_idx, line, UNKNOWN)
+                    self._record(env, name, section_idx, line, TOP)
 
-    def _mark_conditional(
-        self, statements: list, section_idx: int, loop_line: Optional[int]
+    def _interpret_if(
+        self, stmt: IfStatement, section_idx: int, env: dict[str, PossibleValues]
     ) -> None:
-        """Mark conditionally-executed assignments as UNKNOWN.
+        """Interpret both branches, then join them into the outer *env*.
 
-        Inside a loop (*loop_line* set) the invalidation starts at the loop
-        header, because a later iteration re-executes earlier lines.
+        Each branch runs on its own copy (an empty ``else_body`` means the
+        else path keeps the pre-IF values — fall-through).  ELSEIF is a nested
+        ``IfStatement`` in ``else_body`` and is handled by the recursion.  The
+        joined result is recorded at the construct's end line so it becomes
+        visible only after the whole ``IF``.
         """
-        for stmt in statements:
-            if isinstance(stmt, Assignment):
-                line = loop_line
-                if line is None:
-                    line = stmt.token.line if stmt.token else 0
-                self._record(stmt.left.name, section_idx, line, UNKNOWN)
-            elif isinstance(stmt, IfStatement):
-                self._mark_conditional(stmt.then_body, section_idx, loop_line)
-                self._mark_conditional(stmt.else_body, section_idx, loop_line)
-            elif isinstance(stmt, WhileStatement):
-                inner_line = loop_line
-                if inner_line is None and stmt.token:
-                    inner_line = stmt.token.line
-                self._mark_conditional(stmt.body, section_idx, inner_line)
-            elif isinstance(stmt, UnknownStatement):
-                for name, line in _unknown_statement_assignments(stmt):
-                    self._record(name, section_idx, loop_line or line, UNKNOWN)
+        then_env = dict(env)
+        else_env = dict(env)
+        self._interpret(stmt.then_body, section_idx, then_env)
+        self._interpret(stmt.else_body, section_idx, else_env)
 
-    def _record(self, name: str, section_idx: int, line: int, value: Value) -> None:
+        end_line = _max_line(stmt)
+        assigned = _assigned_names(stmt.then_body) | _assigned_names(stmt.else_body)
+        for key in sorted(assigned):
+            joined = self._join(then_env.get(key, TOP), else_env.get(key, TOP))
+            self._record(env, key, section_idx, end_line, joined)
+
+    def _invalidate_loop(
+        self, stmt: WhileStatement, section_idx: int, env: dict[str, PossibleValues]
+    ) -> None:
+        """Mark every variable assigned in a loop body UNKNOWN from the header.
+
+        The body may run zero or many times and earlier lines re-execute on a
+        later iteration, so no in-loop value can be trusted from the loop on.
+        """
+        loop_line = stmt.token.line if stmt.token else 0
+        for name in sorted(_assigned_names(stmt.body)):
+            self._record(env, name, section_idx, loop_line, TOP)
+
+    def _record(
+        self,
+        env: dict[str, PossibleValues],
+        name: str,
+        section_idx: int,
+        line: int,
+        value: PossibleValues,
+    ) -> None:
         key = name.lower()
         self._events.setdefault(key, []).append((section_idx, line, value))
-        self._current[key] = value
+        env[key] = value
 
-    # -- expression folding ------------------------------------------------
+    def _join(self, a: PossibleValues, b: PossibleValues) -> PossibleValues:
+        """Merge two branch outcomes into their set of possibilities."""
+        values = a.values | b.values
+        if len(values) > self._max_variants:
+            return TOP
+        return PossibleValues(values, a.exhaustive and b.exhaustive)
 
-    def _evaluate(self, expr: Expression) -> Value:
-        """Fold *expr* to a constant, or UNKNOWN when anything is dynamic."""
+    # -- expression evaluation --------------------------------------------
+
+    def _evaluate(
+        self, expr: Expression, env: dict[str, PossibleValues]
+    ) -> PossibleValues:
+        """Evaluate *expr* to the set of values it may produce."""
         if isinstance(expr, Number):
             try:
-                return float(expr.value)
+                return _single(float(expr.value))
             except (TypeError, ValueError):
-                return UNKNOWN
+                return TOP
         if isinstance(expr, String):
-            return expr.value
+            return _single(expr.value)
         if isinstance(expr, Identifier):
-            return self._current.get(expr.name.lower(), UNKNOWN)
+            return env.get(expr.name.lower(), TOP)
         if isinstance(expr, UnaryExpression):
-            return self._evaluate_unary(expr)
+            return self._evaluate_unary(expr, env)
         if isinstance(expr, BinaryExpression):
-            return self._evaluate_binary(expr)
+            return self._evaluate_binary(expr, env)
         # FunctionCall and anything unexpected: dynamic.
-        return UNKNOWN
+        return TOP
 
-    def _evaluate_unary(self, expr: UnaryExpression) -> Value:
-        operand = self._evaluate(expr.operand)
-        if isinstance(operand, float):
-            if expr.operator.type is TokenType.MINUS:
-                return -operand
-            if expr.operator.type is TokenType.PLUS:
-                return operand
-        return UNKNOWN
+    def _evaluate_unary(
+        self, expr: UnaryExpression, env: dict[str, PossibleValues]
+    ) -> PossibleValues:
+        operand = self._evaluate(expr.operand, env)
+        results: set = set()
+        saw_unknown = False
+        for atom in _atoms(operand):
+            value = _apply_unary(expr.operator.type, atom)
+            if value is UNKNOWN:
+                saw_unknown = True
+            else:
+                results.add(value)
+        return self._collect(results, saw_unknown)
 
-    def _evaluate_binary(self, expr: BinaryExpression) -> Value:
-        left = self._evaluate(expr.left)
-        right = self._evaluate(expr.right)
-        if left is UNKNOWN or right is UNKNOWN:
-            return UNKNOWN
-
+    def _evaluate_binary(
+        self, expr: BinaryExpression, env: dict[str, PossibleValues]
+    ) -> PossibleValues:
+        left = self._evaluate(expr.left, env)
+        right = self._evaluate(expr.right, env)
         op = expr.operator.type
-        if isinstance(left, str) and isinstance(right, str):
-            if op is TokenType.PIPE:
-                return left + right
-            return UNKNOWN
 
-        if isinstance(left, float) and isinstance(right, float):
-            if op is TokenType.PLUS:
-                return left + right
-            if op is TokenType.MINUS:
-                return left - right
-            if op is TokenType.STAR:
-                return left * right
-            if op is TokenType.SLASH:
-                return UNKNOWN if right == 0 else left / right
+        results: set = set()
+        saw_unknown = False
+        for a in _atoms(left):
+            for b in _atoms(right):
+                value = _apply_binary(op, a, b)
+                if value is UNKNOWN:
+                    saw_unknown = True
+                else:
+                    results.add(value)
+        return self._collect(results, saw_unknown)
 
-        return UNKNOWN
+    def _collect(self, results: set, saw_unknown: bool) -> PossibleValues:
+        """Build a PossibleValues from folded results, honouring the cap.
+
+        *saw_unknown* records that some operand combination was fully dynamic
+        (and thus could not be represented); the result is then non-exhaustive.
+        Too many distinct results degrade to the fully unknown value.
+        """
+        if not results:
+            return TOP
+        if len(results) > self._max_variants:
+            return TOP
+        return PossibleValues(frozenset(results), not saw_unknown)
+
+
+def _atoms(pv: PossibleValues) -> list:
+    """The concrete atoms of *pv*, plus an UNKNOWN gap when non-exhaustive.
+
+    The extra UNKNOWN stands in for the "some dynamic value" possibility a
+    non-exhaustive set carries, so folding preserves it (e.g. a known suffix
+    survives ``anything | '_x'``).
+    """
+    atoms = list(pv.values)
+    if not pv.exhaustive:
+        atoms.append(UNKNOWN)
+    return atoms
+
+
+def _apply_unary(op_type: TokenType, atom: Value) -> Value:
+    """Apply a unary operator to one atom, or UNKNOWN when not foldable."""
+    if isinstance(atom, float):
+        if op_type is TokenType.MINUS:
+            return -atom
+        if op_type is TokenType.PLUS:
+            return atom
+    return UNKNOWN
+
+
+def _apply_binary(op_type: TokenType, a: Value, b: Value) -> Value:
+    """Apply a binary operator to two atoms, or UNKNOWN when not foldable."""
+    if op_type is TokenType.PIPE:
+        # Concatenation keeps known fragments even when a side is dynamic;
+        # a fully known concatenation folds back to a plain string.
+        return _normalize_segments(_as_segments(a) + _as_segments(b))
+    if isinstance(a, float) and isinstance(b, float):
+        if op_type is TokenType.PLUS:
+            return a + b
+        if op_type is TokenType.MINUS:
+            return a - b
+        if op_type is TokenType.STAR:
+            return a * b
+        if op_type is TokenType.SLASH:
+            return UNKNOWN if b == 0 else a / b
+    return UNKNOWN
+
+
+def _max_line(node: ASTNode) -> int:
+    """The greatest source line touched by *node* and its descendants.
+
+    The AST does not record the ``ENDIF`` line, so this approximates "after the
+    IF" for placing a joined branch event.
+    """
+    lines: list[int] = []
+    tok = get_node_token(node)
+    if tok is not None:
+        lines.append(tok.line)
+    operator = getattr(node, "operator", None)
+    if operator is not None and hasattr(operator, "line"):
+        lines.append(operator.line)
+    for tok in getattr(node, "tokens", None) or []:
+        lines.append(tok.line)
+    for attr in ("condition", "left", "right", "operand"):
+        child = getattr(node, attr, None)
+        if isinstance(child, ASTNode):
+            lines.append(_max_line(child))
+    for attr in ("then_body", "else_body", "body", "args"):
+        for child in getattr(node, attr, None) or []:
+            if isinstance(child, ASTNode):
+                lines.append(_max_line(child))
+    return max(lines, default=0)
 
 
 def _assigned_names(statements: list) -> set[str]:

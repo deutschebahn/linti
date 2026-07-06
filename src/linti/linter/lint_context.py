@@ -4,7 +4,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional, Union
 
 if TYPE_CHECKING:
-    from linti.linter.constant_propagation import ConstantPropagationIndex
+    from linti.linter.constant_propagation import (
+        ConstantPropagationIndex,
+        PartialString,
+        PossibleValues,
+    )
 
 
 @dataclass
@@ -57,6 +61,35 @@ class LintContext:
         if self.constants is None or self.block is None:
             return None
         return self.constants.value_at(name, self.block, line)
+
+    def partial_value(self, name: str, line: int) -> Optional["PartialString"]:
+        """Return the partially known value of *name* at *line*, or ``None``.
+
+        Yields a :class:`~linti.linter.constant_propagation.PartialString` only
+        when *name* holds a mix of known fragments and dynamic gaps (e.g.
+        ``sName = 'prefix_' | pDyn;``).  Fully known values (use
+        :meth:`constant_value`), fully unknown values, and contexts without a
+        constant propagation index all return ``None``.
+        """
+        if self.constants is None or self.block is None:
+            return None
+        return self.constants.partial_value_at(name, self.block, line)
+
+    def possible_values(self, name: str, line: int) -> "PossibleValues":
+        """Return the set of values *name* may hold at *line*.
+
+        Rules use
+        :meth:`~linti.linter.constant_propagation.PossibleValues.all_of` (∀,
+        every branch variant satisfies a predicate) and
+        :meth:`~linti.linter.constant_propagation.PossibleValues.any_of` (∃, at
+        least one variant does).  Returns the fully unknown value when *name* is
+        dynamic, never assigned, or no constant propagation index is available.
+        """
+        from linti.linter.constant_propagation import TOP
+
+        if self.constants is None or self.block is None:
+            return TOP
+        return self.constants.possible_values_at(name, self.block, line)
 
     def in_control_block(self) -> bool:
         """
