@@ -96,6 +96,16 @@ class LintContext:
             return TOP
         return self.constants.possible_values_at(name, self.block, line)
 
+    def is_constant_assigned(self, name: str, line: int) -> bool:
+        """True if *name* is assigned at or before *line* (value may be dynamic).
+
+        Lets a rule tell "never written" apart from "written but not statically
+        known" — e.g. whether ``DatasourceQuery`` was overridden in the Prolog.
+        """
+        if self.constants is None or self.block is None:
+            return False
+        return self.constants.is_assigned(name, self.block, line)
+
     def in_control_block(self) -> bool:
         """
         Check if currently inside a control flow block (IF/ELSE).

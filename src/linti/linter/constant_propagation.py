@@ -315,6 +315,30 @@ class ConstantPropagationIndex:
                 return value
         return TOP
 
+    def is_assigned(self, name: str, block: str, line: int) -> bool:
+        """True if *name* is assigned at or before *line* of *block*.
+
+        Distinguishes a variable that was written but holds a dynamic value
+        (``is_assigned`` True, :meth:`value_at` ``None``) from one that was
+        never written at all.
+        """
+        if self._events is None:
+            self._build()
+
+        try:
+            section_idx = SECTION_ORDER.index(block.lower())
+        except ValueError:
+            return False
+
+        events = self._events.get(name.lower())
+        if not events:
+            return False
+
+        return any(
+            (event_section, event_line) <= (section_idx, line)
+            for event_section, event_line, _ in events
+        )
+
     # -- build ------------------------------------------------------------
 
     def _build(self) -> None:

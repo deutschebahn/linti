@@ -11,13 +11,17 @@ def _lint(
     block: str = "data",
     datasource_type: str = "ODBC",
     datasource_query: str = "SELECT amount, region FROM sales",
+    prolog: str = None,
 ):
     linter = Linter(statement_rules=[SqlWhereFilteringRule()])
+    sections = {block: ProcedureInfo(code=code)}
+    if prolog is not None:
+        sections["prolog"] = ProcedureInfo(code=prolog)
     process = ProcessIR(
         name="test_process",
         datasource_type=datasource_type,
         datasource_query=datasource_query,
-        **{block: ProcedureInfo(code=code)},
+        **sections,
     )
     return [issue for _, issue, _ in lint_process_model(process, linter)]
 
@@ -142,3 +146,58 @@ def test_missing_query_is_ignored():
 def test_no_writes_and_no_itemskip_is_ignored():
     code = "nTotal = nTotal + vAmount;"
     assert _lint(code) == []
+
+
+# --- Prolog overrides of DatasourceQuery / DatasourceType ---
+
+
+def test_prolog_query_override_with_where_suppresses():
+    # Metadata query has no WHERE, but the Prolog override adds one.
+    issues = _lint(
+        "ItemSkip();",
+        prolog="DatasourceQuery = 'SELECT amount FROM sales WHERE region = 1';",
+    )
+    assert issues == []
+
+
+def test_prolog_query_override_without_where_is_used_over_metadata():
+    # Metadata query HAS a WHERE, but the Prolog override removes it — the
+    # override wins, so the pattern is flagged.
+    issues = _lint(
+        "ItemSkip();",
+        datasource_query="SELECT amount FROM sales WHERE region = 1",
+        prolog="DatasourceQuery = 'SELECT amount FROM sales';",
+    )
+    assert len(issues) == 1
+    assert "ItemSkip()" in issues[0].message
+
+
+def test_prolog_type_override_to_non_odbc_suppresses():
+    issues = _lint("ItemSkip();", prolog="DatasourceType = 'ASCII';")
+    assert issues == []
+
+
+def test_prolog_type_override_to_odbc_enables():
+    # Metadata type is not ODBC, but the Prolog sets it to ODBC.
+    issues = _lint(
+        "ItemSkip();",
+        datasource_type="None",
+        prolog="DatasourceType = 'ODBC';",
+    )
+    assert len(issues) == 1
+
+
+def test_dynamic_query_override_is_not_flagged():
+    # Overridden to a value that cannot be read statically: stay silent rather
+    # than trust the stale metadata query.
+    issues = _lint("ItemSkip();", prolog="DatasourceQuery = GetProcessName();")
+    assert issues == []
+
+
+def test_partial_query_override_is_not_flagged():
+    # A partially known query (dynamic tail) can't be proven WHERE-free.
+    issues = _lint(
+        "ItemSkip();",
+        prolog="DatasourceQuery = 'SELECT amount FROM sales ' | pFilter;",
+    )
+    assert issues == []

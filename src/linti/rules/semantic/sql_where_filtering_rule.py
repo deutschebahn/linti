@@ -7,6 +7,12 @@ into a SQL ``WHERE`` clause is both faster and clearer.
 
 This rule fires only for ODBC data sources whose query has no ``WHERE`` clause,
 and only in the record-processing blocks (Metadata, Data).
+
+``DatasourceType`` and ``DatasourceQuery`` can be reassigned in the Prolog (they
+are TI predefined variables); the runtime value wins over the process metadata.
+The rule reads the override through the constant propagation index and, when the
+override cannot be resolved statically, stays silent rather than trusting the
+now-stale metadata.
 """
 
 import re
@@ -35,10 +41,31 @@ _WHERE_RE = re.compile(r"\bwhere\b", re.IGNORECASE)
 #: Expression attributes to descend into when collecting function calls.
 _EXPR_CHILD_ATTRS = ("left", "right", "operand", "condition")
 
+#: The datasource was overridden in the script to a value we cannot read
+#: statically — so nothing can be proven and the rule must stay silent.
+_DYNAMIC = object()
+
 
 def _has_where(query: str) -> bool:
     """True when *query* contains a SQL ``WHERE`` keyword."""
     return _WHERE_RE.search(query) is not None
+
+
+def _resolve_override(context: LintContext, name: str, metadata_value):
+    """Resolve a datasource setting, honouring a Prolog override.
+
+    Returns the statically known override value when the script reassigns
+    *name* (a TI predefined variable such as ``DatasourceQuery``), the
+    *metadata_value* when it is never reassigned, or :data:`_DYNAMIC` when it is
+    reassigned to a value that cannot be read statically (so the caller must not
+    fall back to the — now stale — metadata value).
+    """
+    # Query at line 0: the value entering the block, i.e. after the Prolog runs
+    # but before any reassignment inside Metadata/Data itself.
+    if not context.is_constant_assigned(name, 0):
+        return metadata_value
+    scalar = context.possible_values(name, 0).known_scalar()
+    return scalar if isinstance(scalar, str) else _DYNAMIC
 
 
 def _iter_calls(node):
@@ -114,6 +141,8 @@ class SqlWhereFilteringRule(BaseStatementRule):
             "by an IF, so no unconditional write ever happens.\n\n"
             "Move the filter into a SQL WHERE clause so the database returns only "
             "the rows the process needs.\n\n"
+            "A DatasourceType/DatasourceQuery reassignment in the Prolog "
+            "overrides the process metadata and is used instead.\n\n"
             "Inspired by the Bedrock TM1 best practices "
             "(https://github.com/cubewise-code/bedrock)."
         ),
@@ -160,10 +189,14 @@ class SqlWhereFilteringRule(BaseStatementRule):
     def visit(self, statement, context: LintContext):
         if context.block not in ("metadata", "data"):
             return []
-        if (context.datasource_type or "").lower() != "odbc":
+
+        # DatasourceType/DatasourceQuery can be overridden in the Prolog; the
+        # runtime value wins over the process metadata.
+        ds_type = _resolve_override(context, "DatasourceType", context.datasource_type)
+        if ds_type is _DYNAMIC or (ds_type or "").lower() != "odbc":
             return []
-        query = context.datasource_query
-        if not query or _has_where(query):
+        query = _resolve_override(context, "DatasourceQuery", context.datasource_query)
+        if query is _DYNAMIC or not query or _has_where(query):
             return []
 
         acc = _Scan()

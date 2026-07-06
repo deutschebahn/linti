@@ -813,6 +813,8 @@ When an ODBC data source returns all rows and the filtering happens only in the 
 
 Move the filter into a SQL WHERE clause so the database returns only the rows the process needs.
 
+A DatasourceType/DatasourceQuery reassignment in the Prolog overrides the process metadata and is used instead.
+
 Inspired by the Bedrock TM1 best practices (https://github.com/cubewise-code/bedrock).
 
 **Configuration:**
