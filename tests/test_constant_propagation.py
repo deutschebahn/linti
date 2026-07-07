@@ -140,24 +140,20 @@ def test_variable_is_unassigned_before_its_first_write():
 # -- partial string values ----------------------------------------------------
 
 
-def test_partial_string_keeps_known_prefix():
+def test_partial_string_keeps_known_fragment():
     index = ConstantPropagationIndex(_process(prolog="sName = 'prefix_' | pDyn;"))
     pv = index.possible_values_at("sName", "prolog", 2)
     # Not fully known -> exact stays None.
     assert pv.exact is None
     partial = pv.partial
     assert isinstance(partial, PartialString)
-    assert partial.known_prefix == "prefix_"
-    assert partial.known_suffix == ""
     assert partial.known_fragments == ("prefix_",)
 
 
-def test_partial_string_keeps_prefix_and_suffix():
+def test_partial_string_keeps_fragments_on_both_sides_of_a_gap():
     index = ConstantPropagationIndex(_process(prolog="sName = 'a_' | pDyn | '_z';"))
     partial = index.possible_values_at("sName", "prolog", 2).partial
     assert isinstance(partial, PartialString)
-    assert partial.known_prefix == "a_"
-    assert partial.known_suffix == "_z"
     assert partial.known_fragments == ("a_", "_z")
 
 
@@ -166,8 +162,7 @@ def test_partial_string_composes_through_further_concatenation():
     index = ConstantPropagationIndex(_process(prolog=code))
     partial = index.possible_values_at("sFull", "prolog", 3).partial
     assert isinstance(partial, PartialString)
-    assert partial.known_prefix == "x_"
-    assert partial.known_suffix == "_y"
+    assert partial.known_fragments == ("x_", "_y")
 
 
 def test_fully_known_concatenation_is_not_partial():
@@ -192,7 +187,7 @@ def test_partial_value_visible_across_sections():
     )
     partial = index.possible_values_at("sName", "epilog", 1).partial
     assert isinstance(partial, PartialString)
-    assert partial.known_prefix == "p_"
+    assert partial.known_fragments == ("p_",)
 
 
 # -- conditional and loop invalidation ----------------------------------------

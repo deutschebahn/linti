@@ -110,18 +110,6 @@ class PartialString:
     segments: tuple[Union[str, _Unknown], ...]
 
     @property
-    def known_prefix(self) -> str:
-        """The known leading chunk, or ``""`` when the value starts unknown."""
-        first = self.segments[0] if self.segments else UNKNOWN
-        return first if isinstance(first, str) else ""
-
-    @property
-    def known_suffix(self) -> str:
-        """The known trailing chunk, or ``""`` when the value ends unknown."""
-        last = self.segments[-1] if self.segments else UNKNOWN
-        return last if isinstance(last, str) else ""
-
-    @property
     def known_fragments(self) -> tuple[str, ...]:
         """All known chunks, in order (the unknown gaps omitted)."""
         return tuple(seg for seg in self.segments if isinstance(seg, str))
