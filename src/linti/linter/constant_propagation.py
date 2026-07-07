@@ -115,7 +115,7 @@ class PartialString:
         return tuple(seg for seg in self.segments if isinstance(seg, str))
 
 
-def _normalize_segments(
+def _normalize_string_segments(
     segments: list[Union[str, _Unknown]],
 ) -> Union[str, PartialString, _Unknown]:
     """Smart constructor for a ``|`` concatenation's result.
@@ -521,7 +521,7 @@ class ConstantPropagationIndex:
         results: set = set()
         saw_unknown = False
         for atom in _atoms(operand):
-            value = _apply_unary(expr.operator.type, atom)
+            value = _apply_unary_operator(expr.operator.type, atom)
             if value is UNKNOWN:
                 saw_unknown = True
             else:
@@ -539,7 +539,7 @@ class ConstantPropagationIndex:
         saw_unknown = False
         for a in _atoms(left):
             for b in _atoms(right):
-                value = _apply_binary(op, a, b)
+                value = _apply_binary_operator(op, a, b)
                 if value is UNKNOWN:
                     saw_unknown = True
                 else:
@@ -573,7 +573,7 @@ def _atoms(pv: PossibleValues) -> list:
     return atoms
 
 
-def _apply_unary(op_type: TokenType, atom: Value) -> Value:
+def _apply_unary_operator(op_type: TokenType, atom: Value) -> Value:
     """Apply a unary operator to one atom, or UNKNOWN when not foldable."""
     if isinstance(atom, float):
         if op_type is TokenType.MINUS:
@@ -583,12 +583,12 @@ def _apply_unary(op_type: TokenType, atom: Value) -> Value:
     return UNKNOWN
 
 
-def _apply_binary(op_type: TokenType, a: Value, b: Value) -> Value:
+def _apply_binary_operator(op_type: TokenType, a: Value, b: Value) -> Value:
     """Apply a binary operator to two atoms, or UNKNOWN when not foldable."""
     if op_type is TokenType.PIPE:
         # Concatenation keeps known fragments even when a side is dynamic;
         # a fully known concatenation folds back to a plain string.
-        return _normalize_segments(_as_segments(a) + _as_segments(b))
+        return _normalize_string_segments(_as_segments(a) + _as_segments(b))
     if isinstance(a, float) and isinstance(b, float):
         if op_type is TokenType.PLUS:
             return a + b
