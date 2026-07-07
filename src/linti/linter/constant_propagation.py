@@ -118,11 +118,14 @@ class PartialString:
 def _normalize_segments(
     segments: list[Union[str, _Unknown]],
 ) -> Union[str, PartialString, _Unknown]:
-    """Collapse a raw segment list into a ``str``, ``PartialString`` or UNKNOWN.
+    """Smart constructor for a ``|`` concatenation's result.
 
-    Adjacent known chunks are merged and adjacent gaps collapsed.  A result
-    with no gaps folds to a plain ``str``; a result with no known chunks is
-    just :data:`UNKNOWN`.
+    *segments* is the two operands' segments concatenated back to back, so
+    the boundary between them can leave two known chunks or two gaps sitting
+    next to each other; this merges each such pair into one.  It then decides
+    what the merged segments represent: a plain ``str`` when fully known, a
+    :class:`PartialString` when a mix, or :data:`UNKNOWN` when nothing
+    survived.
     """
     merged: list[Union[str, _Unknown]] = []
     for seg in segments:
