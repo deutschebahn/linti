@@ -27,57 +27,62 @@ def _process(prolog=None, metadata=None, data=None, epilog=None, **kwargs):
     )
 
 
+def _exact(index, name, block, line):
+    """Shorthand: the single fully known value at a point, or None."""
+    return index.possible_values_at(name, block, line).exact
+
+
 # -- literals and folding ---------------------------------------------------
 
 
 def test_string_literal_is_tracked():
     index = ConstantPropagationIndex(_process(prolog="sDim = 'Region';"))
-    assert index.value_at("sDim", "prolog", 2) == "Region"
+    assert _exact(index, "sDim", "prolog", 2) == "Region"
 
 
 def test_number_literal_is_tracked():
     index = ConstantPropagationIndex(_process(prolog="nMax = 12;"))
-    assert index.value_at("nMax", "prolog", 2) == 12.0
+    assert _exact(index, "nMax", "prolog", 2) == 12.0
 
 
 def test_value_is_not_visible_before_assignment():
     index = ConstantPropagationIndex(_process(prolog="x = 1;\nsDim = 'Region';"))
-    assert index.value_at("sDim", "prolog", 1) is None
+    assert _exact(index, "sDim", "prolog", 1) is None
 
 
 def test_arithmetic_folding():
     index = ConstantPropagationIndex(
         _process(prolog="nA = 2;\nnB = 3;\nnC = nA * nB + 1;")
     )
-    assert index.value_at("nC", "prolog", 4) == 7.0
+    assert _exact(index, "nC", "prolog", 4) == 7.0
 
 
 def test_string_concatenation_folding():
     index = ConstantPropagationIndex(
         _process(prolog="sDim = 'Region';\nsFull = sDim | ':' | 'Default';")
     )
-    assert index.value_at("sFull", "prolog", 3) == "Region:Default"
+    assert _exact(index, "sFull", "prolog", 3) == "Region:Default"
 
 
 def test_unary_minus_folding():
     index = ConstantPropagationIndex(_process(prolog="nNeg = -5;"))
-    assert index.value_at("nNeg", "prolog", 2) == -5.0
+    assert _exact(index, "nNeg", "prolog", 2) == -5.0
 
 
 def test_division_by_zero_is_unknown():
     index = ConstantPropagationIndex(_process(prolog="nX = 1 / 0;"))
-    assert index.value_at("nX", "prolog", 2) is None
+    assert _exact(index, "nX", "prolog", 2) is None
 
 
 def test_reassignment_updates_value():
     index = ConstantPropagationIndex(_process(prolog="x = 1;\nx = 2;"))
-    assert index.value_at("x", "prolog", 1) == 1.0
-    assert index.value_at("x", "prolog", 3) == 2.0
+    assert _exact(index, "x", "prolog", 1) == 1.0
+    assert _exact(index, "x", "prolog", 3) == 2.0
 
 
 def test_lookup_is_case_insensitive():
     index = ConstantPropagationIndex(_process(prolog="sDim = 'Region';"))
-    assert index.value_at("SDIM", "prolog", 2) == "Region"
+    assert _exact(index, "SDIM", "prolog", 2) == "Region"
 
 
 # -- dynamic values stay unknown ---------------------------------------------
@@ -85,27 +90,51 @@ def test_lookup_is_case_insensitive():
 
 def test_function_call_is_unknown():
     index = ConstantPropagationIndex(_process(prolog="sDim = CellGetS('c', 'x');"))
-    assert index.value_at("sDim", "prolog", 2) is None
+    assert _exact(index, "sDim", "prolog", 2) is None
 
 
 def test_expression_over_unknown_is_unknown():
     index = ConstantPropagationIndex(
         _process(prolog="sDyn = TimSt(Now, '\\Y');\nsFull = sDyn | ':x';")
     )
-    assert index.value_at("sFull", "prolog", 3) is None
+    assert _exact(index, "sFull", "prolog", 3) is None
 
 
 def test_parameter_is_unknown():
     index = ConstantPropagationIndex(
         _process(prolog="sCopy = pDim;", parameters=["pDim"])
     )
-    assert index.value_at("pDim", "prolog", 1) is None
-    assert index.value_at("sCopy", "prolog", 2) is None
+    assert _exact(index, "pDim", "prolog", 1) is None
+    assert _exact(index, "sCopy", "prolog", 2) is None
 
 
 def test_never_assigned_variable_is_unknown():
     index = ConstantPropagationIndex(_process(prolog="x = 1;"))
-    assert index.value_at("sNope", "prolog", 5) is None
+    assert _exact(index, "sNope", "prolog", 5) is None
+
+
+# -- assigned cascade level -----------------------------------------------------
+
+
+def test_never_assigned_variable_reports_unassigned():
+    index = ConstantPropagationIndex(_process(prolog="x = 1;"))
+    pv = index.possible_values_at("sNope", "prolog", 5)
+    assert not pv.assigned
+    assert pv.is_unknown
+
+
+def test_dynamic_assignment_reports_assigned_but_unknown():
+    index = ConstantPropagationIndex(_process(prolog="sDim = CellGetS('c', 'x');"))
+    pv = index.possible_values_at("sDim", "prolog", 2)
+    assert pv.assigned
+    assert pv.is_unknown
+    assert pv.exact is None
+
+
+def test_variable_is_unassigned_before_its_first_write():
+    index = ConstantPropagationIndex(_process(prolog="x = 1;\nsDim = 'Region';"))
+    assert not index.possible_values_at("sDim", "prolog", 1).assigned
+    assert index.possible_values_at("sDim", "prolog", 3).assigned
 
 
 # -- partial string values ----------------------------------------------------
@@ -113,9 +142,10 @@ def test_never_assigned_variable_is_unknown():
 
 def test_partial_string_keeps_known_prefix():
     index = ConstantPropagationIndex(_process(prolog="sName = 'prefix_' | pDyn;"))
-    # Not fully known -> value_at stays None.
-    assert index.value_at("sName", "prolog", 2) is None
-    partial = index.partial_value_at("sName", "prolog", 2)
+    pv = index.possible_values_at("sName", "prolog", 2)
+    # Not fully known -> exact stays None.
+    assert pv.exact is None
+    partial = pv.partial
     assert isinstance(partial, PartialString)
     assert partial.known_prefix == "prefix_"
     assert partial.known_suffix == ""
@@ -124,7 +154,7 @@ def test_partial_string_keeps_known_prefix():
 
 def test_partial_string_keeps_prefix_and_suffix():
     index = ConstantPropagationIndex(_process(prolog="sName = 'a_' | pDyn | '_z';"))
-    partial = index.partial_value_at("sName", "prolog", 2)
+    partial = index.possible_values_at("sName", "prolog", 2).partial
     assert isinstance(partial, PartialString)
     assert partial.known_prefix == "a_"
     assert partial.known_suffix == "_z"
@@ -134,7 +164,7 @@ def test_partial_string_keeps_prefix_and_suffix():
 def test_partial_string_composes_through_further_concatenation():
     code = "sMid = 'x_' | pDyn;\nsFull = sMid | '_y';"
     index = ConstantPropagationIndex(_process(prolog=code))
-    partial = index.partial_value_at("sFull", "prolog", 3)
+    partial = index.possible_values_at("sFull", "prolog", 3).partial
     assert isinstance(partial, PartialString)
     assert partial.known_prefix == "x_"
     assert partial.known_suffix == "_y"
@@ -142,23 +172,25 @@ def test_partial_string_composes_through_further_concatenation():
 
 def test_fully_known_concatenation_is_not_partial():
     index = ConstantPropagationIndex(_process(prolog="sFull = 'a' | 'b' | 'c';"))
-    assert index.value_at("sFull", "prolog", 2) == "abc"
-    assert index.partial_value_at("sFull", "prolog", 2) is None
+    pv = index.possible_values_at("sFull", "prolog", 2)
+    assert pv.exact == "abc"
+    assert pv.partial is None
 
 
 def test_fully_unknown_concatenation_is_not_partial():
     index = ConstantPropagationIndex(
         _process(prolog="sFull = CellGetS('c', 'x') | pDyn;")
     )
-    assert index.value_at("sFull", "prolog", 2) is None
-    assert index.partial_value_at("sFull", "prolog", 2) is None
+    pv = index.possible_values_at("sFull", "prolog", 2)
+    assert pv.exact is None
+    assert pv.partial is None
 
 
 def test_partial_value_visible_across_sections():
     index = ConstantPropagationIndex(
         _process(prolog="sName = 'p_' | pDyn;", epilog="x = 1;")
     )
-    partial = index.partial_value_at("sName", "epilog", 1)
+    partial = index.possible_values_at("sName", "epilog", 1).partial
     assert isinstance(partial, PartialString)
     assert partial.known_prefix == "p_"
 
@@ -170,29 +202,29 @@ def test_assignment_in_if_branch_is_unknown_after():
     code = "sDim = 'Region';\nIF(pFlag = 1);\n  sDim = 'Other';\nENDIF;"
     index = ConstantPropagationIndex(_process(prolog=code))
     # Known before the branch assignment, unknown after it.
-    assert index.value_at("sDim", "prolog", 2) == "Region"
-    assert index.value_at("sDim", "prolog", 5) is None
+    assert _exact(index, "sDim", "prolog", 2) == "Region"
+    assert _exact(index, "sDim", "prolog", 5) is None
 
 
 def test_assignment_in_while_is_unknown_from_loop_start():
     code = "n = 1;\nWHILE(n < 5);\n  n = n + 1;\nEND;"
     index = ConstantPropagationIndex(_process(prolog=code))
-    assert index.value_at("n", "prolog", 1) == 1.0
+    assert _exact(index, "n", "prolog", 1) == 1.0
     # Inside the loop, earlier lines re-execute: unknown from the WHILE on.
-    assert index.value_at("n", "prolog", 2) is None
-    assert index.value_at("n", "prolog", 5) is None
+    assert _exact(index, "n", "prolog", 2) is None
+    assert _exact(index, "n", "prolog", 5) is None
 
 
 def test_assignment_in_nested_if_inside_while_is_unknown_from_loop_start():
     code = "x = 1;\nWHILE(n < 5);\n  IF(y = 1);\n    x = 2;\n  ENDIF;\nEND;"
     index = ConstantPropagationIndex(_process(prolog=code))
-    assert index.value_at("x", "prolog", 3) is None
+    assert _exact(index, "x", "prolog", 3) is None
 
 
 def test_variable_untouched_by_loop_stays_known():
     code = "sDim = 'Region';\nWHILE(n < 5);\n  n = n + 1;\nEND;"
     index = ConstantPropagationIndex(_process(prolog=code))
-    assert index.value_at("sDim", "prolog", 5) == "Region"
+    assert _exact(index, "sDim", "prolog", 5) == "Region"
 
 
 # -- cross-section tracking ----------------------------------------------------
@@ -202,36 +234,36 @@ def test_prolog_value_is_visible_in_data_and_epilog():
     index = ConstantPropagationIndex(
         _process(prolog="sDim = 'Region:Default';", data="x = 1;", epilog="y = 2;")
     )
-    assert index.value_at("sDim", "data", 1) == "Region:Default"
-    assert index.value_at("sDim", "epilog", 1) == "Region:Default"
+    assert _exact(index, "sDim", "data", 1) == "Region:Default"
+    assert _exact(index, "sDim", "epilog", 1) == "Region:Default"
 
 
 def test_later_section_value_is_not_visible_earlier():
     index = ConstantPropagationIndex(_process(prolog="x = 1;", epilog="sX = 'e';"))
-    assert index.value_at("sX", "prolog", 99) is None
-    assert index.value_at("sX", "epilog", 2) == "e"
+    assert _exact(index, "sX", "prolog", 99) is None
+    assert _exact(index, "sX", "epilog", 2) == "e"
 
 
 def test_read_before_write_in_data_section_is_unknown():
     # Data runs once per record: at the top of the section the variable
     # still holds the previous record's value, so it must not be trusted.
     index = ConstantPropagationIndex(_process(prolog="x = 1;", data="y = x;\nx = 2;"))
-    assert index.value_at("x", "data", 1) is None
+    assert _exact(index, "x", "data", 1) is None
     # After the in-section assignment it is known again (same every record).
-    assert index.value_at("x", "data", 3) == 2.0
+    assert _exact(index, "x", "data", 3) == 2.0
 
 
 def test_self_increment_in_data_section_is_unknown():
     index = ConstantPropagationIndex(_process(prolog="n = 0;", data="n = n + 1;"))
-    assert index.value_at("n", "data", 2) is None
-    assert index.value_at("n", "epilog", 1) is None
+    assert _exact(index, "n", "data", 2) is None
+    assert _exact(index, "n", "epilog", 1) is None
 
 
 def test_prolog_value_survives_data_section_that_does_not_assign_it():
     index = ConstantPropagationIndex(
         _process(prolog="sDim = 'Region';", data="nOther = 1;")
     )
-    assert index.value_at("sDim", "data", 99) == "Region"
+    assert _exact(index, "sDim", "data", 99) == "Region"
 
 
 # -- branch variants (if/elseif/else joins, forall/exists) --------------------
@@ -244,8 +276,8 @@ def test_if_else_tracks_both_variants():
     assert isinstance(pv, PossibleValues)
     assert pv.values == frozenset({"Region", "Product"})
     assert pv.exhaustive
-    # Not a single scalar -> value_at stays None.
-    assert index.value_at("sDim", "prolog", 6) is None
+    # Not a single scalar -> exact stays None.
+    assert pv.exact is None
 
 
 def test_all_of_and_any_of_over_variants():
@@ -259,6 +291,16 @@ def test_all_of_and_any_of_over_variants():
     assert not pv.any_of(lambda v: v == "Other")
 
 
+def test_all_of_and_any_of_cover_the_single_value_case():
+    """The cascade: a rule reasoning over all values also gets the exact case."""
+    index = ConstantPropagationIndex(_process(prolog="sDim = 'Region';"))
+    pv = index.possible_values_at("sDim", "prolog", 2)
+    assert pv.exact == "Region"
+    assert pv.values == frozenset({"Region"})
+    assert pv.all_of(lambda v: v == "Region")
+    assert pv.any_of(lambda v: v == "Region")
+
+
 def test_no_else_keeps_pre_value_as_variant():
     code = "sDim = 'Default';\nIF(pFlag = 1);\n  sDim = 'Region';\nENDIF;"
     index = ConstantPropagationIndex(_process(prolog=code))
@@ -266,7 +308,7 @@ def test_no_else_keeps_pre_value_as_variant():
     assert pv.values == frozenset({"Default", "Region"})
     assert pv.exhaustive
     # Before the IF the pre-value is still the single known value.
-    assert index.value_at("sDim", "prolog", 1) == "Default"
+    assert _exact(index, "sDim", "prolog", 1) == "Default"
 
 
 def test_dynamic_branch_keeps_exists_but_not_forall():
@@ -282,7 +324,7 @@ def test_dynamic_branch_keeps_exists_but_not_forall():
     assert not pv.exhaustive
     assert pv.any_of(lambda v: v == "Region")  # exists still holds
     assert not pv.all_of(lambda v: v == "Region")  # forall cannot
-    assert index.value_at("sDim", "prolog", 6) is None
+    assert pv.exact is None
 
 
 def test_elseif_chain_enumerates_all_variants():
@@ -323,7 +365,7 @@ def test_too_many_variants_degrade_to_unknown():
     index = ConstantPropagationIndex(_process(prolog=code), max_variants=2)
     pv = index.possible_values_at("sV", "prolog", 8)
     assert pv.is_unknown
-    assert index.value_at("sV", "prolog", 8) is None
+    assert pv.exact is None
 
 
 def test_possible_values_unknown_when_never_assigned():
@@ -331,9 +373,12 @@ def test_possible_values_unknown_when_never_assigned():
     assert index.possible_values_at("sNope", "prolog", 5).is_unknown
 
 
-def test_context_possible_values_without_index_is_unknown():
+def test_context_possible_values_without_index_is_unassigned():
     ctx = LintContext(block="prolog")
-    assert ctx.possible_values("x", 1).is_unknown
+    pv = ctx.possible_values("x", 1)
+    assert pv.is_unknown
+    assert not pv.assigned
+    assert pv.exact is None
 
 
 # -- laziness and integration ---------------------------------------------------
@@ -342,22 +387,19 @@ def test_context_possible_values_without_index_is_unknown():
 def test_index_builds_lazily():
     index = ConstantPropagationIndex(_process(prolog="x = 1;"))
     assert index._events is None
-    index.value_at("x", "prolog", 2)
+    index.possible_values_at("x", "prolog", 2)
     assert index._events is not None
 
 
-def test_invalid_block_name_returns_none():
+def test_invalid_block_name_reports_unassigned():
     index = ConstantPropagationIndex(_process(prolog="x = 1;"))
-    assert index.value_at("x", "nosuchblock", 2) is None
-
-
-def test_context_without_index_returns_none():
-    ctx = LintContext(block="prolog")
-    assert ctx.constant_value("x", 1) is None
+    pv = index.possible_values_at("x", "nosuchblock", 2)
+    assert pv.exact is None
+    assert not pv.assigned
 
 
 def test_lint_pipeline_exposes_constants_to_rules():
-    """Rules reach cross-section values through context.constant_value()."""
+    """Rules reach cross-section values through context.possible_values()."""
     seen = {}
 
     class _CaptureRule(BaseStatementRule):
@@ -371,7 +413,7 @@ def test_lint_pipeline_exposes_constants_to_rules():
             return [Program]
 
         def visit(self, statement, context):
-            seen[context.block] = context.constant_value("sDim", 1)
+            seen[context.block] = context.possible_values("sDim", 1).exact
             return []
 
     process = _process(prolog="sDim = 'Region:Default';", data="x = 1;")
@@ -444,7 +486,7 @@ def test_lint_run_parses_each_section_once_even_with_index(monkeypatch):
 
         def visit(self, statement, context):
             # Force the index to build during the metadata pass.
-            context.constant_value("sDim", 1)
+            context.possible_values("sDim", 1)
             return []
 
     process = _process(
@@ -467,7 +509,7 @@ def test_index_without_shared_cache_parses_each_section_once(monkeypatch):
     index = ConstantPropagationIndex(
         _process(prolog="x = 1;", metadata="y = 2;", data="z = 3;", epilog="w = 4;")
     )
-    index.value_at("x", "epilog", 1)
-    index.value_at("y", "epilog", 1)  # second query must not re-parse
+    index.possible_values_at("x", "epilog", 1)
+    index.possible_values_at("y", "epilog", 1)  # second query must not re-parse
 
     assert counts["n"] == 4

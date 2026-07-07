@@ -1,12 +1,11 @@
 """Context object for linting operations."""
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from linti.linter.constant_propagation import (
         ConstantPropagationIndex,
-        PartialString,
         PossibleValues,
     )
 
@@ -34,7 +33,7 @@ class LintContext:
             on for this because string literals are stored unquoted.
         constants: Process-wide ConstantPropagationIndex shared by all
             sections of the process, or None (e.g. in the auto-fix pass).
-            Rules read it through :meth:`constant_value`.
+            Rules read it through :meth:`possible_values`.
         datasource_type: Data source type of the process (``ODBC``, ``ASCII``,
             ``None``, …), or None when the format carries no datasource metadata.
         datasource_query: SQL query of an ODBC data source, or None.
@@ -55,56 +54,30 @@ class LintContext:
     datasource_type: Optional[str] = None
     datasource_query: Optional[str] = None
 
-    def constant_value(self, name: str, line: int) -> Optional[Union[str, float]]:
-        """Return the statically known value of *name* at *line*, or ``None``.
-
-        *line* is 1-based and relative to the current block's code — the same
-        coordinates rule tokens and AST nodes carry.  ``None`` means the value
-        is unknown (dynamic, conditional, or never assigned) or no constant
-        propagation index is available in this context.
-        """
-        if self.constants is None or self.block is None:
-            return None
-        return self.constants.value_at(name, self.block, line)
-
-    def partial_value(self, name: str, line: int) -> Optional["PartialString"]:
-        """Return the partially known value of *name* at *line*, or ``None``.
-
-        Yields a :class:`~linti.linter.constant_propagation.PartialString` only
-        when *name* holds a mix of known fragments and dynamic gaps (e.g.
-        ``sName = 'prefix_' | pDyn;``).  Fully known values (use
-        :meth:`constant_value`), fully unknown values, and contexts without a
-        constant propagation index all return ``None``.
-        """
-        if self.constants is None or self.block is None:
-            return None
-        return self.constants.partial_value_at(name, self.block, line)
-
     def possible_values(self, name: str, line: int) -> "PossibleValues":
-        """Return the set of values *name* may hold at *line*.
+        """Return what is statically known about *name* at *line*.
 
-        Rules use
-        :meth:`~linti.linter.constant_propagation.PossibleValues.all_of` (∀,
-        every branch variant satisfies a predicate) and
-        :meth:`~linti.linter.constant_propagation.PossibleValues.any_of` (∃, at
-        least one variant does).  Returns the fully unknown value when *name* is
-        dynamic, never assigned, or no constant propagation index is available.
+        The single entry point into constant propagation.  *line* is 1-based
+        and relative to the current block's code — the same coordinates rule
+        tokens and AST nodes carry.  The returned
+        :class:`~linti.linter.constant_propagation.PossibleValues` is a
+        cascade — read exactly the strength the rule needs:
+
+        * ``pv.exact`` — the one fully known scalar, or ``None``.
+        * ``pv.all_of(...)`` / ``pv.any_of(...)`` / ``pv.values`` — reason over
+          every possible value; a single known value is the one-element case.
+        * ``pv.partial`` — the known fragments of a half-dynamic string.
+        * ``pv.assigned`` — whether *name* was written at all (e.g. a
+          ``DatasourceQuery`` override), even when its value is dynamic.
+
+        Without a constant propagation index in this context the variable
+        reports as never assigned.
         """
-        from linti.linter.constant_propagation import TOP
+        from linti.linter.constant_propagation import UNASSIGNED
 
         if self.constants is None or self.block is None:
-            return TOP
+            return UNASSIGNED
         return self.constants.possible_values_at(name, self.block, line)
-
-    def is_constant_assigned(self, name: str, line: int) -> bool:
-        """True if *name* is assigned at or before *line* (value may be dynamic).
-
-        Lets a rule tell "never written" apart from "written but not statically
-        known" — e.g. whether ``DatasourceQuery`` was overridden in the Prolog.
-        """
-        if self.constants is None or self.block is None:
-            return False
-        return self.constants.is_assigned(name, self.block, line)
 
     def in_control_block(self) -> bool:
         """

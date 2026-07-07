@@ -4,9 +4,18 @@ The lint pipeline runs each TI section (Prolog, Metadata, Data, Epilog)
 in isolation, so an individual rule cannot see what value a variable was
 given in an earlier section.  ``ConstantPropagationIndex`` closes that gap:
 it walks the *whole* process once, in TI execution order, and records the
-value each variable holds at every point.  Rules read from it through
-``LintContext.constant_value(name, line)`` — no rule has to manage or
-persist cross-section state itself.
+value each variable holds at every point.  Rules read from it through the
+single entry point ``LintContext.possible_values(name, line)`` — no rule has
+to manage or persist cross-section state itself.
+
+The returned :class:`PossibleValues` is a cascade: a rule takes exactly the
+strength it needs.  :attr:`~PossibleValues.exact` yields the one fully known
+scalar (and only then); :meth:`~PossibleValues.all_of` /
+:meth:`~PossibleValues.any_of` / :attr:`~PossibleValues.values` reason over
+*all* possibilities — a single known value is simply the one-element case;
+:attr:`~PossibleValues.partial` exposes a partially known string; and
+:attr:`~PossibleValues.assigned` tells whether the variable was written at
+all, even when its value is dynamic.
 
 Tracking semantics
 ------------------
@@ -17,19 +26,18 @@ Tracking semantics
 * A concatenation that mixes known and dynamic parts —
   ``sName = 'prefix_' | pDyn;`` — keeps its literal fragments as a
   :class:`PartialString` rather than collapsing to UNKNOWN.  Rules read it
-  through :meth:`~ConstantPropagationIndex.partial_value_at`; :meth:`value_at`
-  still reports only *fully* known values.
+  through :attr:`PossibleValues.partial`; :attr:`PossibleValues.exact` still
+  reports only *fully* known values.
 * Anything dynamic — function calls, parameters, datasource variables,
   predefined variables — is UNKNOWN.  The index never guesses.
 * ``IF``/``ELSEIF``/``ELSE`` branches are joined: after the construct the
   variable holds the *set* of values its branches assign (plus its pre-IF
-  value when a branch does not assign it).  Rules query that set through
-  :meth:`~ConstantPropagationIndex.possible_values_at` and ask ∀/∃ questions
-  (:meth:`PossibleValues.all_of` / :meth:`PossibleValues.any_of`).  A branch
+  value when a branch does not assign it).  Rules ask ∀/∃ questions over that
+  set (:meth:`PossibleValues.all_of` / :meth:`PossibleValues.any_of`).  A branch
   with a dynamic value makes the set non-exhaustive — ∃ still holds, ∀ cannot.
   At most ``max_variants`` distinct values are kept; beyond that the variable
-  degrades to UNKNOWN.  :meth:`value_at` still reports a value only when it is
-  a single fully known scalar.
+  degrades to UNKNOWN.  :attr:`PossibleValues.exact` still reports a value only
+  when it is a single fully known scalar.
 * An assignment inside a ``WHILE`` body marks the variable UNKNOWN from
   the ``WHILE`` line on (the loop body may run zero or many times).
 * Metadata and Data execute once *per datasource record*.  A variable that
@@ -170,34 +178,58 @@ DEFAULT_MAX_VARIANTS = 8
 class PossibleValues:
     """The set of values a variable may hold at a program point.
 
+    This is the single answer type of the constant propagation API.  It is a
+    *cascade*: a rule reads exactly the strength it needs, and each stronger
+    accessor is a refinement of the level below it.
+
+    1. **Exactly one value** — :attr:`exact` yields the sole fully known
+       scalar, or ``None`` in every weaker situation.
+    2. **All possible values** — :meth:`all_of` / :meth:`any_of` /
+       :attr:`values` reason over every possibility.  A single known value is
+       just the one-element case, so level 1 is contained in level 2.
+    3. **Partially known** — :attr:`partial` exposes the known fragments of a
+       single half-dynamic string.
+    4. **Written at all** — :attr:`assigned` distinguishes "never assigned"
+       from "assigned but dynamic".
+
     ``values`` are the concrete (possibly partial) possibilities; ``exhaustive``
     says whether they enumerate *every* possibility.  When ``exhaustive`` is
     ``False`` the variable may additionally hold some fully dynamic value that
     could not be represented — so ``values`` still answers "could it be X?"
     (∃) but not "is it always one of these?" (∀).
-
-    The fully unknown value (``TOP``) is ``PossibleValues(frozenset(), False)``.
     """
 
     values: frozenset  # of AtomicValue; never contains the UNKNOWN sentinel
     exhaustive: bool
+    #: False only for a variable that was never written at all.
+    assigned: bool = True
 
     @property
     def is_unknown(self) -> bool:
-        """True when nothing at all is known (the top element)."""
+        """True when nothing at all is known about the value."""
         return not self.values and not self.exhaustive
 
-    def known_scalar(self) -> Optional[Union[str, float]]:
-        """The single, fully known ``str``/``float`` value, or ``None``."""
+    @property
+    def exact(self) -> Optional[Union[str, float]]:
+        """The single, fully known ``str``/``float`` value, or ``None``.
+
+        Non-``None`` only when the variable holds exactly one statically known
+        scalar — never for multi-variant, partial, or dynamic values.
+        """
         if self.exhaustive and len(self.values) == 1:
             (only,) = tuple(self.values)
             if isinstance(only, (str, float)):
                 return only
         return None
 
-    def single_partial(self) -> Optional[PartialString]:
-        """The sole value when it is a :class:`PartialString`, else ``None``."""
-        if len(self.values) == 1:
+    @property
+    def partial(self) -> Optional[PartialString]:
+        """The sole value when it is a :class:`PartialString`, else ``None``.
+
+        Fully known values (use :attr:`exact`), fully unknown values, and
+        multi-variant values all return ``None``.
+        """
+        if self.exhaustive and len(self.values) == 1:
             (only,) = tuple(self.values)
             if isinstance(only, PartialString):
                 return only
@@ -220,8 +252,11 @@ class PossibleValues:
         return any(predicate(value) for value in self.values)
 
 
-#: The fully unknown value: could be anything, nothing enumerated.
+#: The fully unknown value of a *written* variable: could be anything.
 TOP = PossibleValues(frozenset(), False)
+
+#: The value of a variable that was never assigned: unknown and unwritten.
+UNASSIGNED = PossibleValues(frozenset(), False, assigned=False)
 
 
 def _single(value: AtomicValue) -> PossibleValues:
@@ -244,7 +279,7 @@ class ConstantPropagationIndex:
 
     The index is independent of the per-rule reset cycle: it is created once
     per process model and shared by every ``LintContext``.  It builds lazily
-    on the first :meth:`value_at` call.
+    on the first :meth:`possible_values_at` call.
     """
 
     def __init__(
@@ -261,8 +296,8 @@ class ConstantPropagationIndex:
         # name (lower-cased) -> events sorted by (section index, line)
         self._events: Optional[dict[str, list[_Event]]] = None
 
-    def value_at(self, name: str, block: str, line: int) -> Optional[Union[str, float]]:
-        """Return the fully known constant value *name* holds at *line* of *block*.
+    def possible_values_at(self, name: str, block: str, line: int) -> PossibleValues:
+        """Return the set of values *name* may hold at *line* of *block*.
 
         Args:
             name: Variable name (case-insensitive).
@@ -272,31 +307,12 @@ class ConstantPropagationIndex:
                 same coordinates rule tokens and AST nodes carry.
 
         Returns:
-            The value (``str`` or ``float``) when it is *fully* known at that
-            point, or ``None`` when it is unknown, only partially known, one of
-            several variants, or never assigned.
-        """
-        return self.possible_values_at(name, block, line).known_scalar()
-
-    def partial_value_at(
-        self, name: str, block: str, line: int
-    ) -> Optional[PartialString]:
-        """Return the partially known value of *name* at *line*, or ``None``.
-
-        Only yields a :class:`PartialString` when the value is a single mix of
-        known fragments and dynamic gaps.  Fully known values (use
-        :meth:`value_at`), fully unknown values, and multi-variant values all
-        return ``None``.
-        """
-        return self.possible_values_at(name, block, line).single_partial()
-
-    def possible_values_at(self, name: str, block: str, line: int) -> PossibleValues:
-        """Return the set of values *name* may hold at *line* of *block*.
-
-        Returns the fully unknown value (:data:`TOP`) when the variable is
-        dynamic at that point or was never assigned.  Rules use
-        :meth:`PossibleValues.all_of` (∀) and :meth:`PossibleValues.any_of` (∃)
-        to reason across branch variants.
+            The :class:`PossibleValues` cascade — :attr:`PossibleValues.exact`
+            for the single fully known value, :meth:`PossibleValues.all_of` /
+            :meth:`PossibleValues.any_of` across branch variants,
+            :attr:`PossibleValues.partial` for a half-known string.  A variable
+            that is dynamic at that point yields :data:`TOP`; one that was
+            never written yields :data:`UNASSIGNED`.
         """
         if self._events is None:
             self._build()
@@ -304,40 +320,16 @@ class ConstantPropagationIndex:
         try:
             section_idx = SECTION_ORDER.index(block.lower())
         except ValueError:
-            return TOP
+            return UNASSIGNED
 
         events = self._events.get(name.lower())
         if not events:
-            return TOP
+            return UNASSIGNED
 
         for event_section, event_line, value in reversed(events):
             if (event_section, event_line) <= (section_idx, line):
                 return value
-        return TOP
-
-    def is_assigned(self, name: str, block: str, line: int) -> bool:
-        """True if *name* is assigned at or before *line* of *block*.
-
-        Distinguishes a variable that was written but holds a dynamic value
-        (``is_assigned`` True, :meth:`value_at` ``None``) from one that was
-        never written at all.
-        """
-        if self._events is None:
-            self._build()
-
-        try:
-            section_idx = SECTION_ORDER.index(block.lower())
-        except ValueError:
-            return False
-
-        events = self._events.get(name.lower())
-        if not events:
-            return False
-
-        return any(
-            (event_section, event_line) <= (section_idx, line)
-            for event_section, event_line, _ in events
-        )
+        return UNASSIGNED
 
     # -- build ------------------------------------------------------------
 

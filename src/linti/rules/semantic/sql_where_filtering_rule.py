@@ -62,10 +62,10 @@ def _resolve_override(context: LintContext, name: str, metadata_value):
     """
     # Query at line 0: the value entering the block, i.e. after the Prolog runs
     # but before any reassignment inside Metadata/Data itself.
-    if not context.is_constant_assigned(name, 0):
+    pv = context.possible_values(name, 0)
+    if not pv.assigned:
         return metadata_value
-    scalar = context.possible_values(name, 0).known_scalar()
-    return scalar if isinstance(scalar, str) else _DYNAMIC
+    return pv.exact if isinstance(pv.exact, str) else _DYNAMIC
 
 
 def _iter_calls(node):
