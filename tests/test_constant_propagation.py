@@ -1,13 +1,10 @@
 """Tests for the ConstantPropagationIndex (cross-block variable tracking)."""
 
 from linti.linter.api import lint_process_model
-from linti.linter.constant_propagation import (
-    ConstantPropagationIndex,
-    PartialString,
-    PossibleValues,
-)
+from linti.linter.constant_propagation import ConstantPropagationIndex
 from linti.linter.lint_context import LintContext
 from linti.linter.linter import Linter
+from linti.linter.possible_values import PartialString, PossibleValues
 from linti.model.process_ir import ProcedureInfo, ProcessIR
 from linti.parser.ast import Program
 from linti.rules.Rule import BaseStatementRule

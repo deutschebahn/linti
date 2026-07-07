@@ -82,14 +82,18 @@ every rule before each pass — stateful rules must implement it.
 - `linter/api.py` — high-level orchestration: `lint_process_model` runs the full
   per-procedure pipeline; `lint_process` / `lint_all` drive a provider and
   optionally auto-fix then re-lint.
-- `linter/constant_propagation.py` — process-wide `ConstantPropagationIndex`,
-  shared by all sections and independent of the per-rule reset cycle. It tracks
-  literal assignments and folded literal expressions across Prolog → Metadata →
-  Data → Epilog; anything dynamic/conditional is unknown. Rules query it via
-  the single entry point `context.possible_values(name, line)`, whose result
-  cascades: `.exact` (the one fully known value), `.all_of`/`.any_of`/`.values`
-  (all branch variants — a single value is the one-element case; predicates
-  see only fully known values), `.all_contain`/`.any_contains` (substring
+- `linter/constant_propagation.py` — the *interpreter*: process-wide
+  `ConstantPropagationIndex`, shared by all sections and independent of the
+  per-rule reset cycle. It tracks literal assignments and folded literal
+  expressions across Prolog → Metadata → Data → Epilog; anything
+  dynamic/conditional is unknown.
+- `linter/possible_values.py` — the *value model* the index reports through:
+  `PossibleValues` (the answer type) and `PartialString` (a half-known
+  string). No TI/AST knowledge lives here. Rules query it via the single
+  entry point `context.possible_values(name, line)`, whose result cascades:
+  `.exact` (the one fully known value), `.all_of`/`.any_of`/`.values` (all
+  branch variants — a single value is the one-element case; predicates see
+  only fully known values), `.all_contain`/`.any_contains` (substring
   questions, decidable even on partially known variants via their fragments),
   `.partial` (known fragments of a half-dynamic string), `.assigned` (written
   at all). Every query answers "provable?" — unknowns never count as evidence.

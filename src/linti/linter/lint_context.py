@@ -4,10 +4,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from linti.linter.constant_propagation import (
-        ConstantPropagationIndex,
-        PossibleValues,
-    )
+    from linti.linter.constant_propagation import ConstantPropagationIndex
+    from linti.linter.possible_values import PossibleValues
 
 
 @dataclass
@@ -60,7 +58,7 @@ class LintContext:
         The single entry point into constant propagation.  *line* is 1-based
         and relative to the current block's code — the same coordinates rule
         tokens and AST nodes carry.  The returned
-        :class:`~linti.linter.constant_propagation.PossibleValues` is a
+        :class:`~linti.linter.possible_values.PossibleValues` is a
         cascade — read exactly the strength the rule needs:
 
         * ``pv.exact`` — the one fully known scalar, or ``None``.
@@ -76,7 +74,7 @@ class LintContext:
         Without a constant propagation index in this context the variable
         reports as never assigned.
         """
-        from linti.linter.constant_propagation import UNASSIGNED
+        from linti.linter.possible_values import UNASSIGNED
 
         if self.constants is None or self.block is None:
             return UNASSIGNED
