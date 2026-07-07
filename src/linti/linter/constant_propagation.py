@@ -13,9 +13,11 @@ strength it needs.  :attr:`~PossibleValues.exact` yields the one fully known
 scalar (and only then); :meth:`~PossibleValues.all_of` /
 :meth:`~PossibleValues.any_of` / :attr:`~PossibleValues.values` reason over
 *all* possibilities — a single known value is simply the one-element case;
-:attr:`~PossibleValues.partial` exposes a partially known string; and
-:attr:`~PossibleValues.assigned` tells whether the variable was written at
-all, even when its value is dynamic.
+:meth:`~PossibleValues.all_contain` / :meth:`~PossibleValues.any_contains`
+answer substring questions and also accept a partially known variant as
+evidence when a known fragment proves it; :attr:`~PossibleValues.partial`
+exposes a partially known string; and :attr:`~PossibleValues.assigned` tells
+whether the variable was written at all, even when its value is dynamic.
 
 Tracking semantics
 ------------------
@@ -166,6 +168,23 @@ def _as_segments(value: "Value") -> list[Union[str, _Unknown]]:
 #: A single (possibly partial) value: string, number, or partial string.
 AtomicValue = Union[str, float, PartialString]
 
+
+def _definitely_contains(value: AtomicValue, substring: str) -> bool:
+    """True when *value* certainly contains *substring*, whatever its gaps hold.
+
+    Three-valued at heart: an exact string answers definitely; a
+    :class:`PartialString` is definite only when a *known fragment* contains the
+    substring (fragments appear verbatim in the final value) — otherwise the
+    substring might still hide in a gap or span a fragment boundary, which is
+    "maybe" and never counts as evidence.  Numbers contain no text.
+    """
+    if isinstance(value, str):
+        return substring in value
+    if isinstance(value, PartialString):
+        return any(substring in fragment for fragment in value.known_fragments)
+    return False
+
+
 #: A tracked value: an atomic value or the UNKNOWN sentinel.
 Value = Union[AtomicValue, _Unknown]
 
@@ -187,10 +206,18 @@ class PossibleValues:
     2. **All possible values** — :meth:`all_of` / :meth:`any_of` /
        :attr:`values` reason over every possibility.  A single known value is
        just the one-element case, so level 1 is contained in level 2.
+       Arbitrary predicates are decidable only on *fully known* values, so a
+       partially known variant never satisfies them; for substring questions
+       — the one family that *is* decidable on partials — use
+       :meth:`all_contain` / :meth:`any_contains` instead.
     3. **Partially known** — :attr:`partial` exposes the known fragments of a
        single half-dynamic string.
     4. **Written at all** — :attr:`assigned` distinguishes "never assigned"
        from "assigned but dynamic".
+
+    Every query answers "is this *provable*?": an unknown — a gap in a partial,
+    a non-exhaustive set, a dynamic value — never counts as evidence, so
+    ``False`` always means "not provable", not "provably false".
 
     ``values`` are the concrete (possibly partial) possibilities; ``exhaustive``
     says whether they enumerate *every* possibility.  When ``exhaustive`` is
@@ -236,20 +263,55 @@ class PossibleValues:
         return None
 
     def all_of(self, predicate) -> bool:
-        """True iff every possible value is known and satisfies *predicate* (∀).
+        """True iff every possible value provably satisfies *predicate* (∀).
 
+        *predicate* receives only fully known ``str``/``float`` values.
         Requires the set to be exhaustive and non-empty; a dynamic possibility
-        (``exhaustive is False``) makes a universal guarantee impossible.
+        (``exhaustive is False``) or a partially known variant (an arbitrary
+        predicate cannot be decided on it) makes a universal guarantee
+        impossible.
         """
         return (
             self.exhaustive
             and bool(self.values)
-            and all(predicate(value) for value in self.values)
+            and all(
+                isinstance(value, (str, float)) and predicate(value)
+                for value in self.values
+            )
         )
 
     def any_of(self, predicate) -> bool:
-        """True iff at least one known possible value satisfies *predicate* (∃)."""
-        return any(predicate(value) for value in self.values)
+        """True iff at least one possible value provably satisfies *predicate* (∃).
+
+        *predicate* receives only fully known ``str``/``float`` values; a
+        partially known variant is never proof that the predicate holds.
+        """
+        return any(
+            isinstance(value, (str, float)) and predicate(value)
+            for value in self.values
+        )
+
+    def all_contain(self, substring: str) -> bool:
+        """True iff every possible value certainly contains *substring* (∀).
+
+        The substring-aware counterpart of :meth:`all_of`: a partially known
+        variant counts when one of its *known fragments* contains *substring*
+        (the fragment appears verbatim in the final value).  Requires the set
+        to be exhaustive and non-empty.
+        """
+        return (
+            self.exhaustive
+            and bool(self.values)
+            and all(_definitely_contains(value, substring) for value in self.values)
+        )
+
+    def any_contains(self, substring: str) -> bool:
+        """True iff at least one possible value certainly contains *substring* (∃).
+
+        A partially known variant counts when one of its known fragments
+        contains *substring*; a gap that merely *might* contain it does not.
+        """
+        return any(_definitely_contains(value, substring) for value in self.values)
 
 
 #: The fully unknown value of a *written* variable: could be anything.

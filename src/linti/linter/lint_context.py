@@ -66,6 +66,9 @@ class LintContext:
         * ``pv.exact`` — the one fully known scalar, or ``None``.
         * ``pv.all_of(...)`` / ``pv.any_of(...)`` / ``pv.values`` — reason over
           every possible value; a single known value is the one-element case.
+        * ``pv.all_contain(sub)`` / ``pv.any_contains(sub)`` — substring
+          questions; a partially known variant counts when a known fragment
+          proves it.
         * ``pv.partial`` — the known fragments of a half-dynamic string.
         * ``pv.assigned`` — whether *name* was written at all (e.g. a
           ``DatasourceQuery`` override), even when its value is dynamic.

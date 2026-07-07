@@ -88,8 +88,11 @@ every rule before each pass — stateful rules must implement it.
   Data → Epilog; anything dynamic/conditional is unknown. Rules query it via
   the single entry point `context.possible_values(name, line)`, whose result
   cascades: `.exact` (the one fully known value), `.all_of`/`.any_of`/`.values`
-  (all branch variants — a single value is the one-element case), `.partial`
-  (known fragments of a half-dynamic string), `.assigned` (written at all).
+  (all branch variants — a single value is the one-element case; predicates
+  see only fully known values), `.all_contain`/`.any_contains` (substring
+  questions, decidable even on partially known variants via their fragments),
+  `.partial` (known fragments of a half-dynamic string), `.assigned` (written
+  at all). Every query answers "provable?" — unknowns never count as evidence.
   Builds lazily on first access, so rules that don't use it cost nothing.
 - `linter/lint_issue.py` — `LintIssue` and `Fix`. A rule is auto-fixable iff its
   issues carry a `Fix(position, old_value, new_value)`.

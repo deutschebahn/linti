@@ -301,6 +301,77 @@ def test_all_of_and_any_of_cover_the_single_value_case():
     assert pv.any_of(lambda v: v == "Region")
 
 
+def test_all_of_and_any_of_never_accept_partial_variants():
+    """Arbitrary predicates are only decidable on fully known values."""
+    code = "IF(p = 1);\n  sV = 'Dim:Hier';\nELSE;\n  sV = 'Dim:' | pHier;\nENDIF;"
+    index = ConstantPropagationIndex(_process(prolog=code))
+    pv = index.possible_values_at("sV", "prolog", 6)
+    # The partial variant cannot prove an arbitrary predicate — even one that
+    # would hold on any string.
+    assert not pv.all_of(lambda v: True)
+    assert not pv.any_of(lambda v: isinstance(v, PartialString))
+    # The exact variant still counts for the existential question.
+    assert pv.any_of(lambda v: v == "Dim:Hier")
+
+
+# -- substring evidence (all_contain / any_contains) ---------------------------
+
+
+def test_all_contain_accepts_mixed_exact_and_partial_evidence():
+    code = "IF(p = 1);\n  sV = 'Dim:Hier';\nELSE;\n  sV = 'Dim:' | pHier;\nENDIF;"
+    index = ConstantPropagationIndex(_process(prolog=code))
+    pv = index.possible_values_at("sV", "prolog", 6)
+    # Exact variant contains ':', partial variant proves it via a fragment.
+    assert pv.all_contain(":")
+    assert pv.any_contains(":")
+
+
+def test_all_contain_fails_when_a_partial_variant_lacks_evidence():
+    code = "IF(p = 1);\n  sV = 'Dim:Hier';\nELSE;\n  sV = 'x_' | pDyn;\nENDIF;"
+    index = ConstantPropagationIndex(_process(prolog=code))
+    pv = index.possible_values_at("sV", "prolog", 6)
+    # The gap in 'x_' | pDyn *might* contain ':' — a maybe is not evidence.
+    assert not pv.all_contain(":")
+    assert pv.any_contains(":")  # the exact variant proves the existential
+
+
+def test_any_contains_needs_definite_evidence():
+    code = "IF(p = 1);\n  sV = 'ab';\nELSE;\n  sV = 'x_' | pDyn;\nENDIF;"
+    index = ConstantPropagationIndex(_process(prolog=code))
+    pv = index.possible_values_at("sV", "prolog", 6)
+    assert not pv.any_contains(":")
+
+
+def test_all_contain_requires_exhaustive_variants():
+    code = "IF(p = 1);\n  sV = 'a where b';\nELSE;\n  sV = CellGetS('c', 'x');\nENDIF;"
+    index = ConstantPropagationIndex(_process(prolog=code))
+    pv = index.possible_values_at("sV", "prolog", 6)
+    # The dynamic branch may hold anything — no universal guarantee.
+    assert not pv.all_contain(" where ")
+    assert pv.any_contains(" where ")
+
+
+def test_all_contain_over_where_clause_variants():
+    code = (
+        "IF(p = 1);\n"
+        "  sSql = 'SELECT * FROM t WHERE x = 1';\n"
+        "ELSE;\n"
+        "  sSql = 'SELECT * FROM t WHERE y = ' | pVal;\n"
+        "ENDIF;"
+    )
+    index = ConstantPropagationIndex(_process(prolog=code))
+    pv = index.possible_values_at("sSql", "prolog", 6)
+    assert pv.all_contain(" WHERE ")
+
+
+def test_number_variant_is_never_substring_evidence():
+    code = "IF(p = 1);\n  v = 'a:b';\nELSE;\n  v = 12;\nENDIF;"
+    index = ConstantPropagationIndex(_process(prolog=code))
+    pv = index.possible_values_at("v", "prolog", 6)
+    assert not pv.all_contain(":")
+    assert pv.any_contains(":")
+
+
 def test_no_else_keeps_pre_value_as_variant():
     code = "sDim = 'Default';\nIF(pFlag = 1);\n  sDim = 'Region';\nENDIF;"
     index = ConstantPropagationIndex(_process(prolog=code))

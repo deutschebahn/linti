@@ -19,7 +19,6 @@ This rule supports two modes:
 from typing import Optional
 
 from linti.lexer.token import TokenType
-from linti.linter.constant_propagation import PartialString
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import LintIssue
 from linti.parser.ast import (
@@ -308,15 +307,6 @@ def _statement_expression(statement):
     return None
 
 
-def _value_has_colon(value) -> bool:
-    """True when a tracked value definitely contains a ``:`` (dim:hier)."""
-    if isinstance(value, str):
-        return ":" in value
-    if isinstance(value, PartialString):
-        return any(":" in fragment for fragment in value.known_fragments)
-    return False
-
-
 class _HierarchyColonArgumentRule(BaseStatementRule):
     """S410 companion: a standard hierarchy function fed a ``Dimension:Hierarchy``.
 
@@ -401,5 +391,5 @@ class _HierarchyColonArgumentRule(BaseStatementRule):
         if isinstance(arg, Identifier):
             token = get_node_token(arg)
             line = token.line if token else 0
-            return context.possible_values(arg.name, line).all_of(_value_has_colon)
+            return context.possible_values(arg.name, line).all_contain(":")
         return False
