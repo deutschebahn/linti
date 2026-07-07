@@ -34,12 +34,14 @@ Tracking semantics
   predefined variables — is UNKNOWN.  The index never guesses.
 * ``IF``/``ELSEIF``/``ELSE`` branches are joined: after the construct the
   variable holds the *set* of values its branches assign (plus its pre-IF
-  value when a branch does not assign it).  Rules ask ∀/∃ questions over that
-  set (:meth:`PossibleValues.all_of` / :meth:`PossibleValues.any_of`).  A branch
-  with a dynamic value makes the set incomplete — ∃ still holds, ∀ cannot.
-  At most ``max_variants`` distinct values are kept; beyond that the variable
-  degrades to UNKNOWN.  :attr:`PossibleValues.exact` still reports a value only
-  when it is a single fully known scalar.
+  value when a branch does not assign it).  Rules ask whether every variant
+  satisfies a condition, or whether at least one does, via
+  :meth:`PossibleValues.all_of` / :meth:`PossibleValues.any_of` (∀ / ∃
+  respectively).  A branch with a dynamic value makes the set incomplete: "at
+  least one variant matches" can still be shown, but "every variant matches"
+  no longer can.  At most ``max_variants`` distinct values are kept; beyond
+  that the variable degrades to UNKNOWN.  :attr:`PossibleValues.exact` still
+  reports a value only when it is a single fully known scalar.
 * An assignment inside a ``WHILE`` body marks the variable UNKNOWN from
   the ``WHILE`` line on (the loop body may run zero or many times).
 * Metadata and Data execute once *per datasource record*.  A variable that
@@ -222,8 +224,8 @@ class PossibleValues:
     ``values`` are the concrete (possibly partial) possibilities; ``complete``
     says whether they enumerate *every* possibility.  When ``complete`` is
     ``False`` the variable may additionally hold some fully dynamic value that
-    could not be represented — so ``values`` still answers "could it be X?"
-    (∃) but not "is it always one of these?" (∀).
+    could not be represented — so ``values`` can still show that a value is
+    *possible* (∃), but not that something holds for *every* case (∀).
     """
 
     values: frozenset  # of AtomicValue; never contains the UNKNOWN sentinel
@@ -265,13 +267,14 @@ class PossibleValues:
         return None
 
     def all_of(self, predicate) -> bool:
-        """True iff every possible value provably satisfies *predicate* (∀).
+        """Check whether *predicate* provably holds for every possible value (∀).
 
-        *predicate* receives only fully known ``str``/``float`` values.
-        Requires the set to be complete and non-empty; a dynamic possibility
-        (``complete is False``) or a partially known variant (an arbitrary
-        predicate cannot be decided on it) makes a universal guarantee
-        impossible.
+        *predicate* receives only fully known ``str``/``float`` values.  The
+        set must be complete and non-empty: a dynamic possibility
+        (``complete is False``) or a partially known variant could turn out to
+        violate the predicate, and since an arbitrary predicate cannot be
+        decided on a partial, that possibility alone rules out a universal
+        guarantee.
         """
         return (
             self.complete
@@ -283,10 +286,11 @@ class PossibleValues:
         )
 
     def any_of(self, predicate) -> bool:
-        """True iff at least one possible value provably satisfies *predicate* (∃).
+        """Check whether *predicate* provably holds for at least one value (∃).
 
         *predicate* receives only fully known ``str``/``float`` values; a
-        partially known variant is never proof that the predicate holds.
+        partially known variant is never proof that the predicate holds, so it
+        is skipped rather than counted.
         """
         return any(
             isinstance(value, (str, float)) and predicate(value)
@@ -294,12 +298,12 @@ class PossibleValues:
         )
 
     def all_contain(self, substring: str) -> bool:
-        """True iff every possible value certainly contains *substring* (∀).
+        """Check whether *substring* is certainly present in every value (∀).
 
         The substring-aware counterpart of :meth:`all_of`: a partially known
-        variant counts when one of its *known fragments* contains *substring*
-        (the fragment appears verbatim in the final value).  Requires the set
-        to be complete and non-empty.
+        variant counts when one of its *known fragments* contains *substring*,
+        because that fragment appears verbatim in the final value.  The set
+        must still be complete and non-empty.
         """
         return (
             self.complete
@@ -308,10 +312,11 @@ class PossibleValues:
         )
 
     def any_contains(self, substring: str) -> bool:
-        """True iff at least one possible value certainly contains *substring* (∃).
+        """Check whether *substring* is certainly present in at least one value (∃).
 
         A partially known variant counts when one of its known fragments
-        contains *substring*; a gap that merely *might* contain it does not.
+        contains *substring*; a gap that merely *might* contain it does not
+        count as proof.
         """
         return any(_definitely_contains(value, substring) for value in self.values)
 
