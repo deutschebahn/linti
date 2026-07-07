@@ -476,7 +476,10 @@ class PossibleValues:
     #: Whether ``values`` enumerates every possibility, or the variable may
     #: additionally hold some dynamic value not represented in the set.
     complete: bool
-    #: False only for a variable that was never written at all.
+    #: False only for a variable that was never written at all.  A variable
+    #: that was written but is dynamic (:data:`TOP`) is still ``assigned``.
+    #: The only construction that sets this ``False`` is :data:`UNASSIGNED`,
+    #: which pairs it with empty ``values`` — no other call site touches it.
     assigned: bool = True
 
     @property
