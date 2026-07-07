@@ -36,7 +36,7 @@ Tracking semantics
   variable holds the *set* of values its branches assign (plus its pre-IF
   value when a branch does not assign it).  Rules ask ∀/∃ questions over that
   set (:meth:`PossibleValues.all_of` / :meth:`PossibleValues.any_of`).  A branch
-  with a dynamic value makes the set non-exhaustive — ∃ still holds, ∀ cannot.
+  with a dynamic value makes the set incomplete — ∃ still holds, ∀ cannot.
   At most ``max_variants`` distinct values are kept; beyond that the variable
   degrades to UNKNOWN.  :attr:`PossibleValues.exact` still reports a value only
   when it is a single fully known scalar.
@@ -216,25 +216,27 @@ class PossibleValues:
        from "assigned but dynamic".
 
     Every query answers "is this *provable*?": an unknown — a gap in a partial,
-    a non-exhaustive set, a dynamic value — never counts as evidence, so
+    an incomplete set, a dynamic value — never counts as evidence, so
     ``False`` always means "not provable", not "provably false".
 
-    ``values`` are the concrete (possibly partial) possibilities; ``exhaustive``
-    says whether they enumerate *every* possibility.  When ``exhaustive`` is
+    ``values`` are the concrete (possibly partial) possibilities; ``complete``
+    says whether they enumerate *every* possibility.  When ``complete`` is
     ``False`` the variable may additionally hold some fully dynamic value that
     could not be represented — so ``values`` still answers "could it be X?"
     (∃) but not "is it always one of these?" (∀).
     """
 
     values: frozenset  # of AtomicValue; never contains the UNKNOWN sentinel
-    exhaustive: bool
+    #: Whether ``values`` enumerates every possibility, or the variable may
+    #: additionally hold some dynamic value not represented in the set.
+    complete: bool
     #: False only for a variable that was never written at all.
     assigned: bool = True
 
     @property
     def is_unknown(self) -> bool:
         """True when nothing at all is known about the value."""
-        return not self.values and not self.exhaustive
+        return not self.values and not self.complete
 
     @property
     def exact(self) -> Optional[Union[str, float]]:
@@ -243,7 +245,7 @@ class PossibleValues:
         Non-``None`` only when the variable holds exactly one statically known
         scalar — never for multi-variant, partial, or dynamic values.
         """
-        if self.exhaustive and len(self.values) == 1:
+        if self.complete and len(self.values) == 1:
             (only,) = tuple(self.values)
             if isinstance(only, (str, float)):
                 return only
@@ -256,7 +258,7 @@ class PossibleValues:
         Fully known values (use :attr:`exact`), fully unknown values, and
         multi-variant values all return ``None``.
         """
-        if self.exhaustive and len(self.values) == 1:
+        if self.complete and len(self.values) == 1:
             (only,) = tuple(self.values)
             if isinstance(only, PartialString):
                 return only
@@ -266,13 +268,13 @@ class PossibleValues:
         """True iff every possible value provably satisfies *predicate* (∀).
 
         *predicate* receives only fully known ``str``/``float`` values.
-        Requires the set to be exhaustive and non-empty; a dynamic possibility
-        (``exhaustive is False``) or a partially known variant (an arbitrary
+        Requires the set to be complete and non-empty; a dynamic possibility
+        (``complete is False``) or a partially known variant (an arbitrary
         predicate cannot be decided on it) makes a universal guarantee
         impossible.
         """
         return (
-            self.exhaustive
+            self.complete
             and bool(self.values)
             and all(
                 isinstance(value, (str, float)) and predicate(value)
@@ -297,10 +299,10 @@ class PossibleValues:
         The substring-aware counterpart of :meth:`all_of`: a partially known
         variant counts when one of its *known fragments* contains *substring*
         (the fragment appears verbatim in the final value).  Requires the set
-        to be exhaustive and non-empty.
+        to be complete and non-empty.
         """
         return (
-            self.exhaustive
+            self.complete
             and bool(self.values)
             and all(_definitely_contains(value, substring) for value in self.values)
         )
@@ -492,7 +494,7 @@ class ConstantPropagationIndex:
         values = a.values | b.values
         if len(values) > self._max_variants:
             return TOP
-        return PossibleValues(values, a.exhaustive and b.exhaustive)
+        return PossibleValues(values, a.complete and b.complete)
 
     # -- expression evaluation --------------------------------------------
 
@@ -552,7 +554,7 @@ class ConstantPropagationIndex:
         """Build a PossibleValues from folded results, honouring the cap.
 
         *saw_unknown* records that some operand combination was fully dynamic
-        (and thus could not be represented); the result is then non-exhaustive.
+        (and thus could not be represented); the result is then incomplete.
         Too many distinct results degrade to the fully unknown value.
         """
         if not results:
@@ -563,14 +565,14 @@ class ConstantPropagationIndex:
 
 
 def _atoms(pv: PossibleValues) -> list:
-    """The concrete atoms of *pv*, plus an UNKNOWN gap when non-exhaustive.
+    """The concrete atoms of *pv*, plus an UNKNOWN gap when incomplete.
 
-    The extra UNKNOWN stands in for the "some dynamic value" possibility a
-    non-exhaustive set carries, so folding preserves it (e.g. a known suffix
+    The extra UNKNOWN stands in for the "some dynamic value" possibility an
+    incomplete set carries, so folding preserves it (e.g. a known suffix
     survives ``anything | '_x'``).
     """
     atoms = list(pv.values)
-    if not pv.exhaustive:
+    if not pv.complete:
         atoms.append(UNKNOWN)
     return atoms
 

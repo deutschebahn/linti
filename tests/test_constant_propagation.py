@@ -275,7 +275,7 @@ def test_if_else_tracks_both_variants():
     pv = index.possible_values_at("sDim", "prolog", 6)
     assert isinstance(pv, PossibleValues)
     assert pv.values == frozenset({"Region", "Product"})
-    assert pv.exhaustive
+    assert pv.complete
     # Not a single scalar -> exact stays None.
     assert pv.exact is None
 
@@ -342,7 +342,7 @@ def test_any_contains_needs_definite_evidence():
     assert not pv.any_contains(":")
 
 
-def test_all_contain_requires_exhaustive_variants():
+def test_all_contain_requires_complete_variants():
     code = "IF(p = 1);\n  sV = 'a where b';\nELSE;\n  sV = CellGetS('c', 'x');\nENDIF;"
     index = ConstantPropagationIndex(_process(prolog=code))
     pv = index.possible_values_at("sV", "prolog", 6)
@@ -377,7 +377,7 @@ def test_no_else_keeps_pre_value_as_variant():
     index = ConstantPropagationIndex(_process(prolog=code))
     pv = index.possible_values_at("sDim", "prolog", 5)
     assert pv.values == frozenset({"Default", "Region"})
-    assert pv.exhaustive
+    assert pv.complete
     # Before the IF the pre-value is still the single known value.
     assert _exact(index, "sDim", "prolog", 1) == "Default"
 
@@ -392,7 +392,7 @@ def test_dynamic_branch_keeps_exists_but_not_forall():
     )
     index = ConstantPropagationIndex(_process(prolog=code))
     pv = index.possible_values_at("sDim", "prolog", 6)
-    assert not pv.exhaustive
+    assert not pv.complete
     assert pv.any_of(lambda v: v == "Region")  # exists still holds
     assert not pv.all_of(lambda v: v == "Region")  # forall cannot
     assert pv.exact is None
@@ -411,7 +411,7 @@ def test_elseif_chain_enumerates_all_variants():
     index = ConstantPropagationIndex(_process(prolog=code))
     pv = index.possible_values_at("sV", "prolog", 8)
     assert pv.values == frozenset({"x", "y", "z"})
-    assert pv.exhaustive
+    assert pv.complete
 
 
 def test_variants_fold_through_expression():
@@ -419,7 +419,7 @@ def test_variants_fold_through_expression():
     index = ConstantPropagationIndex(_process(prolog=code))
     pv = index.possible_values_at("sFull", "prolog", 7)
     assert pv.values == frozenset({"A_x", "B_x"})
-    assert pv.exhaustive
+    assert pv.complete
     assert pv.all_of(lambda v: v.endswith("_x"))
 
 
