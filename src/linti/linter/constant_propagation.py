@@ -24,7 +24,7 @@ Tracking semantics
   literal fragments as a
   :class:`~linti.linter.possible_values.PartialString` rather than
   collapsing to fully unknown (see
-  :func:`~linti.linter.possible_values._normalize_string_segments`).
+  :func:`~linti.linter.possible_values.normalize_string_segments`).
 * Anything dynamic — function calls, parameters, datasource variables,
   predefined variables — is UNKNOWN.  The index never guesses.
 * ``IF``/``ELSEIF``/``ELSE`` branches are joined: after the construct the
@@ -63,9 +63,9 @@ from linti.linter.possible_values import (
     UNKNOWN,
     PossibleValues,
     Value,
-    _as_segments,
-    _normalize_string_segments,
-    _single,
+    as_segments,
+    normalize_string_segments,
+    single,
 )
 from linti.model.process_ir import ProcessIR
 from linti.parser.ast import (
@@ -261,11 +261,11 @@ class ConstantPropagationIndex:
         """Evaluate *expr* to the set of values it may produce."""
         if isinstance(expr, Number):
             try:
-                return _single(float(expr.value))
+                return single(float(expr.value))
             except (TypeError, ValueError):
                 return TOP
         if isinstance(expr, String):
-            return _single(expr.value)
+            return single(expr.value)
         if isinstance(expr, Identifier):
             return env.get(expr.name.lower(), TOP)
         if isinstance(expr, UnaryExpression):
@@ -352,7 +352,7 @@ def _apply_binary_operator(op_type: TokenType, a: Value, b: Value) -> Value:
     if op_type is TokenType.PIPE:
         # Concatenation keeps known fragments even when a side is dynamic;
         # a fully known concatenation folds back to a plain string.
-        return _normalize_string_segments(_as_segments(a) + _as_segments(b))
+        return normalize_string_segments(as_segments(a) + as_segments(b))
     if isinstance(a, float) and isinstance(b, float):
         if op_type is TokenType.PLUS:
             return a + b

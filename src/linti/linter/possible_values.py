@@ -29,7 +29,7 @@ always means "not provable", not "provably false".
 
 This module has no notion of TI syntax or sections; it only defines what a
 tracked value can look like and how two values fold together (see
-:func:`_normalize_string_segments`, used when concatenating).  Deciding
+:func:`normalize_string_segments`, used when concatenating).  Deciding
 *when* to fold — e.g. that TI's ``|`` operator means concatenation — is the
 interpreter's job, in :mod:`linti.linter.constant_propagation`.
 """
@@ -69,7 +69,7 @@ class PartialString:
         return tuple(seg for seg in self.segments if isinstance(seg, str))
 
 
-def _normalize_string_segments(
+def normalize_string_segments(
     segments: list[Union[str, _Unknown]],
 ) -> Union[str, PartialString, _Unknown]:
     """Smart constructor for a ``|`` concatenation's result.
@@ -102,7 +102,7 @@ def _normalize_string_segments(
     return PartialString(tuple(merged))
 
 
-def _as_segments(value: "Value") -> list[Union[str, _Unknown]]:
+def as_segments(value: "Value") -> list[Union[str, _Unknown]]:
     """Promote a tracked value to a segment list for concatenation."""
     if isinstance(value, str):
         return [value]
@@ -254,6 +254,6 @@ TOP = PossibleValues(frozenset(), False)
 UNASSIGNED = PossibleValues(frozenset(), False, assigned=False)
 
 
-def _single(value: AtomicValue) -> PossibleValues:
+def single(value: AtomicValue) -> PossibleValues:
     """A PossibleValues holding exactly one known value."""
     return PossibleValues(frozenset({value}), True)
