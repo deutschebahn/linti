@@ -240,6 +240,13 @@ class PossibleValues:
         """True when nothing at all is known about the value."""
         return not self.values and not self.complete
 
+    def _sole(self) -> Optional[AtomicValue]:
+        """The one value in ``values``, when it is complete and holds exactly one."""
+        if self.complete and len(self.values) == 1:
+            (only,) = self.values
+            return only
+        return None
+
     @property
     def exact(self) -> Optional[Union[str, float]]:
         """The single, fully known ``str``/``float`` value, or ``None``.
@@ -247,11 +254,8 @@ class PossibleValues:
         Non-``None`` only when the variable holds exactly one statically known
         scalar — never for multi-variant, partial, or dynamic values.
         """
-        if self.complete and len(self.values) == 1:
-            (only,) = tuple(self.values)
-            if isinstance(only, (str, float)):
-                return only
-        return None
+        only = self._sole()
+        return only if isinstance(only, (str, float)) else None
 
     @property
     def partial(self) -> Optional[PartialString]:
@@ -260,30 +264,34 @@ class PossibleValues:
         Fully known values (use :attr:`exact`), fully unknown values, and
         multi-variant values all return ``None``.
         """
-        if self.complete and len(self.values) == 1:
-            (only,) = tuple(self.values)
-            if isinstance(only, PartialString):
-                return only
-        return None
+        only = self._sole()
+        return only if isinstance(only, PartialString) else None
 
-    def all_of(self, predicate) -> bool:
-        """Check whether *predicate* provably holds for every possible value (∀).
+    def _all(self, holds_for) -> bool:
+        """True iff *holds_for* is provable for every possible value (∀).
 
-        *predicate* receives only fully known ``str``/``float`` values.  The
-        set must be complete and non-empty: a dynamic possibility
-        (``complete is False``) or a partially known variant could turn out to
-        violate the predicate, and since an arbitrary predicate cannot be
-        decided on a partial, that possibility alone rules out a universal
-        guarantee.
+        The set must be complete and non-empty: a dynamic possibility
+        (``complete is False``) could violate *holds_for*, which alone rules
+        out a universal guarantee.
         """
         return (
             self.complete
             and bool(self.values)
-            and all(
-                isinstance(value, (str, float)) and predicate(value)
-                for value in self.values
-            )
+            and all(holds_for(value) for value in self.values)
         )
+
+    def _any(self, holds_for) -> bool:
+        """True iff *holds_for* is provable for at least one possible value (∃)."""
+        return any(holds_for(value) for value in self.values)
+
+    def all_of(self, predicate) -> bool:
+        """Check whether *predicate* provably holds for every possible value (∀).
+
+        *predicate* receives only fully known ``str``/``float`` values; a
+        partially known variant can't decide an arbitrary predicate, so its
+        presence alone rules out a universal guarantee.
+        """
+        return self._all(lambda v: isinstance(v, (str, float)) and predicate(v))
 
     def any_of(self, predicate) -> bool:
         """Check whether *predicate* provably holds for at least one value (∃).
@@ -292,24 +300,16 @@ class PossibleValues:
         partially known variant is never proof that the predicate holds, so it
         is skipped rather than counted.
         """
-        return any(
-            isinstance(value, (str, float)) and predicate(value)
-            for value in self.values
-        )
+        return self._any(lambda v: isinstance(v, (str, float)) and predicate(v))
 
     def all_contain(self, substring: str) -> bool:
         """Check whether *substring* is certainly present in every value (∀).
 
         The substring-aware counterpart of :meth:`all_of`: a partially known
         variant counts when one of its *known fragments* contains *substring*,
-        because that fragment appears verbatim in the final value.  The set
-        must still be complete and non-empty.
+        because that fragment appears verbatim in the final value.
         """
-        return (
-            self.complete
-            and bool(self.values)
-            and all(_definitely_contains(value, substring) for value in self.values)
-        )
+        return self._all(lambda v: _definitely_contains(v, substring))
 
     def any_contains(self, substring: str) -> bool:
         """Check whether *substring* is certainly present in at least one value (∃).
@@ -318,7 +318,7 @@ class PossibleValues:
         contains *substring*; a gap that merely *might* contain it does not
         count as proof.
         """
-        return any(_definitely_contains(value, substring) for value in self.values)
+        return self._any(lambda v: _definitely_contains(v, substring))
 
 
 #: The fully unknown value of a *written* variable: could be anything.
