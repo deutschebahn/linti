@@ -226,6 +226,41 @@ def test_prolog_type_override_to_odbc_enables():
     assert len(issues) == 1
 
 
+def test_conditional_query_override_matching_metadata_is_flagged():
+    # DatasourceQuery is only reassigned inside an IF with no ELSE, to the
+    # same WHERE-less query the metadata already has — every execution path
+    # ends up with a WHERE-less query, so the pattern is still flagged.
+    issues = _lint(
+        "ItemSkip();",
+        datasource_query="SELECT amount FROM sales",
+        prolog=(
+            "IF(pOverride = 1);\n"
+            "  DatasourceQuery = 'SELECT amount FROM sales';\n"
+            "ENDIF;"
+        ),
+    )
+    assert len(issues) == 1
+    assert "ItemSkip()" in issues[0].message
+
+
+def test_conditional_query_override_diverging_from_metadata_is_flagged():
+    # The untaken branch keeps the metadata query (has a WHERE); the taken
+    # branch removes it. On the taken-branch path, ItemSkip() still filters
+    # rows pulled from a WHERE-less query, so it's flagged even though the
+    # untaken branch is fine.
+    issues = _lint(
+        "ItemSkip();",
+        datasource_query="SELECT amount FROM sales WHERE region = 1",
+        prolog=(
+            "IF(pOverride = 1);\n"
+            "  DatasourceQuery = 'SELECT amount FROM sales';\n"
+            "ENDIF;"
+        ),
+    )
+    assert len(issues) == 1
+    assert "ItemSkip()" in issues[0].message
+
+
 def test_dynamic_query_override_is_not_flagged():
     # Overridden to a value that cannot be read statically: stay silent rather
     # than trust the stale metadata query.

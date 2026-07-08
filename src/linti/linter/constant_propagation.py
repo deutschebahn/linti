@@ -160,6 +160,20 @@ class ConstantPropagationIndex:
         # Persists across sections so a Prolog value stays visible in Data.
         env: dict[str, PossibleValues] = {}
 
+        # DatasourceType/DatasourceQuery are TI predefined variables that
+        # already hold the process metadata value before Prolog even runs —
+        # seed them so a conditional reassignment (e.g. an IF with no ELSE)
+        # joins against that starting value instead of the untaken branch
+        # collapsing to unknown.
+        if self._process.datasource_type is not None:
+            self._record(
+                env, "datasourcetype", 0, 0, single(self._process.datasource_type)
+            )
+        if self._process.datasource_query is not None:
+            self._record(
+                env, "datasourcequery", 0, 0, single(self._process.datasource_query)
+            )
+
         for section_idx, section in enumerate(SECTION_ORDER):
             proc_info = getattr(self._process, section)
             if proc_info is None:

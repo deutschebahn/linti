@@ -10,9 +10,13 @@ and only in the record-processing blocks (Metadata, Data).
 
 ``DatasourceType`` and ``DatasourceQuery`` can be reassigned in the Prolog (they
 are TI predefined variables); the runtime value wins over the process metadata.
-The rule reads the override through the constant propagation index and, when the
-override cannot be resolved statically, stays silent rather than trusting the
-now-stale metadata.
+The rule reads the override through the constant propagation index.  A
+``DatasourceType`` that cannot be resolved to a single statically known value
+silences the rule (a genuine ODBC/non-ODBC ambiguity is not worth guessing).
+``DatasourceQuery`` is checked more leniently: if a conditional override (e.g.
+an ``IF`` with no ``ELSE``) leaves *any* statically known variant without a
+``WHERE`` clause, the rule still fires, since that variant's rows are pulled
+unfiltered from SQL on whichever path reaches it.
 """
 
 import re
@@ -55,7 +59,7 @@ def _resolve_override(context: LintContext, name: str, metadata_value):
     """Resolve a datasource setting, honouring a Prolog override.
 
     Returns the statically known override value when the script reassigns
-    *name* (a TI predefined variable such as ``DatasourceQuery``), the
+    *name* (a TI predefined variable such as ``DatasourceType``), the
     *metadata_value* when it is never reassigned, or :data:`_DYNAMIC` when it is
     reassigned to a value that cannot be read statically (so the caller must not
     fall back to the — now stale — metadata value).
@@ -66,6 +70,22 @@ def _resolve_override(context: LintContext, name: str, metadata_value):
     if not pv.assigned:
         return metadata_value
     return pv.exact if isinstance(pv.exact, str) else _DYNAMIC
+
+
+def _query_may_lack_where(context: LintContext, metadata_value) -> bool:
+    """True when the ODBC query provably has no ``WHERE`` clause on at least
+    one reachable path.
+
+    A Prolog override of ``DatasourceQuery`` may apply on only some paths
+    (e.g. an ``IF`` with no ``ELSE``): if *any* statically known variant has
+    no ``WHERE`` clause, the rows on that path are still pulled unfiltered
+    from SQL, so it counts even when other variants are safe. A variant that
+    cannot be read statically at all proves nothing and is skipped.
+    """
+    pv = context.possible_values("DatasourceQuery", 0)
+    if not pv.assigned:
+        return bool(metadata_value) and not _has_where(metadata_value)
+    return pv.any_of(lambda v: isinstance(v, str) and not _has_where(v))
 
 
 def _iter_calls(node):
@@ -226,8 +246,7 @@ class SqlWhereFilteringRule(BaseStatementRule):
         ds_type = _resolve_override(context, "DatasourceType", context.datasource_type)
         if ds_type is _DYNAMIC or (ds_type or "").lower() != "odbc":
             return []
-        query = _resolve_override(context, "DatasourceQuery", context.datasource_query)
-        if query is _DYNAMIC or not query or _has_where(query):
+        if not _query_may_lack_where(context, context.datasource_query):
             return []
 
         acc = _Scan()
