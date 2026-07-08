@@ -217,6 +217,15 @@ def test_consistent_flags_variable_with_known_colon_value():
     _assert_colon_issue(_lint_process(code))
 
 
+def test_consistent_flags_variable_concatenation_argument():
+    # The colon comes from a variable, not a literal — but the concatenation
+    # is written directly as the call argument rather than pre-assigned.
+    code = (
+        "sSuffix = ':Detail';\nnX = DimensionElementExists('Region' | sSuffix, 'EMEA');"
+    )
+    _assert_colon_issue(_lint_process(code))
+
+
 def test_consistent_flags_colon_value_assigned_in_earlier_section():
     issues = _lint_process(
         "sDim = 'Region:Detail';",
@@ -243,16 +252,25 @@ def test_consistent_flags_when_all_branch_variants_have_colon():
     _assert_colon_issue(_lint_process(code))
 
 
-def test_consistent_ignores_when_a_branch_variant_has_no_colon():
+def test_consistent_flags_when_only_one_branch_variant_has_colon():
+    # sDim is 'A:1' on the pFlag=1 path — that call is already addressing a
+    # hierarchy there, regardless of the colon-free 'B' on the other path.
     code = (
         "IF(pFlag = 1);\n  sDim = 'A:1';\nELSE;\n  sDim = 'B';\nENDIF;\n"
         "nX = DimensionElementExists(sDim, 'e');"
     )
-    assert _lint_process(code) == []
+    _assert_colon_issue(_lint_process(code))
 
 
 def test_consistent_ignores_variable_without_colon():
     code = "sDim = 'Region';\nnX = DimensionElementExists(sDim, 'EMEA');"
+    assert _lint_process(code) == []
+
+
+def test_consistent_ignores_variable_concatenation_without_colon():
+    code = (
+        "sSuffix = 'Detail';\nnX = DimensionElementExists('Region' | sSuffix, 'EMEA');"
+    )
     assert _lint_process(code) == []
 
 

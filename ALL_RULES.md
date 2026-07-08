@@ -857,7 +857,7 @@ Modes:
 - enforce: only hierarchy-aware functions are allowed; standard functions are reported with their hierarchy-aware replacement.
 - consistent: either style is allowed, but mixing both within the same file is reported.
 
-Independently of the mode, a standard function whose dimension argument provably addresses a hierarchy ('Dimension:Hierarchy') is reported — whether the colon comes from a string literal, a literal concatenation (sDim | ':' | sHier), or a variable whose statically known value always contains a colon. In enforce mode the call is already reported by name, so this extra check adds signal in consistent mode. Unknown/dynamic values are never reported.
+Independently of the mode, a standard function whose dimension argument provably addresses a hierarchy ('Dimension:Hierarchy') is reported — whether the colon comes from a string literal, a literal concatenation (sDim | ':' | sHier), or a variable with a statically known branch variant that contains a colon (a single reachable path already addresses a hierarchy there, even if other branches don't). In enforce mode the call is already reported by name, so this extra check adds signal in consistent mode. Unknown/dynamic values are never reported.
 
 Generic processes (whose names start with a configured ``generic_prefixes`` entry) are always held to the stricter ``enforce`` mode, regardless of the base ``mode``.
 

@@ -24,6 +24,7 @@ from linti.linter.lint_issue import LintIssue
 from linti.parser.ast import (
     Assignment,
     ASTNode,
+    BinaryExpression,
     ExpressionStatement,
     FunctionCall,
     Identifier,
@@ -105,10 +106,12 @@ class UseHierarchyAwareFunctionsRule(BaseRule):
             "Independently of the mode, a standard function whose dimension "
             "argument provably addresses a hierarchy ('Dimension:Hierarchy') is "
             "reported — whether the colon comes from a string literal, a literal "
-            "concatenation (sDim | ':' | sHier), or a variable whose statically "
-            "known value always contains a colon. In enforce mode the call is "
-            "already reported by name, so this extra check adds signal in "
-            "consistent mode. Unknown/dynamic values are never reported.\n\n"
+            "concatenation (sDim | ':' | sHier), or a variable with a statically "
+            "known branch variant that contains a colon (a single reachable path "
+            "already addresses a hierarchy there, even if other branches don't). "
+            "In enforce mode the call is already reported by name, so this extra "
+            "check adds signal in consistent mode. Unknown/dynamic values are "
+            "never reported.\n\n"
             "Generic processes (whose names start with a configured "
             "``generic_prefixes`` entry) are always held to the stricter "
             "``enforce`` mode, regardless of the base ``mode``.\n\n"
@@ -313,9 +316,9 @@ class _HierarchyColonArgumentRule(BaseStatementRule):
     A standard (non hierarchy-aware) function expects a plain dimension name; a
     colon-bearing value belongs in a hierarchy-aware function with an explicit
     hierarchy argument.  The colon is reported only when it is provably present
-    (string literal, literal concatenation, or a variable whose statically known
-    value always contains one), so unknown/dynamic values never produce a
-    finding.
+    on at least one reachable path (string literal, literal concatenation, or a
+    variable with a statically known branch variant that contains one), so
+    unknown/dynamic values never produce a finding.
 
     This class is intentionally not registered (empty ``CONFIG_KEY``); it is
     created by :meth:`UseHierarchyAwareFunctionsRule.from_config`, sharing S410's
@@ -387,9 +390,27 @@ class _HierarchyColonArgumentRule(BaseStatementRule):
         for node in _iter_expr(arg):
             if isinstance(node, String) and ":" in node.value:
                 return True
-        # A variable whose value provably always contains a colon.
-        if isinstance(arg, Identifier):
-            token = get_node_token(arg)
+        return self._provably_contains_colon(arg, context)
+
+    def _provably_contains_colon(self, node, context: LintContext) -> bool:
+        """True when *node* is provably known to contain a colon on at least
+        one reachable path.
+
+        Covers a bare variable with a statically known branch variant that
+        contains one, and a ``|`` concatenation where at least one operand
+        alone is provably known to — concatenating anything else around a
+        colon-bearing part can't remove it, so the check recurses through the
+        chain rather than needing the whole expression to fold to one known
+        value. A single call site reached with a colon-bearing value on any
+        path is already addressing a hierarchy there, regardless of what
+        other branches pass instead.
+        """
+        if isinstance(node, Identifier):
+            token = get_node_token(node)
             line = token.line if token else 0
-            return context.possible_values(arg.name, line).all_contain(":")
+            return context.possible_values(node.name, line).any_contains(":")
+        if isinstance(node, BinaryExpression) and node.operator.type is TokenType.PIPE:
+            return self._provably_contains_colon(
+                node.left, context
+            ) or self._provably_contains_colon(node.right, context)
         return False
