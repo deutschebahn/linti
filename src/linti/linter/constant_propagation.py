@@ -118,6 +118,13 @@ class ConstantPropagationIndex:
         self._max_variants = max_variants
         # name (lower-cased) -> events sorted by (section index, line)
         self._events: Optional[dict[str, list[_Event]]] = None
+        # Build-scoped memo tables keyed by node identity, so the per-node
+        # subtree scans (_max_line, _assigned_names) run once per node instead
+        # of being re-walked on every enclosing IF/WHILE exit — otherwise an
+        # ELSEIF chain (nested IfStatements) costs O(n^2). Every AST node stays
+        # alive in self._cache for the whole build, so id() cannot be reused.
+        self._max_line_memo: dict[int, int] = {}
+        self._assigned_memo: dict[int, set[str]] = {}
 
     def possible_values_at(self, name: str, block: str, line: int) -> PossibleValues:
         """Return the set of values *name* may hold at *line* of *block*.
@@ -187,7 +194,7 @@ class ConstantPropagationIndex:
             if section in _REPEATING_SECTIONS:
                 # Reads before the first write would see the previous
                 # record's value — invalidate every name assigned here.
-                for name in sorted(_assigned_names(ast.statements)):
+                for name in sorted(self._assigned_names(ast.statements)):
                     self._record(env, name, section_idx, 0, TOP)
 
             self._interpret(ast.statements, section_idx, env)
@@ -230,8 +237,10 @@ class ConstantPropagationIndex:
         self._interpret(stmt.then_body, section_idx, then_env)
         self._interpret(stmt.else_body, section_idx, else_env)
 
-        end_line = _max_line(stmt)
-        assigned = _assigned_names(stmt.then_body) | _assigned_names(stmt.else_body)
+        end_line = self._max_line(stmt)
+        assigned = self._assigned_names(stmt.then_body) | self._assigned_names(
+            stmt.else_body
+        )
         for key in sorted(assigned):
             joined = self._join(then_env.get(key, TOP), else_env.get(key, TOP))
             self._record(env, key, section_idx, end_line, joined)
@@ -245,7 +254,7 @@ class ConstantPropagationIndex:
         later iteration, so no in-loop value can be trusted from the loop on.
         """
         loop_line = stmt.token.line if stmt.token else 0
-        for name in sorted(_assigned_names(stmt.body)):
+        for name in sorted(self._assigned_names(stmt.body)):
             self._record(env, name, section_idx, loop_line, TOP)
 
     def _record(
@@ -266,6 +275,77 @@ class ConstantPropagationIndex:
         if len(values) > self._max_variants:
             return TOP
         return PossibleValues(values, a.complete and b.complete)
+
+    # -- subtree scans (memoized per node) --------------------------------
+
+    def _max_line(self, node: ASTNode) -> int:
+        """The greatest source line touched by *node* and its descendants.
+
+        The AST does not record the ``ENDIF`` line, so this approximates
+        "after the IF" for placing a joined branch event.  Memoized on node
+        identity: each node's subtree is scanned once per build, so an ELSEIF
+        chain costs O(n) overall rather than O(n^2).
+        """
+        cached = self._max_line_memo.get(id(node))
+        if cached is not None:
+            return cached
+
+        lines: list[int] = []
+        tok = get_node_token(node)
+        if tok is not None:
+            lines.append(tok.line)
+        operator = getattr(node, "operator", None)
+        if operator is not None and hasattr(operator, "line"):
+            lines.append(operator.line)
+        for tok in getattr(node, "tokens", None) or []:
+            lines.append(tok.line)
+        for attr in ("condition", "left", "right", "operand"):
+            child = getattr(node, attr, None)
+            if isinstance(child, ASTNode):
+                lines.append(self._max_line(child))
+        for attr in ("then_body", "else_body", "body", "args"):
+            for child in getattr(node, attr, None) or []:
+                if isinstance(child, ASTNode):
+                    lines.append(self._max_line(child))
+
+        result = max(lines, default=0)
+        self._max_line_memo[id(node)] = result
+        return result
+
+    def _assigned_names(self, statements: list) -> set[str]:
+        """All variable names (lower-cased) assigned anywhere in *statements*.
+
+        Per-statement results are memoized on node identity, so a nested
+        ``IfStatement`` (an ELSEIF branch) is scanned once instead of again by
+        every enclosing IF.  The returned set is a fresh accumulator; the
+        cached per-node sets are only ever combined with ``|`` / ``|=``, never
+        mutated in place.
+        """
+        names: set[str] = set()
+        for stmt in statements:
+            names |= self._assigned_in_stmt(stmt)
+        return names
+
+    def _assigned_in_stmt(self, stmt) -> set[str]:
+        cached = self._assigned_memo.get(id(stmt))
+        if cached is not None:
+            return cached
+
+        if isinstance(stmt, Assignment):
+            names = {stmt.left.name.lower()}
+        elif isinstance(stmt, IfStatement):
+            names = self._assigned_names(stmt.then_body) | self._assigned_names(
+                stmt.else_body
+            )
+        elif isinstance(stmt, WhileStatement):
+            names = self._assigned_names(stmt.body)
+        elif isinstance(stmt, UnknownStatement):
+            names = {name for name, _ in _unknown_statement_assignments(stmt)}
+        else:
+            names = set()
+
+        self._assigned_memo[id(stmt)] = names
+        return names
 
     # -- expression evaluation --------------------------------------------
 
@@ -377,48 +457,6 @@ def _apply_binary_operator(op_type: TokenType, a: Value, b: Value) -> Value:
         if op_type is TokenType.SLASH:
             return UNKNOWN if b == 0 else a / b
     return UNKNOWN
-
-
-def _max_line(node: ASTNode) -> int:
-    """The greatest source line touched by *node* and its descendants.
-
-    The AST does not record the ``ENDIF`` line, so this approximates "after the
-    IF" for placing a joined branch event.
-    """
-    lines: list[int] = []
-    tok = get_node_token(node)
-    if tok is not None:
-        lines.append(tok.line)
-    operator = getattr(node, "operator", None)
-    if operator is not None and hasattr(operator, "line"):
-        lines.append(operator.line)
-    for tok in getattr(node, "tokens", None) or []:
-        lines.append(tok.line)
-    for attr in ("condition", "left", "right", "operand"):
-        child = getattr(node, attr, None)
-        if isinstance(child, ASTNode):
-            lines.append(_max_line(child))
-    for attr in ("then_body", "else_body", "body", "args"):
-        for child in getattr(node, attr, None) or []:
-            if isinstance(child, ASTNode):
-                lines.append(_max_line(child))
-    return max(lines, default=0)
-
-
-def _assigned_names(statements: list) -> set[str]:
-    """All variable names (lower-cased) assigned anywhere in *statements*."""
-    names: set[str] = set()
-    for stmt in statements:
-        if isinstance(stmt, Assignment):
-            names.add(stmt.left.name.lower())
-        elif isinstance(stmt, IfStatement):
-            names |= _assigned_names(stmt.then_body)
-            names |= _assigned_names(stmt.else_body)
-        elif isinstance(stmt, WhileStatement):
-            names |= _assigned_names(stmt.body)
-        elif isinstance(stmt, UnknownStatement):
-            names |= {name for name, _ in _unknown_statement_assignments(stmt)}
-    return names
 
 
 def _unknown_statement_assignments(stmt: UnknownStatement) -> list[tuple[str, int]]:
