@@ -71,6 +71,29 @@ class TestPaCodeProvider:
         assert process.parameters == ["pValue"]
         assert process.variables == ["vName"]
         assert process.provider_data.get("pa_code") is True
+        # DataSource "None" carries a type but no SQL query.
+        assert process.datasource_type == "None"
+        assert process.datasource_query is None
+
+    def test_get_process_surfaces_odbc_query(self, tmp_path: Path):
+        content = (
+            "#SECTION Data\n\nnData = 2;\n\n#JSON_PROPERTIES\n"
+            + json.dumps(
+                {
+                    "DataSource": {
+                        "Type": "ODBC",
+                        "Query": "SELECT amount FROM sales WHERE region = ?",
+                    }
+                }
+            )
+            + "\n"
+        )
+        file_path = tmp_path / "odbc.ti"
+        file_path.write_text(content)
+        process = PaCodeProvider(file_path).get_process("odbc")
+
+        assert process.datasource_type == "ODBC"
+        assert process.datasource_query == "SELECT amount FROM sales WHERE region = ?"
 
     def test_get_process_wrong_name(self, pa_file: Path):
         provider = PaCodeProvider(pa_file)

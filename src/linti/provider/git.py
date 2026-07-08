@@ -20,6 +20,7 @@ from linti.model.process_ir import ProcessIR
 from linti.provider.base import (
     DEFAULT_MAX_FILE_SIZE,
     ensure_within_size_limit,
+    extract_datasource,
     extract_named_entries,
     validate_process_name,
 )
@@ -85,6 +86,7 @@ class GitProvider:
         variables, variable_lines = extract_named_entries(
             self._meta.get("Variables", [])
         )
+        datasource_type, datasource_query = extract_datasource(self._meta)
 
         return ProcessIR(
             name=expected_name,
@@ -96,6 +98,8 @@ class GitProvider:
             parameter_lines=parameter_lines,
             variables=variables,
             variable_lines=variable_lines,
+            datasource_type=datasource_type,
+            datasource_query=datasource_query,
         )
 
     def save_process(self, process: ProcessIR) -> None:

@@ -6,7 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from linti.model.process_ir import ProcedureInfo, ProcessIR
-from linti.provider.base import extract_named_entries, validate_process_name
+from linti.provider.base import (
+    extract_datasource,
+    extract_named_entries,
+    validate_process_name,
+)
 
 _SECTION_PATTERN = re.compile(
     r"^#SECTION\s+(Prolog|Metadata|Data|Epilog)\s*$", re.IGNORECASE
@@ -142,6 +146,7 @@ class PaCodeProvider:
         variables, variable_lines = extract_named_entries(
             metadata.get("Variables", []), default_line=1
         )
+        datasource_type, datasource_query = extract_datasource(metadata)
 
         return ProcessIR(
             name=expected_name,
@@ -153,6 +158,8 @@ class PaCodeProvider:
             parameter_lines=parameter_lines,
             variables=variables,
             variable_lines=variable_lines,
+            datasource_type=datasource_type,
+            datasource_query=datasource_query,
             provider_data={"pa_json_properties": metadata, "pa_code": True},
         )
 
