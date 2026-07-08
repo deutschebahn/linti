@@ -1,13 +1,13 @@
 """High-level linting operations on ProcessIR and providers."""
 
-from linti.lexer.lexer import Lexer
+from linti.semantic.constant_evaluation import ConstantEvaluationIndex
 from linti.linter.fixer import auto_fix_process
 from linti.linter.lint_context import LintContext
 from linti.linter.linter import Linter
 from linti.linter.lint_issue import LintIssue
+from linti.linter.parse_cache import SectionParseCache
 from linti.linter.reporter import ProcedureIssue
 from linti.model.process_ir import ProcessIR, extract_procedures
-from linti.parser.parser import NestingDepthExceeded, Parser
 from linti.provider.base import ProcessProvider
 
 # Pseudo rule id for the parser-level "nesting too deep" diagnostic. Not a
@@ -19,23 +19,22 @@ def lint_process_model(process: ProcessIR, linter: Linter) -> list[ProcedureIssu
     """Lint one process model and return procedure-scoped issues."""
     all_issues: list[ProcedureIssue] = []
 
+    # Lex/parse each section at most once per run: the lint loop populates
+    # this cache and the index reads from it instead of re-parsing.
+    parse_cache = SectionParseCache(process, max_nesting_depth=linter.max_nesting_depth)
+    # One shared index per process; it builds lazily on first rule access.
+    constants = ConstantEvaluationIndex(
+        process,
+        cache=parse_cache,
+        max_values_per_variable=linter.max_values_per_variable,
+    )
+
     for proc_name, proc_info in extract_procedures(process).items():
-        lint_ctx = LintContext(
-            block=proc_name,
-            process_name=process.name,
-            parameters=process.parameters,
-            parameter_lines=process.parameter_lines,
-            variables=process.variables,
-            variable_lines=process.variable_lines,
-            block_start_line=proc_info.source_line,
-            block_end_line=proc_info.source_end_line,
-        )
-        tokens = Lexer(proc_info.code).tokenize()
-        try:
-            ast = Parser(tokens, max_nesting_depth=linter.max_nesting_depth).parse()
-        except NestingDepthExceeded as e:
+        lint_ctx = LintContext.for_procedure(process, proc_name, proc_info, constants)
+        parsed = parse_cache.get(proc_name)
+        if parsed.error is not None:
             issue = LintIssue(
-                message=str(e),
+                message=str(parsed.error),
                 line=1,
                 column=1,
                 position=0,
@@ -43,7 +42,9 @@ def lint_process_model(process: ProcessIR, linter: Linter) -> list[ProcedureIssu
             )
             all_issues.append((proc_name, issue, proc_info.source_line))
             continue
-        issues = linter.lint(tokens, lint_ctx, ast=ast, source=proc_info.code)
+        issues = linter.lint(
+            parsed.tokens, lint_ctx, ast=parsed.ast, source=proc_info.code
+        )
         for issue in issues:
             all_issues.append((proc_name, issue, proc_info.source_line))
 

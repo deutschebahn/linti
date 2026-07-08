@@ -109,6 +109,7 @@ def lint_process_file(
             statement_rules=statement_rules,
             max_nesting_depth=cfg.max_nesting_depth,
             max_file_size=cfg.max_file_size,
+            max_values_per_variable=cfg.max_values_per_variable,
         )
 
     try:
@@ -166,6 +167,7 @@ def lint_directory(
             statement_rules=statement_rules,
             max_nesting_depth=cfg.max_nesting_depth,
             max_file_size=cfg.max_file_size,
+            max_values_per_variable=cfg.max_values_per_variable,
         )
 
         file_issues = lint_process_file(
