@@ -99,14 +99,45 @@ def _classify(call: FunctionCall, in_conditional: bool, acc: _Scan) -> None:
         acc.writes.append((call, in_conditional))
 
 
+def _always_writes(statements: list) -> bool:
+    """True when every path through *statements* performs a cube write.
+
+    An ``IF`` whose ``then``/``else`` branches both always write does not
+    make the write conditional from the caller's point of view — a record
+    reaching this point always ends up writing somewhere, regardless of
+    which branch it takes. A missing ``ELSE`` (or a loop, which may run
+    zero times) can never be proven to always write.
+    """
+    for stmt in statements:
+        if isinstance(stmt, IfStatement):
+            if _always_writes(stmt.then_body) and _always_writes(stmt.else_body or []):
+                return True
+        elif isinstance(stmt, Assignment):
+            if any(
+                call.name.lower() in WRITE_FUNCTIONS for call in _iter_calls(stmt.right)
+            ):
+                return True
+        elif isinstance(stmt, ExpressionStatement):
+            if any(
+                call.name.lower() in WRITE_FUNCTIONS
+                for call in _iter_calls(stmt.expression)
+            ):
+                return True
+    return False
+
+
 def _scan(statements: list, in_conditional: bool, acc: _Scan) -> None:
     """Walk statements, tracking whether a call sits inside an ``IF`` branch."""
     for stmt in statements:
         if isinstance(stmt, IfStatement):
             for call in _iter_calls(stmt.condition):
                 _classify(call, in_conditional, acc)
-            _scan(stmt.then_body, True, acc)
-            _scan(stmt.else_body or [], True, acc)
+            exhaustive = _always_writes(stmt.then_body) and _always_writes(
+                stmt.else_body or []
+            )
+            branch_conditional = in_conditional if exhaustive else True
+            _scan(stmt.then_body, branch_conditional, acc)
+            _scan(stmt.else_body or [], branch_conditional, acc)
         elif isinstance(stmt, WhileStatement):
             for call in _iter_calls(stmt.condition):
                 _classify(call, in_conditional, acc)

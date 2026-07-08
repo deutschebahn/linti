@@ -77,6 +77,45 @@ def test_unconditional_write_is_not_flagged():
     assert _lint(code) == []
 
 
+def test_exhaustive_if_else_writes_are_not_flagged():
+    code = (
+        "IF(vRegion @= 'EMEA');\n"
+        "  CellPutN(vAmount, 'Sales', vRegion);\n"
+        "ELSE;\n"
+        "  CellPutN(vAmount, 'Other', vRegion);\n"
+        "ENDIF;"
+    )
+    assert _lint(code) == []
+
+
+def test_nested_exhaustive_if_else_writes_are_not_flagged():
+    code = (
+        "IF(vRegion @= 'EMEA');\n"
+        "  IF(vMonth @= 'Jan');\n"
+        "    CellPutN(vAmount, 'Sales', vRegion, vMonth);\n"
+        "  ELSE;\n"
+        "    CellPutN(vAmount, 'Sales', vRegion, vMonth);\n"
+        "  ENDIF;\n"
+        "ELSE;\n"
+        "  CellPutN(vAmount, 'Other', vRegion);\n"
+        "ENDIF;"
+    )
+    assert _lint(code) == []
+
+
+def test_if_else_write_with_one_branch_missing_write_is_flagged():
+    code = (
+        "IF(vRegion @= 'EMEA');\n"
+        "  CellPutN(vAmount, 'Sales', vRegion);\n"
+        "ELSE;\n"
+        "  nI = 1;\n"
+        "ENDIF;"
+    )
+    issues = _lint(code)
+    assert len(issues) == 1
+    assert "conditional" in issues[0].message
+
+
 def test_write_in_loop_without_if_is_unconditional():
     code = (
         "WHILE(nI < 5);\n  CellPutN(vAmount, 'Sales', vRegion);\n  nI = nI + 1;\nEND;"
