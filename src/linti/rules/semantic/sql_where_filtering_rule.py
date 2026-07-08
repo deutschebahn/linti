@@ -26,13 +26,13 @@ from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import LintIssue
 from linti.parser.ast import (
     Assignment,
-    ASTNode,
     ExpressionStatement,
     FunctionCall,
     IfStatement,
     Program,
     WhileStatement,
     get_node_token,
+    iter_expression_nodes,
 )
 from linti.rules.Rule import BaseStatementRule, RuleExample, RuleMetadata
 
@@ -41,9 +41,6 @@ from linti.rules.Rule import BaseStatementRule, RuleExample, RuleMetadata
 WRITE_FUNCTIONS = frozenset({"cellputn", "cellputs", "cellincrementn"})
 
 _WHERE_RE = re.compile(r"\bwhere\b", re.IGNORECASE)
-
-#: Expression attributes to descend into when collecting function calls.
-_EXPR_CHILD_ATTRS = ("left", "right", "operand", "condition")
 
 #: The datasource was overridden in the script to a value we cannot read
 #: statically — so nothing can be proven and the rule must stay silent.
@@ -90,17 +87,7 @@ def _query_may_lack_where(context: LintContext, metadata_value) -> bool:
 
 def _iter_calls(node):
     """Yield every FunctionCall in an expression subtree."""
-    if not isinstance(node, ASTNode):
-        return
-    if isinstance(node, FunctionCall):
-        yield node
-    for attr in _EXPR_CHILD_ATTRS:
-        child = getattr(node, attr, None)
-        if isinstance(child, ASTNode):
-            yield from _iter_calls(child)
-    for child in getattr(node, "args", None) or []:
-        if isinstance(child, ASTNode):
-            yield from _iter_calls(child)
+    return (n for n in iter_expression_nodes(node) if isinstance(n, FunctionCall))
 
 
 @dataclass

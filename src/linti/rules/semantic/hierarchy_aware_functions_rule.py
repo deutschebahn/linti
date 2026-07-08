@@ -23,7 +23,6 @@ from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import LintIssue
 from linti.parser.ast import (
     Assignment,
-    ASTNode,
     BinaryExpression,
     ExpressionStatement,
     FunctionCall,
@@ -32,6 +31,7 @@ from linti.parser.ast import (
     String,
     WhileStatement,
     get_node_token,
+    iter_expression_nodes,
 )
 from linti.rules.generic_process import is_generic_process
 from linti.rules.Rule import BaseRule, BaseStatementRule, RuleExample, RuleMetadata
@@ -279,26 +279,6 @@ class UseHierarchyAwareFunctionsRule(BaseRule):
         ]
 
 
-#: Expression attributes to descend into when scanning for function calls /
-#: string literals. The linter's AST walk stops at statement boundaries, so the
-#: companion rule walks the expression subtree itself.
-_EXPR_CHILD_ATTRS = ("left", "right", "operand", "condition")
-
-
-def _iter_expr(node):
-    """Yield *node* and every descendant expression node."""
-    if not isinstance(node, ASTNode):
-        return
-    yield node
-    for attr in _EXPR_CHILD_ATTRS:
-        child = getattr(node, attr, None)
-        if isinstance(child, ASTNode):
-            yield from _iter_expr(child)
-    for child in getattr(node, "args", None) or []:
-        if isinstance(child, ASTNode):
-            yield from _iter_expr(child)
-
-
 def _statement_expression(statement):
     """The expression a visited statement carries a function call in, if any."""
     if isinstance(statement, Assignment):
@@ -355,7 +335,7 @@ class _HierarchyColonArgumentRule(BaseStatementRule):
             return []
 
         issues: list[LintIssue] = []
-        for node in _iter_expr(expr):
+        for node in iter_expression_nodes(expr):
             if not isinstance(node, FunctionCall):
                 continue
             aware = LEGACY_TO_AWARE.get(node.name.lower())
@@ -387,7 +367,7 @@ class _HierarchyColonArgumentRule(BaseStatementRule):
     def _addresses_hierarchy(self, arg, context: LintContext) -> bool:
         # A literal colon anywhere in the argument expression is certain to be
         # present — covers 'Dim:Hier' and sDim | ':' | sHier.
-        for node in _iter_expr(arg):
+        for node in iter_expression_nodes(arg):
             if isinstance(node, String) and ":" in node.value:
                 return True
         return self._provably_contains_colon(arg, context)

@@ -168,6 +168,11 @@ max_file_size: 10485760   # 10 MB (default)
 # Cap on control-flow (IF/WHILE) nesting depth. Deeper nesting is reported as
 # an S900 diagnostic instead of being parsed unboundedly.
 max_nesting_depth: 150    # default
+
+# Cap on how many distinct values the constant propagation index tracks per
+# variable (across IF/ELSE branches) before treating it as unknown. Used by
+# value-aware rules such as S340 and S410.
+max_variants: 8           # default
 ```
 
 - A file above `max_file_size` fails with a clear error rather than being read.
@@ -175,6 +180,10 @@ max_nesting_depth: 150    # default
   diagnostic (`Maximum nesting depth (N) exceeded`) for that procedure and
   linting continues. `S900` is a built-in parser diagnostic, not a configurable
   rule, so it does not appear in `linti explain` / `ALL_RULES.md`.
+- `max_variants` bounds cross-section constant propagation: once a variable
+  could hold more than this many distinct literal values, it degrades to
+  "unknown" so value-aware rules stay conservative rather than tracking an
+  unbounded set.
 
 ### All rules
 
@@ -352,7 +361,7 @@ Documentation and process docstring validation:
 - **D4xx - Docstrings**: Required docstring regions and headers
   - `D410` - Docstring Region
 
-### Semantic Rules (S1xx, S2xx, S3xx)
+### Semantic Rules (S1xx, S2xx, S3xx, S4xx)
 Logic, control flow, and semantic validation:
 
 - **S1xx - Control Flow**: Process execution and control flow patterns
@@ -367,6 +376,10 @@ Logic, control flow, and semantic validation:
   - `S310` - Literal Process Calls
   - `S320` - No ExecuteCommand
   - `S330` - ODBCOpen Password Parameter
+  - `S340` - Filter ODBC Rows in SQL
+
+- **S4xx - Hierarchies**: Dimension hierarchy usage
+  - `S410` - Use Hierarchy-Aware Functions
 
 Use `linti explain` to list all rules or `linti explain <RULE_ID>` for detailed information about a specific rule.
 

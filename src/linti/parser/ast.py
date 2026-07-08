@@ -12,6 +12,31 @@ def get_node_token(node):
     return getattr(node, "token", None)
 
 
+#: Expression attributes to descend into when walking an expression subtree.
+_EXPR_CHILD_ATTRS = ("left", "right", "operand", "condition")
+
+
+def iter_expression_nodes(node):
+    """Yield *node* and every descendant expression node.
+
+    Walks the operand/condition and ``args`` children of an expression subtree.
+    The linter's statement walk stops at statement boundaries, so rules that
+    need to inspect the expressions *within* a statement (function calls, string
+    literals, …) traverse them with this helper instead of re-implementing the
+    same descent.
+    """
+    if not isinstance(node, ASTNode):
+        return
+    yield node
+    for attr in _EXPR_CHILD_ATTRS:
+        child = getattr(node, attr, None)
+        if isinstance(child, ASTNode):
+            yield from iter_expression_nodes(child)
+    for child in getattr(node, "args", None) or []:
+        if isinstance(child, ASTNode):
+            yield from iter_expression_nodes(child)
+
+
 class Statement(ASTNode):
     """Base class for all statement nodes."""
 
