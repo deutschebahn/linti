@@ -1,8 +1,11 @@
 """Tests for UseHierarchyAwareFunctionsRule (S410)."""
 
 from linti.lexer.lexer import Lexer
+from linti.linter.api import lint_process_model
 from linti.linter.lint_context import LintContext
 from linti.linter.linter import Linter
+from linti.model.process_ir import ProcedureInfo, ProcessIR
+from linti.rules.Rule import BaseRule
 from linti.rules.semantic.hierarchy_aware_functions_rule import (
     UseHierarchyAwareFunctionsRule,
 )
@@ -17,6 +20,28 @@ def _lint(
     rule = UseHierarchyAwareFunctionsRule(mode=mode, generic_prefixes=generic_prefixes)
     tokens = Lexer(code).tokenize()
     return Linter(rules=[rule]).lint(tokens, context, source=code)
+
+
+def _lint_process(
+    prolog: str,
+    mode: str = "consistent",
+    generic_prefixes=None,
+    name: str = "test_process",
+    **sections,
+):
+    """Run the full S410 pipeline (both visitors + constant evaluation index)."""
+    rules = UseHierarchyAwareFunctionsRule.from_config(
+        {"mode": mode, "generic_prefixes": generic_prefixes or []}
+    )
+    token_rules = [r for r in rules if isinstance(r, BaseRule)]
+    statement_rules = [r for r in rules if not isinstance(r, BaseRule)]
+    linter = Linter(rules=token_rules, statement_rules=statement_rules)
+    process = ProcessIR(
+        name=name,
+        prolog=ProcedureInfo(code=prolog),
+        **{k: ProcedureInfo(code=v) for k, v in sections.items()},
+    )
+    return [issue for _, issue, _ in lint_process_model(process, linter)]
 
 
 # --- enforce mode ---
@@ -170,3 +195,112 @@ def test_consistent_state_resets_between_processes():
 
     assert a_issues == []
     assert b_issues == []
+
+
+# --- colon-in-dimension-argument check (consistent mode) ---
+
+
+def _assert_colon_issue(issues, aware="HierarchyElementExists"):
+    assert len(issues) == 1
+    assert issues[0].rule_id == "S410"
+    assert "addresses a hierarchy" in issues[0].message
+    assert aware in issues[0].message
+
+
+def test_consistent_flags_string_literal_with_colon():
+    issues = _lint_process("nX = DimensionElementExists('Region:Detail', 'EMEA');")
+    _assert_colon_issue(issues)
+
+
+def test_consistent_flags_variable_with_known_colon_value():
+    code = "sDim = 'Region:Detail';\nnX = DimensionElementExists(sDim, 'EMEA');"
+    _assert_colon_issue(_lint_process(code))
+
+
+def test_consistent_flags_variable_concatenation_argument():
+    # The colon comes from a variable, not a literal — but the concatenation
+    # is written directly as the call argument rather than pre-assigned.
+    code = (
+        "sSuffix = ':Detail';\nnX = DimensionElementExists('Region' | sSuffix, 'EMEA');"
+    )
+    _assert_colon_issue(_lint_process(code))
+
+
+def test_consistent_flags_colon_value_assigned_in_earlier_section():
+    issues = _lint_process(
+        "sDim = 'Region:Detail';",
+        epilog="nX = DimensionElementExists(sDim, 'EMEA');",
+    )
+    _assert_colon_issue(issues)
+
+
+def test_consistent_flags_literal_concatenation_argument():
+    issues = _lint_process("nX = DimensionElementExists(sDim | ':' | sHier, 'EMEA');")
+    _assert_colon_issue(issues)
+
+
+def test_consistent_flags_colon_in_if_condition():
+    code = "IF(DimensionElementExists('D:H', 'e') = 0);\n  nX = 1;\nENDIF;"
+    _assert_colon_issue(_lint_process(code))
+
+
+def test_consistent_flags_when_all_branch_variants_have_colon():
+    code = (
+        "IF(pFlag = 1);\n  sDim = 'A:1';\nELSE;\n  sDim = 'B:2';\nENDIF;\n"
+        "nX = DimensionElementExists(sDim, 'e');"
+    )
+    _assert_colon_issue(_lint_process(code))
+
+
+def test_consistent_flags_when_only_one_branch_variant_has_colon():
+    # sDim is 'A:1' on the pFlag=1 path — that call is already addressing a
+    # hierarchy there, regardless of the colon-free 'B' on the other path.
+    code = (
+        "IF(pFlag = 1);\n  sDim = 'A:1';\nELSE;\n  sDim = 'B';\nENDIF;\n"
+        "nX = DimensionElementExists(sDim, 'e');"
+    )
+    _assert_colon_issue(_lint_process(code))
+
+
+def test_consistent_ignores_variable_without_colon():
+    code = "sDim = 'Region';\nnX = DimensionElementExists(sDim, 'EMEA');"
+    assert _lint_process(code) == []
+
+
+def test_consistent_ignores_variable_concatenation_without_colon():
+    code = (
+        "sSuffix = 'Detail';\nnX = DimensionElementExists('Region' | sSuffix, 'EMEA');"
+    )
+    assert _lint_process(code) == []
+
+
+def test_consistent_ignores_unknown_value():
+    code = "sDim = CellGetS('c', 'x');\nnX = DimensionElementExists(sDim, 'EMEA');"
+    assert _lint_process(code) == []
+
+
+def test_consistent_ignores_colon_in_non_dimension_argument():
+    # The colon is in the element (second) argument, not the dimension.
+    issues = _lint_process("nX = DimensionElementExists('Region', 'a:b');")
+    assert issues == []
+
+
+def test_enforce_reports_colon_call_by_name_without_duplicate():
+    # In enforce mode the standard function is flagged by name only (no second
+    # colon-specific finding on the same call).
+    issues = _lint_process(
+        "nX = DimensionElementExists('Region:Detail', 'EMEA');", mode="enforce"
+    )
+    assert len(issues) == 1
+    assert "not hierarchy-aware" in issues[0].message
+
+
+def test_generic_process_reports_colon_call_by_name_only():
+    issues = _lint_process(
+        "nX = DimensionElementExists('Region:Detail', 'EMEA');",
+        mode="consistent",
+        generic_prefixes=["}core."],
+        name="}core.load",
+    )
+    assert len(issues) == 1
+    assert "not hierarchy-aware" in issues[0].message
