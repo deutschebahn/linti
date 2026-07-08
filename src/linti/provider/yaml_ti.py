@@ -16,6 +16,7 @@ from linti.model.process_ir import (
     ProcessIR,
     extract_procedures,  # noqa: F401 – re-export
 )
+from linti.provider.base import extract_datasource
 
 
 # Custom YAML constructor to handle !TM1py.ProcessObject tags
@@ -244,6 +245,7 @@ class YamlProvider:
         variables, variable_lines = self._parse_named_items(
             lines, definition, "Variables"
         )
+        datasource_type, datasource_query = extract_datasource(definition)
 
         return ProcessIR(
             name=process_name,
@@ -255,6 +257,8 @@ class YamlProvider:
             parameter_lines=parameter_lines,
             variables=variables,
             variable_lines=variable_lines,
+            datasource_type=datasource_type,
+            datasource_query=datasource_query,
             provider_data={"content_indent": content_indent},
         )
 
