@@ -28,19 +28,7 @@ def lint_process_model(process: ProcessIR, linter: Linter) -> list[ProcedureIssu
     )
 
     for proc_name, proc_info in extract_procedures(process).items():
-        lint_ctx = LintContext(
-            block=proc_name,
-            process_name=process.name,
-            parameters=process.parameters,
-            parameter_lines=process.parameter_lines,
-            variables=process.variables,
-            variable_lines=process.variable_lines,
-            block_start_line=proc_info.source_line,
-            block_end_line=proc_info.source_end_line,
-            constants=constants,
-            datasource_type=process.datasource_type,
-            datasource_query=process.datasource_query,
-        )
+        lint_ctx = LintContext.for_procedure(process, proc_name, proc_info, constants)
         parsed = parse_cache.get(proc_name)
         if parsed.error is not None:
             issue = LintIssue(

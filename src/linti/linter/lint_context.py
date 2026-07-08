@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from linti.linter.constant_propagation import ConstantPropagationIndex
     from linti.linter.possible_values import PossibleValues
+    from linti.model.process_ir import ProcedureInfo, ProcessIR
 
 
 @dataclass
@@ -30,7 +31,8 @@ class LintContext:
             the exact text span of an auto-fix; token values cannot be relied
             on for this because string literals are stored unquoted.
         constants: Process-wide ConstantPropagationIndex shared by all
-            sections of the process, or None (e.g. in the auto-fix pass).
+            sections of the process, or None when none was supplied (e.g. a
+            rule linted in isolation without a process model).
             Rules read it through :meth:`possible_values`.
         datasource_type: Data source type of the process (``ODBC``, ``ASCII``,
             ``None``, …), or None when the format carries no datasource metadata.
@@ -51,6 +53,48 @@ class LintContext:
     constants: Optional["ConstantPropagationIndex"] = None
     datasource_type: Optional[str] = None
     datasource_query: Optional[str] = None
+
+    @classmethod
+    def for_procedure(
+        cls,
+        process: "ProcessIR",
+        proc_name: str,
+        proc_info: "ProcedureInfo",
+        constants: Optional["ConstantPropagationIndex"] = None,
+        *,
+        track_block_end: bool = True,
+    ) -> "LintContext":
+        """Build the per-procedure context shared by the lint and auto-fix loops.
+
+        Centralises the field mapping from a
+        :class:`~linti.model.process_ir.ProcessIR` so the two call sites
+        (:func:`~linti.linter.api.lint_process_model` and
+        :func:`~linti.linter.fixer.auto_fix_process`) cannot drift — both wire
+        the same process-wide metadata (parameters, datasource settings,
+        constant propagation index) into every procedure's context.
+
+        *track_block_end* stays ``True`` for a normal lint so
+        :meth:`is_end_of_procedure` knows the procedure's last line.  The
+        auto-fix loop passes ``False``: while fixing, a whole procedure may
+        still be squashed onto one line, and a set ``block_end_line`` would make
+        every statement on that line look final and suppress
+        ``NewLinePerStatementRule`` (F320) — the very fix that splits them apart
+        across passes.  The end-of-file check in that rule still stops a newline
+        being demanded after the true final statement.
+        """
+        return cls(
+            block=proc_name,
+            process_name=process.name,
+            parameters=process.parameters,
+            parameter_lines=process.parameter_lines,
+            variables=process.variables,
+            variable_lines=process.variable_lines,
+            block_start_line=proc_info.source_line,
+            block_end_line=proc_info.source_end_line if track_block_end else None,
+            constants=constants,
+            datasource_type=process.datasource_type,
+            datasource_query=process.datasource_query,
+        )
 
     def possible_values(self, name: str, line: int) -> "PossibleValues":
         """Return what is statically known about *name* at *line*.

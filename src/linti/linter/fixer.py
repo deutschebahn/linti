@@ -3,9 +3,11 @@
 from typing import Optional
 
 from linti.lexer.lexer import Lexer
+from linti.linter.constant_propagation import ConstantPropagationIndex
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import LintIssue
 from linti.linter.linter import Linter
+from linti.linter.parse_cache import SectionParseCache
 from linti.model.process_ir import ProcedureInfo, ProcessIR, extract_procedures
 
 MAX_AUTO_FIX_PASSES = 10
@@ -88,15 +90,19 @@ def auto_fix_process(process: ProcessIR, linter: Linter) -> dict[str, int]:
     """
     fixes_by_proc: dict[str, int] = {}
 
+    # Mirror lint_process_model: give auto-fix rules the same process-wide
+    # constant propagation index so a possible_values-based rule fixes with the
+    # information it reports with. Built lazily, so it costs nothing unless a
+    # rule queries it. It reflects the process as of the start of this pass; the
+    # authoritative re-lint in lint_process rebuilds a fresh index after saving.
+    parse_cache = SectionParseCache(process, max_nesting_depth=linter.max_nesting_depth)
+    constants = ConstantPropagationIndex(
+        process, cache=parse_cache, max_variants=linter.max_variants
+    )
+
     for proc_name, proc_info in extract_procedures(process).items():
-        lint_ctx = LintContext(
-            block=proc_name,
-            process_name=process.name,
-            parameters=process.parameters,
-            parameter_lines=process.parameter_lines,
-            variables=process.variables,
-            variable_lines=process.variable_lines,
-            block_start_line=proc_info.source_line,
+        lint_ctx = LintContext.for_procedure(
+            process, proc_name, proc_info, constants, track_block_end=False
         )
 
         fixed_code, num_fixes = apply_fixes_iteratively(

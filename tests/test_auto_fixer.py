@@ -293,3 +293,41 @@ def test_auto_fix_ti_file_runs_multiple_passes():
 
         assert fixed_code == "a = 1;\nif(a=1);\n    a = b;\nendif;"
         assert sum(fixes_by_proc.values()) >= 5
+
+
+def test_auto_fix_context_wires_constant_propagation():
+    """Auto-fix rules see the same cross-section constants as the lint pass.
+
+    A possible_values-based rule linted through auto_fix_process must resolve a
+    value assigned in an earlier section, just as it does through
+    lint_process_model — otherwise it would compute fixes with less information
+    than it reports with.
+    """
+    from linti.linter.fixer import auto_fix_process
+    from linti.model.process_ir import ProcedureInfo, ProcessIR
+    from linti.parser.ast import Assignment
+    from linti.rules.Rule import BaseStatementRule
+
+    seen: dict[str, object] = {}
+
+    class _Spy(BaseStatementRule):
+        @property
+        def RULE_ID(self) -> str:
+            return "T999"
+
+        def interested_in(self):
+            return [Assignment]
+
+        def visit(self, statement, context):
+            seen[context.block] = context.possible_values("sDim", 99).exact
+            return []
+
+    process = ProcessIR(
+        name="p",
+        prolog=ProcedureInfo(code="sDim = 'Region:Default';"),
+        data=ProcedureInfo(code="nX = 1;"),
+    )
+    auto_fix_process(process, Linter(statement_rules=[_Spy()]))
+
+    # The Prolog value is visible while the Data block is being fixed.
+    assert seen["data"] == "Region:Default"
