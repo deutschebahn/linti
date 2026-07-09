@@ -23,6 +23,7 @@ GROUP_LABELS = {
     "N": "Naming Convention Rules (N)",
     "D": "Documentation Rules (D)",
     "S": "Semantic/Logic Rules (S)",
+    "E": "Error Rules (E)",
 }
 
 FILE_BANNER = dedent("""\
@@ -41,6 +42,7 @@ HEADER = dedent("""\
     - **N** - Naming Convention Rules
     - **D** - Documentation Rules
     - **S** - Semantic/Logic Rules
+    - **E** - Error Rules
 
     ## Current Rules
 """)
@@ -126,9 +128,9 @@ CONFIG_SECTION = dedent("""\
 
 
 def _group_key(rule_id: str) -> tuple[int, str]:
-    """Sort key: F before N before D before S, then by number."""
+    """Sort key: F before N before D before S before E, then by number."""
     prefix = rule_id[0]
-    order = {"F": 0, "N": 1, "D": 2, "S": 3}
+    order = {"F": 0, "N": 1, "D": 2, "S": 3, "E": 4}
     return (order.get(prefix, 9), rule_id)
 
 

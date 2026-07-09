@@ -11,12 +11,13 @@ from rich.text import Text
 from linti.rules import _RULE_REGISTRY
 from linti.rules.Rule import RuleMetadata
 
-_GROUP_ORDER = {"F": 0, "N": 1, "D": 2, "S": 3}
+_GROUP_ORDER = {"F": 0, "N": 1, "D": 2, "S": 3, "E": 4}
 _GROUP_NAMES = {
     "F": "Formatting Rules",
     "N": "Naming Convention Rules",
     "D": "Documentation Rules",
     "S": "Semantic/Logic Rules",
+    "E": "Error Rules",
 }
 
 
@@ -79,9 +80,7 @@ def explain_rule(rule_id: str) -> None:
 
     if meta is None:
         console.print(f"[red]Unknown rule:[/red] {rule_id}")
-        console.print(
-            "[dim]Use [bold]linti explain[/bold] to list all rules.[/dim]"
-        )
+        console.print("[dim]Use [bold]linti explain[/bold] to list all rules.[/dim]")
         raise SystemExit(1)
 
     rule_id = rule_id.upper()

@@ -381,6 +381,12 @@ Logic, control flow, and semantic validation:
 - **S4xx - Hierarchies**: Dimension hierarchy usage
   - `S410` - Use Hierarchy-Aware Functions
 
+### Error Rules (E1xx)
+Parse and syntax errors that reduce linting coverage:
+
+- **E1xx - Parsing**: Statements the parser could not understand
+  - `E110` - Unparseable Statement
+
 Use `linti explain` to list all rules or `linti explain <RULE_ID>` for detailed information about a specific rule.
 
 ### Auto-Fix Feature

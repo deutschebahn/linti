@@ -12,6 +12,7 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 - **N** - Naming Convention Rules
 - **D** - Documentation Rules
 - **S** - Semantic/Logic Rules
+- **E** - Error Rules
 
 ## Current Rules
 
@@ -58,6 +59,12 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 | S330 | ODBCOpen Password Parameter | Validates that ODBCOpen() password parameter is a defined TI parameter | ❌ |
 | S340 | Filter ODBC Rows in SQL | Flags ItemSkip() or exclusively conditional writes in Metadata/Data when the ODBC data source query has no WHERE clause | ❌ |
 | S410 | Use Hierarchy-Aware Functions | Enforces hierarchy-aware functions, or at least consistent usage of hierarchy-aware vs. standard hierarchy functions | ❌ |
+
+### Error Rules (E)
+
+| Rule ID | Rule Name | Description | Auto-fix |
+|---------|-----------|-------------|----------|
+| E110 | Unparseable Statement | Flags statements that could not be parsed, warning that linting quality is reduced for that code | ❌ |
 
 ## Rule Details
 
@@ -894,6 +901,33 @@ nExists = DimensionElementExists('Region:Detail', 'EMEA');
 
 ---
 
+### E110: Unparseable Statement
+
+Flags statements that could not be parsed, warning that linting quality is reduced for that code.
+
+The parser could not understand this statement and kept it in the AST as an unknown statement so the rest of the section could still be linted. AST-based rules skip unknown statements entirely, so any problem inside one is never reported — linting quality is reduced there. Fixing the syntax (a missing semicolon, an unbalanced parenthesis, a stray token) restores full coverage.
+
+**Configuration:**
+```yaml
+rules:
+  unknown_statement:
+    enabled: true
+```
+
+**Valid usage:**
+```ti
+# A well-formed statement parses and is fully linted
+nValue = 1;
+```
+
+**Invalid usage:**
+```ti
+# Missing terminating semicolon — cannot be parsed
+nValue = 1
+```
+
+---
+
 ## Configuration
 
 The linter can be configured using a `linti.yaml` configuration file. The file is automatically discovered and loaded from the same directory as the TI file being analyzed.
@@ -1011,6 +1045,9 @@ rules:
     enabled: true
     # base mode: 'enforce' or 'consistent'
     mode: consistent
+
+  unknown_statement:
+    enabled: true
 
 ```
 
