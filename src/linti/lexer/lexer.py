@@ -311,7 +311,7 @@ class Lexer:
                     last_non_ws_type = tok.type
                 continue
 
-            if self.current_char in "+-*/=<>&%|~":
+            if self.current_char in "+-*/\\=<>&%|~":
                 tok = self.operator()
                 tokens.append(tok)
                 last_non_ws_type = tok.type

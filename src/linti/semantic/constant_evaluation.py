@@ -456,6 +456,9 @@ def _apply_binary_operator(op_type: TokenType, a: Value, b: Value) -> Value:
             return a * b
         if op_type is TokenType.SLASH:
             return UNKNOWN if b == 0 else a / b
+        if op_type is TokenType.BACKSLASH:
+            # TI's \ division defines divide-by-zero as 0 rather than undefined.
+            return 0.0 if b == 0 else a / b
     return UNKNOWN
 
 

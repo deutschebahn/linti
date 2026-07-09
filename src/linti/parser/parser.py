@@ -67,6 +67,7 @@ INFIX_PRECEDENCE = {
     TokenType.PIPE: Precedence.SUM,
     TokenType.STAR: Precedence.PRODUCT,
     TokenType.SLASH: Precedence.PRODUCT,
+    TokenType.BACKSLASH: Precedence.PRODUCT,
     # Comparison operators
     TokenType.EQUALS: Precedence.COMPARE,
     TokenType.LESS: Precedence.COMPARE,
