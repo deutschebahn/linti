@@ -73,6 +73,7 @@ from linti.parser.ast import (
     ASTNode,
     BinaryExpression,
     Expression,
+    FunctionCall,
     Identifier,
     IfStatement,
     Number,
@@ -366,7 +367,15 @@ class ConstantEvaluationIndex:
             return self._evaluate_unary(expr, env)
         if isinstance(expr, BinaryExpression):
             return self._evaluate_binary(expr, env)
-        # FunctionCall and anything unexpected: dynamic.
+        if isinstance(expr, FunctionCall) and _is_inline_if(expr):
+            # TI's inline If(cond, then, else) picks one of two branches at
+            # runtime; the condition does not affect the value set, so fold it
+            # to the join of both branches — the same way the IF/ELSE statement
+            # form is joined. An unknown branch keeps the join incomplete.
+            return self._join(
+                self._evaluate(expr.args[1], env), self._evaluate(expr.args[2], env)
+            )
+        # Other function calls and anything unexpected: dynamic.
         return TOP
 
     def _evaluate_unary(
@@ -416,6 +425,16 @@ class ConstantEvaluationIndex:
 
 
 # -- ConstantEvaluationIndex internals: literal folding and AST scans ------
+
+
+def _is_inline_if(expr: FunctionCall) -> bool:
+    """True for a well-formed inline ``If(cond, then, else)`` call.
+
+    TI overloads ``If`` as an expression function taking exactly three
+    arguments; only that shape folds to a branch join.  Any other arity is a
+    malformed or unrelated call and stays dynamic.
+    """
+    return expr.name.lower() == "if" and len(expr.args) == 3
 
 
 def _atoms(pv: PossibleValues) -> list:

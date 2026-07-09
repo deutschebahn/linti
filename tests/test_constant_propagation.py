@@ -288,6 +288,50 @@ def test_if_else_tracks_both_variants():
     assert pv.exact is None
 
 
+def test_inline_if_expression_tracks_both_branches():
+    # TI's inline If(cond, then, else) folds like an IF/ELSE join.
+    index = ConstantEvaluationIndex(
+        _process(prolog="sDim = If(pFlag = 1, 'Region', 'Product');")
+    )
+    pv = index.possible_values_at("sDim", "prolog", 2)
+    assert pv.values == frozenset({"Region", "Product"})
+    assert pv.complete
+    assert pv.exact is None
+
+
+def test_inline_if_with_identical_branches_folds_to_exact():
+    index = ConstantEvaluationIndex(_process(prolog="sDim = If(pFlag = 1, 'X', 'X');"))
+    assert _exact(index, "sDim", "prolog", 2) == "X"
+
+
+def test_inline_if_with_dynamic_branch_is_incomplete():
+    index = ConstantEvaluationIndex(
+        _process(prolog="sDim = If(pFlag = 1, 'Region', pOther);")
+    )
+    pv = index.possible_values_at("sDim", "prolog", 2)
+    # Known branch still provable via any_of; all_of no longer holds.
+    assert pv.any_of(lambda v: v == "Region")
+    assert not pv.complete
+    assert pv.exact is None
+
+
+def test_nested_inline_if_tracks_all_branches():
+    index = ConstantEvaluationIndex(
+        _process(prolog="sDim = If(a = 1, 'p', If(b = 2, 'q', 'r'));")
+    )
+    pv = index.possible_values_at("sDim", "prolog", 2)
+    assert pv.values == frozenset({"p", "q", "r"})
+    assert pv.complete
+
+
+def test_inline_if_composes_through_concatenation():
+    code = "sDim = If(pFlag = 1, 'a', 'b');\nsFull = sDim | '_x';"
+    index = ConstantEvaluationIndex(_process(prolog=code))
+    pv = index.possible_values_at("sFull", "prolog", 3)
+    assert pv.values == frozenset({"a_x", "b_x"})
+    assert pv.complete
+
+
 def test_all_of_and_any_of_over_variants():
     code = "IF(pFlag = 1);\n  sDim = 'Region';\nELSE;\n  sDim = 'Product';\nENDIF;"
     index = ConstantEvaluationIndex(_process(prolog=code))
