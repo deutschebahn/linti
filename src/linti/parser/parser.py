@@ -612,6 +612,16 @@ class Parser:
             self.advance()
             return String(tok.value, token=tok)
 
+        # Inline `If(cond, then, else)` expression function. TI overloads `If`:
+        # the statement form (IF ... ENDIF) is intercepted by the statement
+        # dispatcher before expression parsing, so an IF token reaching here is
+        # always the function form. Treat it as the callee name — the Pratt
+        # loop parses the argument list via _parse_call, yielding a FunctionCall.
+        next_tok = self.peek()
+        if tok.type == TokenType.IF and next_tok and next_tok.type == TokenType.LPAREN:
+            self.advance()
+            return Identifier(tok.value, tok)
+
         # Identifier (variable, function name, or predefined variable)
         if self.is_identifier(tok):
             tok_copy = tok  # Save token before advancing
