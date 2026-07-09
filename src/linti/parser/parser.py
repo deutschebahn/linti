@@ -42,6 +42,10 @@ DEFAULT_MAX_NESTING_DEPTH = 150
 
 IGNORED_FOR_PARSING = {TokenType.WHITESPACE, TokenType.NEWLINE, TokenType.COMMENT}
 
+#: Cell-address functions whose element arguments (every argument after the
+#: leading cube name) may use the ``hierarchy:element`` reference syntax.
+ELEMENT_REF_FUNCTIONS = frozenset({"cellisupdateable"})
+
 
 @dataclass(frozen=True)
 class Precedence:
@@ -670,9 +674,18 @@ class Parser:
         if self.match(TokenType.RPAREN):
             return FunctionCall(name=ident.name, args=args, token=ident.token)
 
+        # Some cell-address functions accept a `hierarchy:element` reference in
+        # their element arguments — every argument after the leading cube name.
+        allow_element_ref = ident.name.lower() in ELEMENT_REF_FUNCTIONS
+
         # one or more args
         while True:
-            args.append(self.parse_expression())
+            arg = self.parse_expression()
+            # Only the 2nd..n argument may carry the colon reference; a
+            # non-empty ``args`` means at least the cube name is already parsed.
+            if allow_element_ref and args:
+                arg = self._maybe_element_reference(arg)
+            args.append(arg)
 
             if self.match(TokenType.COMMA):
                 continue
@@ -681,3 +694,19 @@ class Parser:
             break
 
         return FunctionCall(name=ident.name, args=args, token=ident.token)
+
+    def _maybe_element_reference(self, left: Expression) -> Expression:
+        """Fold a trailing ``:element`` onto *left* as a hierarchy:element ref.
+
+        TI addresses an element within an explicit hierarchy as
+        ``hierarchy:element`` (e.g. ``pTgtHier:vEle``).  COLON is deliberately
+        not a general infix operator, so it is only recognised here, in the
+        element arguments of the cell-address functions that accept it.  The
+        reference is represented as a ``BinaryExpression`` over the COLON token
+        so existing expression walks traverse both sides unchanged.
+        """
+        if self.at_end() or self.current().type != TokenType.COLON:
+            return left
+        colon = self.advance()
+        right = self.parse_expression()
+        return BinaryExpression(left=left, operator=colon, right=right)
