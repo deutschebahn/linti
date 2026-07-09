@@ -51,6 +51,7 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 | S110 | ProcessQuit Placement | Enforces that ProcessQuit() is only at the end of blocks to prevent unreachable code | ❌ |
 | S120 | ItemSkip Block Usage | Enforces that ItemSkip() is only used in metadata or data sections | ❌ |
 | S130 | Empty Block | Flags IF/ELSEIF/ELSE/WHILE blocks that contain no executable code | ✅ |
+| S140 | Unparseable Statement | Flags statements that could not be parsed, warning that linting quality is reduced for that code | ❌ |
 | S210 | Read-only Parameters and Variables | Enforces that parameters and data source variables are read-only | ❌ |
 | S220 | Single-assignment Constants | Enforces that constants (c-prefixed variables) are assigned only once | ❌ |
 | S310 | Literal Process Calls | Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument | ❌ |
@@ -643,6 +644,33 @@ END;
 
 ---
 
+### S140: Unparseable Statement
+
+Flags statements that could not be parsed, warning that linting quality is reduced for that code.
+
+The parser could not understand this statement and kept it in the AST as an unknown statement so the rest of the section could still be linted. AST-based rules skip unknown statements entirely, so any problem inside one is never reported — linting quality is reduced there. Fixing the syntax (a missing semicolon, an unbalanced parenthesis, a stray token) restores full coverage.
+
+**Configuration:**
+```yaml
+rules:
+  unknown_statement:
+    enabled: true
+```
+
+**Valid usage:**
+```ti
+# A well-formed statement parses and is fully linted
+nValue = 1;
+```
+
+**Invalid usage:**
+```ti
+# Missing terminating semicolon — cannot be parsed
+nValue = 1
+```
+
+---
+
 ### S210: Read-only Parameters and Variables
 
 Enforces that parameters and data source variables are read-only.
@@ -986,6 +1014,9 @@ rules:
     enabled: true
 
   empty_block:
+    enabled: true
+
+  unknown_statement:
     enabled: true
 
   readonly_parameter_variable:
