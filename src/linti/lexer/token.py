@@ -13,6 +13,7 @@ class TokenType(Enum):
     MINUS = auto()
     STAR = auto()
     SLASH = auto()
+    BACKSLASH = auto()  # \ division; unlike /, divide-by-zero yields 0
     LESS = auto()
     GREATER = auto()
     LESS_EQUAL = auto()
@@ -93,6 +94,7 @@ OPERATORS = {
     "-": TokenType.MINUS,
     "*": TokenType.STAR,
     "/": TokenType.SLASH,
+    "\\": TokenType.BACKSLASH,
     "=": TokenType.EQUALS,
     "<": TokenType.LESS,
     ">": TokenType.GREATER,
@@ -108,6 +110,7 @@ BINARY_OP_TYPES: frozenset["TokenType"] = frozenset(
         TokenType.MINUS,
         TokenType.STAR,
         TokenType.SLASH,
+        TokenType.BACKSLASH,
         TokenType.EQUALS,
         TokenType.LESS,
         TokenType.GREATER,

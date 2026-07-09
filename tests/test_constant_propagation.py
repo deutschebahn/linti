@@ -71,6 +71,17 @@ def test_division_by_zero_is_unknown():
     assert _exact(index, "nX", "prolog", 2) is None
 
 
+def test_backslash_division_folding():
+    index = ConstantEvaluationIndex(_process(prolog="nX = 6 \\ 2;"))
+    assert _exact(index, "nX", "prolog", 2) == 3.0
+
+
+def test_backslash_division_by_zero_is_zero():
+    # TI's \ operator defines divide-by-zero as 0, not undefined.
+    index = ConstantEvaluationIndex(_process(prolog="nX = 1 \\ 0;"))
+    assert _exact(index, "nX", "prolog", 2) == 0.0
+
+
 def test_reassignment_updates_value():
     index = ConstantEvaluationIndex(_process(prolog="x = 1;\nx = 2;"))
     assert _exact(index, "x", "prolog", 1) == 1.0
