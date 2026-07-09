@@ -25,6 +25,7 @@ class TokenType(Enum):
     PIPE = auto()
     SEMICOLON = auto()
     COMMA = auto()
+    COLON = auto()  # hierarchy:element reference in cell-address args
     WHITESPACE = auto()
     NEWLINE = auto()
     STRING = auto()
@@ -101,6 +102,7 @@ OPERATORS = {
     "&": TokenType.AND,
     "%": TokenType.OR,
     "~": TokenType.NOT,
+    ":": TokenType.COLON,
 }
 
 #: Token types that represent binary (infix) operators.
