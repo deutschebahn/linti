@@ -2,7 +2,7 @@
 
 import warnings
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -122,6 +122,16 @@ class UseHierarchyAwareFunctionsConfig(BaseModel):
     # Generic processes are taken from the top-level `generic_prefixes` setting.
 
 
+class FunctionVersionCompatibilityConfig(BaseModel):
+    """Configuration for FunctionVersionCompatibilityRule (S420)."""
+
+    # Opt-in: the target version depends on the deployment strategy.
+    enabled: bool = False
+    # Per-rule override of the top-level `target_version`. Left unset (None), the
+    # rule inherits the top-level value; an explicit value here wins.
+    mode: Optional[Literal["CompatibleWithV11AndV12", "V11", "V12"]] = None
+
+
 class NewLinePerStatementConfig(BaseModel):
     """Configuration for NewLinePerStatementRule."""
 
@@ -185,6 +195,9 @@ class RulesConfig(BaseModel):
     use_hierarchy_aware_functions: UseHierarchyAwareFunctionsConfig = Field(
         default_factory=UseHierarchyAwareFunctionsConfig
     )
+    function_version_compatibility: FunctionVersionCompatibilityConfig = Field(
+        default_factory=FunctionVersionCompatibilityConfig
+    )
     newline_per_statement: NewLinePerStatementConfig = Field(
         default_factory=NewLinePerStatementConfig
     )
@@ -206,6 +219,10 @@ class Config(BaseModel):
     # process. Rules that treat generic processes specially (D410, S410) share
     # this single definition.
     generic_prefixes: list[str] = Field(default_factory=list)
+    # Target Planning Analytics / TM1 version the code must run on. A project-wide
+    # fact shared by version-aware rules (currently S420); left unset (None) the
+    # rules fall back to their own default. `both` == must run on v11 and v12.
+    target_version: Optional[Literal["v11", "v12", "both"]] = None
     # Input-hardening limits (defend against pathological / untrusted input).
     # Control-flow nesting beyond this depth yields an S900 diagnostic instead
     # of recursing until a RecursionError.

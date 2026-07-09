@@ -112,6 +112,11 @@ def create_rules(cfg: Config, select: str | None = None) -> tuple:
         if not cfg_dict.get("generic_prefixes") and cfg.generic_prefixes:
             cfg_dict = {**cfg_dict, "generic_prefixes": cfg.generic_prefixes}
 
+        # Share the top-level target_version with version-aware rules (S420).
+        # A per-rule override still wins (handled inside the rule's from_config).
+        if cfg.target_version and not cfg_dict.get("target_version"):
+            cfg_dict = {**cfg_dict, "target_version": cfg.target_version}
+
         instances = rule_cls.from_config(cfg_dict)
 
         for inst in instances:
