@@ -240,6 +240,40 @@ def test_parse_nested_function_calls():
     assert inner_call.args[0].value == 5
 
 
+def test_parse_inline_if_expression():
+    """TI overloads `If` as an inline expression function: If(cond, then, else)."""
+    ast = _parse(
+        "sVar3 = If( pLegacy <> 1, Subst( v3 , Scan( '-' , v3 ) + 1 , Long( v3 ) ), v3 );"
+    )
+
+    stmt = ast.statements[0]
+    assert isinstance(stmt.right, FunctionCall)
+    assert stmt.right.name == "If"
+    assert len(stmt.right.args) == 3
+    # cond, then (a nested call), else (a bare identifier)
+    assert isinstance(stmt.right.args[0], BinaryExpression)
+    assert isinstance(stmt.right.args[1], FunctionCall)
+    assert isinstance(stmt.right.args[2], Identifier)
+    assert stmt.right.args[2].name == "v3"
+
+
+def test_parse_nested_inline_if_expression():
+    """An inline If may nest inside another inline If's arguments."""
+    ast = _parse("x = If(a = 1, If(b = 2, 'p', 'q'), 'r');")
+
+    outer = ast.statements[0].right
+    assert isinstance(outer, FunctionCall) and outer.name == "If"
+    inner = outer.args[1]
+    assert isinstance(inner, FunctionCall) and inner.name == "If"
+    assert len(inner.args) == 3
+
+
+def test_statement_form_if_is_not_an_expression():
+    """The IF ... ENDIF statement form must still parse as an IfStatement."""
+    ast = _parse("IF(pFlag = 1);\n  sDim = 'Region';\nENDIF;")
+    assert isinstance(ast.statements[0], IfStatement)
+
+
 def test_parse_unary_minus():
     """Test parsing unary minus operator."""
     ast = _parse("x = -5;")
