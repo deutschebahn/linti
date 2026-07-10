@@ -2,7 +2,7 @@
 
 import warnings
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -206,6 +206,9 @@ class Config(BaseModel):
     # process. Rules that treat generic processes specially (D410, S410) share
     # this single definition.
     generic_prefixes: list[str] = Field(default_factory=list)
+    # Files, directories, or glob patterns to skip during discovery. CLI
+    # ``--exclude-path`` values extend (never replace) this list.
+    exclude_paths: list[str] = Field(default_factory=list)
     # Input-hardening limits (defend against pathological / untrusted input).
     # Control-flow nesting beyond this depth yields an S900 diagnostic instead
     # of recursing until a RecursionError.
@@ -304,6 +307,36 @@ class Config(BaseModel):
         return cls(**config_dict)
 
     @classmethod
+    def find_config_file(cls, target_file: Path) -> Optional[Path]:
+        """Locate the ``linti.yaml`` that governs *target_file*, if any.
+
+        Walks upward from *target_file*'s directory, stopping at the first
+        ``linti.yaml`` (returned), at a project root marker
+        (``.git``, ``pyproject.toml``, ``setup.cfg``, ``setup.py``), or at the
+        filesystem root. The project-root boundary prevents accidentally
+        picking up a stray config file from a parent outside the project tree.
+
+        Returns the config file path, or ``None`` when none is found within the
+        project boundary.
+        """
+        directory = target_file.parent.resolve()
+
+        while True:
+            config_file = directory / "linti.yaml"
+            if config_file.exists():
+                return config_file
+
+            # Stop if this directory is a project root.
+            if any((directory / marker).exists() for marker in _PROJECT_ROOT_MARKERS):
+                return None
+
+            parent = directory.parent
+            if parent == directory:
+                # Reached filesystem root
+                return None
+            directory = parent
+
+    @classmethod
     def find_and_load(cls, target_file: Path) -> "Config":
         """
         Search for linti.yaml starting from *target_file*'s directory
@@ -325,26 +358,10 @@ class Config(BaseModel):
             Config instance with loaded settings, or default Config if
             no config file is found within the project boundary.
         """
-        directory = target_file.parent.resolve()
-
-        while True:
-            config_file = directory / "linti.yaml"
-            if config_file.exists():
-                try:
-                    return cls.load_from_file(config_file)
-                except Exception as e:
-                    raise ValueError(
-                        f"Failed to load config from {config_file}: {e}"
-                    ) from e
-
-            # Stop if this directory is a project root.
-            if any((directory / marker).exists() for marker in _PROJECT_ROOT_MARKERS):
-                break
-
-            parent = directory.parent
-            if parent == directory:
-                # Reached filesystem root
-                break
-            directory = parent
-
-        return cls()
+        config_file = cls.find_config_file(target_file)
+        if config_file is None:
+            return cls()
+        try:
+            return cls.load_from_file(config_file)
+        except Exception as e:
+            raise ValueError(f"Failed to load config from {config_file}: {e}") from e
