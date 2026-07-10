@@ -6,6 +6,8 @@ from typing import Optional
 import typer
 
 from linti.cli.config_loader import load_config
+from linti.cli.file_discovery import display_path
+from linti.config import Config
 from linti.lexer.lexer import Lexer
 from linti.linter.api import lint_process
 from linti.linter.fixer import auto_fix_process
@@ -97,8 +99,14 @@ def lint_process_file(
     silent_errors: bool = False,
     auto_fix: bool = False,
     select: Optional[str] = None,
+    report_path: Optional[Path] = None,
 ) -> Optional[list]:
-    """Lint one process file through a provider-backed flow."""
+    """Lint one process file through a provider-backed flow.
+
+    *file_path* is used to open the provider (discovery yields absolute paths);
+    *report_path*, when given, is the human-readable path shown in output.
+    """
+    report_path = report_path if report_path is not None else file_path
     # Resolve the linter (and thus the input-hardening limits) before opening
     # the provider, so the file-size ceiling is enforced on the initial read.
     if linter is None:
@@ -123,7 +131,7 @@ def lint_process_file(
         raise typer.Exit(code=1) from e
 
     if auto_fix:
-        typer.echo(f"Applying auto-fixes where supported in {file_path}")
+        typer.echo(f"Applying auto-fixes where supported in {report_path}")
 
     _print_debug(process, show_tokens, show_ast)
 
@@ -133,36 +141,33 @@ def lint_process_file(
     if return_issues:
         return issues
 
-    raise typer.Exit(code=report_issues(file_path, issues))
+    raise typer.Exit(code=report_issues(report_path, issues))
 
 
-def lint_directory(
-    directory: Path,
-    show_tokens: bool,
-    show_ast: bool,
-    config: Optional[Path],
+def lint_files(
+    files: list[Path],
+    report_root: Path,
+    cfg: Config,
+    show_tokens: bool = False,
+    show_ast: bool = False,
+    config: Optional[Path] = None,
     auto_fix: bool = False,
     select: Optional[str] = None,
-) -> None:
-    """Lint all process files in a directory recursively."""
-    process_files = sorted(
-        {
-            *directory.rglob("*.yaml"),
-            *directory.rglob("*.yml"),
-            *directory.rglob("*.ti"),
-        }
-    )
+) -> int:
+    """Lint an explicit list of already-discovered process files.
 
-    if not process_files:
-        typer.echo(f"No process files found in {directory}", err=False)
-        raise typer.Exit(code=0)
+    The files come pre-expanded and exclusion-filtered from
+    :func:`linti.cli.file_discovery.discover_process_files`, so they are
+    absolute, canonical paths; each is rendered relative to the current
+    directory for output via :func:`linti.cli.file_discovery.display_path`.
+    *cfg* is applied to
+    all of them. A single file gets the classic single-file report; multiple
+    files get a combined report headed by *report_root*. Returns the exit code.
+    """
 
-    cfg = load_config(directory, config)
-    all_file_issues = []
-
-    for proc_file in process_files:
+    def _new_linter() -> Linter:
         token_rules, statement_rules = create_rules(cfg, select=select)
-        linter = Linter(
+        return Linter(
             rules=token_rules,
             statement_rules=statement_rules,
             max_nesting_depth=cfg.max_nesting_depth,
@@ -170,18 +175,40 @@ def lint_directory(
             max_values_per_variable=cfg.max_values_per_variable,
         )
 
+    def _display(file: Path) -> Path:
+        # Render relative to the current directory, matching the paths a user
+        # typed; report_root only anchors the combined report's header.
+        return Path(display_path(file))
+
+    if len(files) == 1:
+        issues = lint_process_file(
+            files[0],
+            show_tokens,
+            show_ast,
+            config,
+            _new_linter(),
+            return_issues=True,
+            auto_fix=auto_fix,
+            report_path=_display(files[0]),
+        )
+        return report_issues(_display(files[0]), issues or [])
+
+    all_file_issues: list[FileProcedureIssue] = []
+    for proc_file in files:
         file_issues = lint_process_file(
             proc_file,
             show_tokens,
             show_ast,
             config,
-            linter,
+            _new_linter(),
             return_issues=True,
             silent_errors=True,
             auto_fix=auto_fix,
+            report_path=_display(proc_file),
         )
         if file_issues:
+            display = _display(proc_file)
             for proc_name, issue, source_line in file_issues:
-                all_file_issues.append((proc_file, proc_name, issue, source_line))
+                all_file_issues.append((display, proc_name, issue, source_line))
 
-    raise typer.Exit(code=report_directory_issues(directory, all_file_issues))
+    return report_directory_issues(report_root, all_file_issues)

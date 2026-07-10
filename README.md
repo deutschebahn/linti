@@ -156,6 +156,29 @@ rules:
 
 `rules.one_space_before_equals` has been removed with rule `F210`. If it is still present in an older config, linti warns and ignores it.
 
+### Excluding Files from Linting
+
+The top-level `exclude_paths` key lists files, directories, or glob patterns to
+skip during discovery:
+
+```yaml
+exclude_paths:
+  - generated/
+  - vendor/
+  - "**/archive/*.ti"
+```
+
+- Entries may be individual files (`processes/test.ti`), directories
+  (`generated/`), or glob patterns (`**/archive/*.ti`) — all use one common
+  matcher.
+- A bare name (no `/`, e.g. `generated`) excludes that file or directory
+  *anywhere* in the tree (gitignore-style). A pattern containing a `/` (e.g.
+  `processes/test.ti`) is anchored to the discovery root — prefix it with
+  `**/` to match at any depth.
+- CLI `--exclude-path` values **extend** this list rather than replacing it, so
+  the effective exclusions are the configured ones plus the CLI ones (duplicates
+  removed).
+
 ### Input Limits
 
 To stay robust on large or untrusted process files, linti bounds two things via
@@ -269,9 +292,48 @@ linti process.json --auto-fix
 # Lint a PA-code process (#SECTION + #JSON_PROPERTIES)
 linti pa-code.ti --auto-fix
 
-# Lint all YAML files in a directory
+# Lint all process files in a directory (searched recursively)
 linti processes/ --auto-fix
 ```
+
+### Input Paths and Globs
+
+The positional `<path>` argument accepts individual files, directories, and glob
+patterns — and you can pass several at once. linti performs the glob expansion
+itself, so patterns behave the same across shells and platforms (quote them so
+your shell does not expand them first).
+
+```bash
+# A single file, a directory, or a glob
+linti process.ti
+linti processes/
+linti "*.ti"
+linti "processes/**/*.ti"     # ** recurses into sub-directories
+linti processes/*.json
+
+# Several paths (files, directories, and globs) expanded together
+linti processes/ "*.yaml" other/process.ti
+```
+
+A file reached through more than one input (overlapping paths or globs) is
+**linted only once**.
+
+### Excluding Paths
+
+Skip files, directories, or glob patterns with the repeatable `--exclude-path`
+option:
+
+```bash
+linti . \
+    --exclude-path generated \
+    --exclude-path vendor \
+    --exclude-path "**/archive/*.ti"
+```
+
+Exclusions can also be configured in `linti.yaml` via the top-level
+[`exclude_paths`](#excluding-files-from-linting) key. CLI `--exclude-path`
+values **extend** the configured list (they never replace it), and duplicates
+are ignored.
 
 ### Command Help
 

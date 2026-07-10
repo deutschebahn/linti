@@ -7,7 +7,14 @@ from typing import TYPE_CHECKING, Optional
 import typer
 from typer.core import TyperGroup
 
-from linti.cli.file_linter import lint_directory, lint_process_file
+from linti.cli.config_loader import find_config_file, load_config
+from linti.cli.file_discovery import (
+    PathGroup,
+    config_base_path,
+    discover_process_files,
+    report_root,
+)
+from linti.cli.file_linter import lint_files
 from linti.cli.rule_explainer import explain_rule, list_rules
 from linti.config import LintiConfigWarning
 
@@ -45,9 +52,13 @@ app = typer.Typer(
 )
 
 # Module-level argument/option definitions
-FILE_PATH_ARG = typer.Argument(
+PATHS_ARG = typer.Argument(
     ...,
-    help="Path to a TI file, YAML file, or directory to lint",
+    metavar="PATH...",
+    help=(
+        "One or more files, directories, or glob patterns to lint. Quote globs "
+        'so the shell does not expand them (e.g. "processes/**/*.ti").'
+    ),
 )
 SHOW_TOKENS_OPT = typer.Option(
     False,
@@ -74,47 +85,94 @@ SELECT_OPT = typer.Option(
     "--select",
     help="Select specific rules to run (e.g., F, F1, F110 or comma-separated list)",
 )
+EXCLUDE_PATH_OPT = typer.Option(
+    None,
+    "--exclude-path",
+    help=(
+        "Exclude a file, directory, or glob pattern from linting. Repeatable; "
+        "values extend (never replace) any exclude_paths from the config."
+    ),
+)
 
 
 @app.command()
 def lint(
-    file_path: Path = FILE_PATH_ARG,
+    paths: list[str] = PATHS_ARG,
     show_tokens: bool = SHOW_TOKENS_OPT,
     show_ast: bool = SHOW_AST_OPT,
     config: Optional[Path] = CONFIG_OPT,
     auto_fix: bool = AUTO_FIX_OPT,
     select: Optional[str] = SELECT_OPT,
+    exclude_path: Optional[list[str]] = EXCLUDE_PATH_OPT,
 ) -> None:
     """
-    Lint a TM1 TI process file, YAML ProcessObject, or directory of YAMLs (default command).
+    Lint TM1 TI process files, YAML ProcessObjects, directories, or globs (default command).
 
     This is the default command: 'linti PATH' is a shortcut for 'linti lint PATH'.
+    Multiple paths and glob patterns are accepted and expanded together; a file
+    reached through several inputs is linted only once.
 
     Example:
         linti process.ti
-        linti process.yaml
-        linti /path/to/processes/
-        linti process.ti --tokens --ast
-        linti process.ti --config custom-config.yaml
+        linti processes/
+        linti "processes/**/*.ti"
+        linti processes/ "*.yaml" other/process.ti
+        linti . --exclude-path generated --exclude-path "**/archive/*.ti"
         linti process.ti --auto-fix
         linti process.ti --select F110
-        linti process.ti --select F,N1
     """
-    if not file_path.exists():
-        typer.echo(f"Error: Path does not exist: {file_path}", err=True)
-        raise typer.Exit(code=1)
+    cli_excludes = exclude_path or []
 
-    if file_path.is_dir():
-        lint_directory(file_path, show_tokens, show_ast, config, auto_fix, select)
-    else:
-        lint_process_file(
-            file_path,
-            show_tokens,
-            show_ast,
-            config,
-            auto_fix=auto_fix,
-            select=select,
+    base_path = config_base_path(paths)
+    cfg = load_config(base_path, config)
+
+    # Inputs and CLI exclusions resolve against the current directory; config
+    # exclusions resolve against the config file's directory (Rule 1). Missing a
+    # config file, the config group is empty and simply contributes nothing.
+    config_file = find_config_file(base_path, config)
+    config_anchor = config_file if config_file is not None else base_path
+    exclusions = (
+        PathGroup.config(cfg.exclude_paths, config_anchor),
+        PathGroup.cli(cli_excludes),
+    )
+
+    result = discover_process_files([PathGroup.cli(paths)], exclusions)
+
+    # A missing path is reported but does not abort the run: any files that were
+    # found are still linted, and the missing path forces a non-zero exit.
+    for missing in result.missing:
+        typer.echo(f"Error: Path does not exist: {missing}", err=True)
+
+    if not result.files:
+        if result.missing:
+            raise typer.Exit(code=1)
+        typer.echo(_no_files_message(paths, result.excluded_count))
+        raise typer.Exit(code=0)
+
+    exit_code = lint_files(
+        result.files,
+        report_root(paths),
+        cfg,
+        show_tokens,
+        show_ast,
+        config,
+        auto_fix=auto_fix,
+        select=select,
+    )
+    if result.missing:
+        exit_code = max(exit_code, 1)
+    raise typer.Exit(code=exit_code)
+
+
+def _no_files_message(paths: list[str], excluded_count: int) -> str:
+    """Message when discovery yields nothing to lint."""
+    joined = ", ".join(str(p) for p in paths)
+    if excluded_count:
+        return (
+            f"No process files to lint in {joined} "
+            f"(all {excluded_count} matched file(s) were excluded)"
         )
+    return f"No process files found in {joined}"
 
 
 @app.command()
