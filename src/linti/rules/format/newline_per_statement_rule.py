@@ -22,7 +22,7 @@ class NewLinePerStatementRule(BaseRule):
             "Exception: no newline is required when the statement is immediately "
             "before the procedure end (EOF)."
         ),
-        config_example=("rules:\n" "  newline_per_statement:\n" "    enabled: true"),
+        config_example=("rules:\n  newline_per_statement:\n    enabled: true"),
         examples=[
             RuleExample(
                 code="nValue = 5;\nsMessage = 'test';",

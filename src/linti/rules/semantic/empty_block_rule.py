@@ -37,6 +37,7 @@ class EmptyBlockRule(BaseStatementRule):
     """
 
     CONFIG_KEY = "empty_block"
+    DEPRECATED_IDS = ["S130"]
     METADATA = RuleMetadata(
         name="Empty Block",
         description="Flags IF/ELSEIF/ELSE/WHILE blocks that contain no executable code",
@@ -79,7 +80,7 @@ class EmptyBlockRule(BaseStatementRule):
 
     @property
     def RULE_ID(self) -> str:
-        return "S130"
+        return "C110"
 
     def interested_in(self):
         return [IfStatement, WhileStatement]

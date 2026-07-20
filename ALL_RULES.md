@@ -11,7 +11,8 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 - **F** - Formatting Rules
 - **N** - Naming Convention Rules
 - **D** - Documentation Rules
-- **S** - Semantic/Logic Rules
+- **C** - Code Quality Rules
+- **X** - External Interactions Rules
 - **E** - Error Rules
 
 ## Current Rules
@@ -35,30 +36,35 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 | Rule ID | Rule Name | Description | Auto-fix |
 |---------|-----------|-------------|----------|
 | N110 | Variable Prefix Naming | Enforces TM1 variable naming conventions (n/s/c prefixes) | ❌ |
+| N120 | Variables Consistent Casing | Enforces consistent casing for variable references within a process | ✅ |
 | N210 | Parameter Naming | Enforces that parameters start with lowercase 'p' | ❌ |
 | N220 | Data Source Variable Naming | Enforces that data source variables start with lowercase 'v' | ❌ |
-| N230 | Variables Consistent Casing | Enforces consistent casing for variable references within a process | ✅ |
 
 ### Documentation Rules (D)
 
 | Rule ID | Rule Name | Description | Auto-fix |
 |---------|-----------|-------------|----------|
-| D410 | Docstring Region | Enforces a docstring region before executable code in the prolog | ❌ |
+| D110 | Docstring Region | Enforces a docstring region before executable code in the prolog | ❌ |
 
-### Semantic/Logic Rules (S)
+### Code Quality Rules (C)
 
 | Rule ID | Rule Name | Description | Auto-fix |
 |---------|-----------|-------------|----------|
-| S110 | ProcessQuit Placement | Enforces that ProcessQuit() is only at the end of blocks to prevent unreachable code | ❌ |
-| S120 | ItemSkip Block Usage | Enforces that ItemSkip() is only used in metadata or data sections | ❌ |
-| S130 | Empty Block | Flags IF/ELSEIF/ELSE/WHILE blocks that contain no executable code | ✅ |
-| S210 | Read-only Parameters and Variables | Enforces that parameters and data source variables are read-only | ❌ |
-| S220 | Single-assignment Constants | Enforces that constants (c-prefixed variables) are assigned only once | ❌ |
-| S310 | Literal Process Calls | Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument | ❌ |
-| S320 | No ExecuteCommand | Prohibits the use of ExecuteCommand() (disabled for security reasons) | ❌ |
-| S330 | ODBCOpen Password Parameter | Validates that ODBCOpen() password parameter is a defined TI parameter | ❌ |
-| S340 | Filter ODBC Rows in SQL | Flags ItemSkip() or exclusively conditional writes in Metadata/Data when the ODBC data source query has no WHERE clause | ❌ |
-| S410 | Use Hierarchy-Aware Functions | Enforces hierarchy-aware functions, or at least consistent usage of hierarchy-aware vs. standard hierarchy functions | ❌ |
+| C110 | Empty Block | Flags IF/ELSEIF/ELSE/WHILE blocks that contain no executable code | ✅ |
+| C120 | ProcessQuit Placement | Enforces that ProcessQuit() is only at the end of blocks to prevent unreachable code | ❌ |
+| C130 | ItemSkip Block Usage | Enforces that ItemSkip() is only used in metadata or data sections | ❌ |
+| C210 | Read-only Parameters and Variables | Enforces that parameters and data source variables are read-only | ❌ |
+| C220 | Single-assignment Constants | Enforces that constants (c-prefixed variables) are assigned only once | ❌ |
+| C310 | Literal Process Calls | Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument | ❌ |
+| C410 | Use Hierarchy-Aware Functions | Enforces hierarchy-aware functions, or at least consistent usage of hierarchy-aware vs. standard hierarchy functions | ❌ |
+
+### External Interactions Rules (X)
+
+| Rule ID | Rule Name | Description | Auto-fix |
+|---------|-----------|-------------|----------|
+| X110 | No ExecuteCommand | Prohibits the use of ExecuteCommand() (disabled for security reasons) | ❌ |
+| X120 | ODBCOpen Password Parameter | Validates that ODBCOpen() password parameter is a defined TI parameter | ❌ |
+| X210 | Filter ODBC Rows in SQL | Flags ItemSkip() or exclusively conditional writes in Metadata/Data when the ODBC data source query has no WHERE clause | ❌ |
 
 ### Error Rules (E)
 
@@ -356,7 +362,7 @@ Enforces TM1 variable naming conventions:
 - String variables must start with 's': sMessage, sName, sPath
 - Optional constants may start with 'c': cRate, cMessage
 
-If `allow_constant_prefix` is enabled, any variable starting with 'c' may only be assigned once in the process (see S220).
+If `allow_constant_prefix` is enabled, any variable starting with 'c' may only be assigned once in the process (see C220).
 
 If `allow_loop_counter_variables` is enabled, single-character numeric variables (e.g. i, j) that are assigned directly before a WHILE loop are exempt from naming conventions.
 
@@ -392,6 +398,43 @@ DatasourceASCIIDecimalSeparator = ',';
 count = 5;
 # Missing 's' prefix
 name = 'test';
+```
+
+---
+
+### N120: Variables Consistent Casing
+
+Enforces consistent casing for variable references within a process.
+
+> Previous rule ID: N230 (deprecated)
+
+**✨ Auto-fix available:** Use `linti --auto-fix` to automatically fix issues.
+
+TM1 variables are case-insensitive, meaning `vYear`, `vyear`, and `VYEAR` all refer to the same variable. While technically valid, inconsistent casing reduces readability and breaks PAW variable highlighting when navigating code.
+
+For parameters and data source variables, the casing from the metadata declaration is used as the canonical form. For script variables, the first occurrence in code defines the canonical casing.
+
+The autofix replaces all inconsistent references with the canonical form.
+
+**Configuration:**
+```yaml
+rules:
+  variable_consistent_casing:
+    enabled: true
+```
+
+**Valid usage:**
+```ti
+# Consistent casing throughout
+sName = 'hello';
+IF(sName @= 'hello');
+```
+
+**Invalid usage:**
+```ti
+# Inconsistent casing for the same variable
+sName = 'hello';
+IF(sname @= 'hello');
 ```
 
 ---
@@ -456,44 +499,11 @@ Dimension
 
 ---
 
-### N230: Variables Consistent Casing
-
-Enforces consistent casing for variable references within a process.
-
-**✨ Auto-fix available:** Use `linti --auto-fix` to automatically fix issues.
-
-TM1 variables are case-insensitive, meaning `vYear`, `vyear`, and `VYEAR` all refer to the same variable. While technically valid, inconsistent casing reduces readability and breaks PAW variable highlighting when navigating code.
-
-For parameters and data source variables, the casing from the metadata declaration is used as the canonical form. For script variables, the first occurrence in code defines the canonical casing.
-
-The autofix replaces all inconsistent references with the canonical form.
-
-**Configuration:**
-```yaml
-rules:
-  variable_consistent_casing:
-    enabled: true
-```
-
-**Valid usage:**
-```ti
-# Consistent casing throughout
-sName = 'hello';
-IF(sName @= 'hello');
-```
-
-**Invalid usage:**
-```ti
-# Inconsistent casing for the same variable
-sName = 'hello';
-IF(sname @= 'hello');
-```
-
----
-
-### D410: Docstring Region
+### D110: Docstring Region
 
 Enforces a docstring region before executable code in the prolog.
+
+> Previous rule ID: D410 (deprecated)
 
 Every process prolog must begin with a ``#Region - Docstring`` section (name is configurable) that appears before any executable statement (i.e. before the first ``;``). The region must contain at least a ``# Description`` header. Processes whose names start with a configured *generic prefix* (e.g. ``}core.``) must also contain the extra headers defined in ``generic_extra_headers``.
 
@@ -528,88 +538,11 @@ nVar = 1;
 
 ---
 
-### S110: ProcessQuit Placement
-
-Enforces that ProcessQuit() is only at the end of blocks to prevent unreachable code.
-
-Enforces that ProcessQuit() is only allowed in IF/ELSE blocks, not in the main program body.
-
-Since ProcessQuit() terminates the TI process immediately:
-1. It must not be used in the main program body at all
-2. When used in IF/ELSE blocks, it must be at the end to prevent unreachable code
-
-**Configuration:**
-```yaml
-rules:
-  process_quit:
-    enabled: true
-```
-
-**Valid usage:**
-```ti
-# ProcessQuit at end of IF block
-IF (nValue = 1);
-    nResult = 10;
-    ProcessQuit();
-ENDIF;
-```
-
-**Invalid usage:**
-```ti
-# ProcessQuit in main program body
-nValue = 5;
-ProcessQuit();
-# Unreachable code after ProcessQuit
-IF (nValue = 1);
-    ProcessQuit();
-    nResult = 10;
-ENDIF;
-```
-
----
-
-### S120: ItemSkip Block Usage
-
-Enforces that ItemSkip() is only used in metadata or data sections.
-
-Enforces that ItemSkip() is only used in metadata or data sections of TM1 TI processes.
-
-TM1 TI processes have four execution blocks:
-- Prolog: Executes once before processing records
-- Metadata: Processes dimension metadata records
-- Data: Processes cube data records
-- Epilog: Executes once after all records
-
-ItemSkip() skips the current record, which only makes sense in Metadata and Data sections. Using it in Prolog or Epilog is a logic error.
-
-**Configuration:**
-```yaml
-rules:
-  item_skip:
-    enabled: true
-```
-
-**Valid usage:**
-```ti
-# ItemSkip in Metadata/Data
-# In Metadata/Data section
-IF (nValue = 0);
-    ItemSkip();
-ENDIF;
-```
-
-**Invalid usage:**
-```ti
-# ItemSkip in Prolog
-# In Prolog section
-ItemSkip();
-```
-
----
-
-### S130: Empty Block
+### C110: Empty Block
 
 Flags IF/ELSEIF/ELSE/WHILE blocks that contain no executable code.
+
+> Previous rule ID: S130 (deprecated)
 
 **✨ Auto-fix available:** Use `linti --auto-fix` to automatically fix issues.
 
@@ -650,9 +583,94 @@ END;
 
 ---
 
-### S210: Read-only Parameters and Variables
+### C120: ProcessQuit Placement
+
+Enforces that ProcessQuit() is only at the end of blocks to prevent unreachable code.
+
+> Previous rule ID: S110 (deprecated)
+
+Enforces that ProcessQuit() is only allowed in IF/ELSE blocks, not in the main program body.
+
+Since ProcessQuit() terminates the TI process immediately:
+1. It must not be used in the main program body at all
+2. When used in IF/ELSE blocks, it must be at the end to prevent unreachable code
+
+**Configuration:**
+```yaml
+rules:
+  process_quit:
+    enabled: true
+```
+
+**Valid usage:**
+```ti
+# ProcessQuit at end of IF block
+IF (nValue = 1);
+    nResult = 10;
+    ProcessQuit();
+ENDIF;
+```
+
+**Invalid usage:**
+```ti
+# ProcessQuit in main program body
+nValue = 5;
+ProcessQuit();
+# Unreachable code after ProcessQuit
+IF (nValue = 1);
+    ProcessQuit();
+    nResult = 10;
+ENDIF;
+```
+
+---
+
+### C130: ItemSkip Block Usage
+
+Enforces that ItemSkip() is only used in metadata or data sections.
+
+> Previous rule ID: S120 (deprecated)
+
+Enforces that ItemSkip() is only used in metadata or data sections of TM1 TI processes.
+
+TM1 TI processes have four execution blocks:
+- Prolog: Executes once before processing records
+- Metadata: Processes dimension metadata records
+- Data: Processes cube data records
+- Epilog: Executes once after all records
+
+ItemSkip() skips the current record, which only makes sense in Metadata and Data sections. Using it in Prolog or Epilog is a logic error.
+
+**Configuration:**
+```yaml
+rules:
+  item_skip:
+    enabled: true
+```
+
+**Valid usage:**
+```ti
+# ItemSkip in Metadata/Data
+# In Metadata/Data section
+IF (nValue = 0);
+    ItemSkip();
+ENDIF;
+```
+
+**Invalid usage:**
+```ti
+# ItemSkip in Prolog
+# In Prolog section
+ItemSkip();
+```
+
+---
+
+### C210: Read-only Parameters and Variables
 
 Enforces that parameters and data source variables are read-only.
+
+> Previous rule ID: S210 (deprecated)
 
 Enforces that TM1 parameters and data source variables are read-only.
 
@@ -688,9 +706,11 @@ vDimension = 'NewValue';
 
 ---
 
-### S220: Single-assignment Constants
+### C220: Single-assignment Constants
 
 Enforces that constants (c-prefixed variables) are assigned only once.
+
+> Previous rule ID: S220 (deprecated)
 
 Enforces that constants (variables starting with 'c') are assigned only once throughout the process.
 
@@ -701,7 +721,7 @@ This rule is automatically enabled when `allow_constant_prefix: true` is set in 
 rules:
   variable_prefix:
     enabled: true
-    allow_constant_prefix: true  # Enables S220
+    allow_constant_prefix: true  # Enables C220
 ```
 
 **Valid usage:**
@@ -719,9 +739,11 @@ cRate = 2.0;
 
 ---
 
-### S310: Literal Process Calls
+### C310: Literal Process Calls
 
 Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument.
+
+> Previous rule ID: S310 (deprecated)
 
 Enforces that RunProcess() and ExecuteProcess() calls use a string literal as their first argument (the target process name).
 
@@ -748,115 +770,11 @@ RunProcess(pProcessName);
 
 ---
 
-### S320: No ExecuteCommand
-
-Prohibits the use of ExecuteCommand() (disabled for security reasons).
-
-Prohibits the use of ExecuteCommand() function calls.
-
-Why:
-- Prevents command injection vulnerabilities
-- Restricts TI code to approved TM1 API functions only
-- Improves security audit compliance
-
-**Configuration:**
-```yaml
-rules:
-  execute_command:
-    enabled: true
-```
-
-**Invalid usage:**
-```ti
-# Prohibited
-ExecuteCommand('rm -rf /tmp/*');
-# Prohibited
-ExecuteCommand(sUserCommand);
-```
-
----
-
-### S330: ODBCOpen Password Parameter
-
-Validates that ODBCOpen() password parameter is a defined TI parameter.
-
-Validates that ODBCOpen(Source, ClientName, Password) requires the third parameter (password) to be a defined TI process parameter.
-
-This ensures that sensitive credentials are managed through process parameters rather than hardcoded or undefined values.
-
-Requirements:
-1. Third argument must be an Identifier (not a string literal)
-2. Parameter name must start with 'p' (TI parameter naming convention)
-3. Parameter must be declared in the process Parameters section
-
-**Configuration:**
-```yaml
-rules:
-  odbc_open_parameter:
-    enabled: true
-```
-
-**Valid usage:**
-```ti
-# Password as defined parameter
-ODBCOpen('MyDatasource', 'AdminUser', pPassword);
-```
-
-**Invalid usage:**
-```ti
-# Hardcoded password
-ODBCOpen('MyDatasource', 'AdminUser', 'hardcodedPassword');
-```
-
----
-
-### S340: Filter ODBC Rows in SQL
-
-Flags ItemSkip() or exclusively conditional writes in Metadata/Data when the ODBC data source query has no WHERE clause.
-
-When an ODBC data source returns all rows and the filtering happens only in the TI script, the server pulls rows it immediately discards. This is reported in the Metadata and Data blocks when the data source query has no WHERE clause and either:
-- ItemSkip() is used to skip records, or
-- every cube write (CellPutN, CellPutS, CellIncrementN) is guarded by an IF, so no unconditional write ever happens.
-
-Move the filter into a SQL WHERE clause so the database returns only the rows the process needs.
-
-A DatasourceType/DatasourceQuery reassignment in the Prolog overrides the process metadata and is used instead.
-
-Inspired by the Bedrock TM1 best practices (https://github.com/cubewise-code/bedrock).
-
-**Configuration:**
-```yaml
-rules:
-  sql_where_filtering:
-    enabled: true
-```
-
-**Valid usage:**
-```ti
-# filtering done in SQL WHERE clause
-# Data block, ODBC query: SELECT ... FROM t WHERE region = ?
-CellPutN(vAmount, 'Sales', vRegion, vMonth);
-```
-
-**Invalid usage:**
-```ti
-# all writes conditional, no WHERE — filter in SQL
-# Data block, ODBC query: SELECT ... FROM t
-IF(vRegion @= 'EMEA');
-  CellPutN(vAmount, 'Sales', vRegion, vMonth);
-ENDIF;
-# ItemSkip() filters rows, no WHERE — filter in SQL
-# Data block, ODBC query: SELECT ... FROM t
-IF(vRegion @= 'EMEA');
-  ItemSkip();
-ENDIF;
-```
-
----
-
-### S410: Use Hierarchy-Aware Functions
+### C410: Use Hierarchy-Aware Functions
 
 Enforces hierarchy-aware functions, or at least consistent usage of hierarchy-aware vs. standard hierarchy functions.
+
+> Previous rule ID: S410 (deprecated)
 
 TM1 offers hierarchy-aware functions (e.g. HierarchyElementExists, ElementParent) that take an explicit hierarchy, alongside standard functions (e.g. DimensionElementExists, ELPAR) that implicitly use a dimension's default hierarchy.
 
@@ -897,6 +815,118 @@ nParent = ElementParent('Region', 'Region', 'EMEA');
 nIndex = DIMIX('Region', 'EMEA');
 # dimension argument addresses a hierarchy; use HierarchyElementExists with an explicit hierarchy
 nExists = DimensionElementExists('Region:Detail', 'EMEA');
+```
+
+---
+
+### X110: No ExecuteCommand
+
+Prohibits the use of ExecuteCommand() (disabled for security reasons).
+
+> Previous rule ID: S320 (deprecated)
+
+Prohibits the use of ExecuteCommand() function calls.
+
+Why:
+- Prevents command injection vulnerabilities
+- Restricts TI code to approved TM1 API functions only
+- Improves security audit compliance
+
+**Configuration:**
+```yaml
+rules:
+  execute_command:
+    enabled: true
+```
+
+**Invalid usage:**
+```ti
+# Prohibited
+ExecuteCommand('rm -rf /tmp/*');
+# Prohibited
+ExecuteCommand(sUserCommand);
+```
+
+---
+
+### X120: ODBCOpen Password Parameter
+
+Validates that ODBCOpen() password parameter is a defined TI parameter.
+
+> Previous rule ID: S330 (deprecated)
+
+Validates that ODBCOpen(Source, ClientName, Password) requires the third parameter (password) to be a defined TI process parameter.
+
+This ensures that sensitive credentials are managed through process parameters rather than hardcoded or undefined values.
+
+Requirements:
+1. Third argument must be an Identifier (not a string literal)
+2. Parameter name must start with 'p' (TI parameter naming convention)
+3. Parameter must be declared in the process Parameters section
+
+**Configuration:**
+```yaml
+rules:
+  odbc_open_parameter:
+    enabled: true
+```
+
+**Valid usage:**
+```ti
+# Password as defined parameter
+ODBCOpen('MyDatasource', 'AdminUser', pPassword);
+```
+
+**Invalid usage:**
+```ti
+# Hardcoded password
+ODBCOpen('MyDatasource', 'AdminUser', 'hardcodedPassword');
+```
+
+---
+
+### X210: Filter ODBC Rows in SQL
+
+Flags ItemSkip() or exclusively conditional writes in Metadata/Data when the ODBC data source query has no WHERE clause.
+
+> Previous rule ID: S340 (deprecated)
+
+When an ODBC data source returns all rows and the filtering happens only in the TI script, the server pulls rows it immediately discards. This is reported in the Metadata and Data blocks when the data source query has no WHERE clause and either:
+- ItemSkip() is used to skip records, or
+- every cube write (CellPutN, CellPutS, CellIncrementN) is guarded by an IF, so no unconditional write ever happens.
+
+Move the filter into a SQL WHERE clause so the database returns only the rows the process needs.
+
+A DatasourceType/DatasourceQuery reassignment in the Prolog overrides the process metadata and is used instead.
+
+Inspired by the Bedrock TM1 best practices (https://github.com/cubewise-code/bedrock).
+
+**Configuration:**
+```yaml
+rules:
+  sql_where_filtering:
+    enabled: true
+```
+
+**Valid usage:**
+```ti
+# filtering done in SQL WHERE clause
+# Data block, ODBC query: SELECT ... FROM t WHERE region = ?
+CellPutN(vAmount, 'Sales', vRegion, vMonth);
+```
+
+**Invalid usage:**
+```ti
+# all writes conditional, no WHERE — filter in SQL
+# Data block, ODBC query: SELECT ... FROM t
+IF(vRegion @= 'EMEA');
+  CellPutN(vAmount, 'Sales', vRegion, vMonth);
+ENDIF;
+# ItemSkip() filters rows, no WHERE — filter in SQL
+# Data block, ODBC query: SELECT ... FROM t
+IF(vRegion @= 'EMEA');
+  ItemSkip();
+ENDIF;
 ```
 
 ---
@@ -994,13 +1024,13 @@ rules:
     allow_constant_prefix: false
     allow_loop_counter_variables: true
 
+  variable_consistent_casing:
+    enabled: true
+
   parameter_naming:
     enabled: true
 
   variable_naming:
-    enabled: true
-
-  variable_consistent_casing:
     enabled: true
 
   docstring_region:
@@ -1013,13 +1043,13 @@ rules:
     generic_extra_headers:
       - '# Use Case'
 
+  empty_block:
+    enabled: true
+
   process_quit:
     enabled: true
 
   item_skip:
-    enabled: true
-
-  empty_block:
     enabled: true
 
   readonly_parameter_variable:
@@ -1027,10 +1057,15 @@ rules:
 
   variable_prefix:
     enabled: true
-    allow_constant_prefix: true  # Enables S220
+    allow_constant_prefix: true  # Enables C220
 
   process_call_literal:
     enabled: true
+
+  use_hierarchy_aware_functions:
+    enabled: true
+    # base mode: 'enforce' or 'consistent'
+    mode: consistent
 
   execute_command:
     enabled: true
@@ -1040,11 +1075,6 @@ rules:
 
   sql_where_filtering:
     enabled: true
-
-  use_hierarchy_aware_functions:
-    enabled: true
-    # base mode: 'enforce' or 'consistent'
-    mode: consistent
 
   unknown_statement:
     enabled: true

@@ -20,9 +20,7 @@ class NoSpaceBeforeSemicolonRule(BaseRule):
             "any whitespace.  Only a semicolon at the start of a physical line "
             "(after a newline) is exempt."
         ),
-        config_example=(
-            "rules:\n" "  whitespace:\n" "    no_space_before_semicolon: true"
-        ),
+        config_example=("rules:\n  whitespace:\n    no_space_before_semicolon: true"),
         examples=[
             RuleExample(code="nVar = 1;", valid=True),
             RuleExample(

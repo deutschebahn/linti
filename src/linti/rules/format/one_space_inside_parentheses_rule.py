@@ -22,7 +22,7 @@ class OneSpaceInsideParenthesesRule(BaseRule):
             "are exempt."
         ),
         config_example=(
-            "rules:\n" "  whitespace:\n" "    one_space_inside_parentheses: true"
+            "rules:\n  whitespace:\n    one_space_inside_parentheses: true"
         ),
         examples=[
             RuleExample(code="func( a, b );", valid=True),

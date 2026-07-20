@@ -1,4 +1,4 @@
-"""Tests for UseHierarchyAwareFunctionsRule (S410)."""
+"""Tests for UseHierarchyAwareFunctionsRule (C410)."""
 
 from linti.lexer.lexer import Lexer
 from linti.linter.api import lint_process_model
@@ -29,7 +29,7 @@ def _lint_process(
     name: str = "test_process",
     **sections,
 ):
-    """Run the full S410 pipeline (both visitors + constant evaluation index)."""
+    """Run the full C410 pipeline (both visitors + constant evaluation index)."""
     rules = UseHierarchyAwareFunctionsRule.from_config(
         {"mode": mode, "generic_prefixes": generic_prefixes or []}
     )
@@ -50,7 +50,7 @@ def _lint_process(
 def test_enforce_flags_standard_dimension_function():
     issues = _lint("nExists = DimensionElementExists('Region', 'EMEA');")
     assert len(issues) == 1
-    assert issues[0].rule_id == "S410"
+    assert issues[0].rule_id == "C410"
     assert "DimensionElementExists" in issues[0].message
     assert "HierarchyElementExists" in issues[0].message
 
@@ -118,7 +118,7 @@ def test_consistent_flags_mixed_styles_once():
     )
     issues = _lint(code, mode="consistent")
     assert len(issues) == 1
-    assert issues[0].rule_id == "S410"
+    assert issues[0].rule_id == "C410"
     assert "ElementParent" in issues[0].message
     assert "DIMIX" in issues[0].message
     # Suggests the hierarchy-aware replacement for the standard function.
@@ -140,7 +140,7 @@ def test_consistent_detects_mix_across_procedures_in_same_process():
 
     assert prolog_issues == []
     assert len(epilog_issues) == 1
-    assert epilog_issues[0].rule_id == "S410"
+    assert epilog_issues[0].rule_id == "C410"
 
 
 def test_default_mode_is_consistent():
@@ -202,7 +202,7 @@ def test_consistent_state_resets_between_processes():
 
 def _assert_colon_issue(issues, aware="HierarchyElementExists"):
     assert len(issues) == 1
-    assert issues[0].rule_id == "S410"
+    assert issues[0].rule_id == "C410"
     assert "addresses a hierarchy" in issues[0].message
     assert aware in issues[0].message
 

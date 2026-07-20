@@ -38,6 +38,11 @@ class BaseRule(ABC):
     CONFIG_KEY: ClassVar[str] = ""
     DEFAULT_ENABLED: ClassVar[bool] = True
     METADATA: ClassVar[RuleMetadata | None] = None
+    # Rule IDs this rule used to carry, kept working for one deprecation cycle.
+    # The current ``RULE_ID`` is the canonical (new) ID; anything listed here is
+    # resolved to it (with a deprecation warning) wherever a rule is referenced
+    # by ID — ``--select``, ``# noqa`` comments, and ``linti explain``.
+    DEPRECATED_IDS: ClassVar[list[str]] = []
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -97,6 +102,8 @@ class BaseStatementRule(ABC):
     CONFIG_KEY: ClassVar[str] = ""
     DEFAULT_ENABLED: ClassVar[bool] = True
     METADATA: ClassVar[RuleMetadata | None] = None
+    # See ``BaseRule.DEPRECATED_IDS``.
+    DEPRECATED_IDS: ClassVar[list[str]] = []
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)

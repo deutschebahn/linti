@@ -59,7 +59,7 @@ def test_process_quit_with_unreachable_code_in_if():
     errors = linter.lint(tokens)
 
     assert len(errors) == 1
-    assert "S110" in errors[0].rule_id
+    assert "C120" in errors[0].rule_id
     assert "unreachable" in errors[0].message.lower()
 
 
@@ -82,7 +82,7 @@ def test_process_quit_with_unreachable_code_in_else():
     errors = linter.lint(tokens)
 
     assert len(errors) == 1
-    assert "S110" in errors[0].rule_id
+    assert "C120" in errors[0].rule_id
     assert "2 unreachable statement" in errors[0].message
 
 
@@ -101,7 +101,7 @@ def test_process_quit_at_end_of_main_body():
     errors = linter.lint(tokens)
 
     assert len(errors) == 1
-    assert "S110" in errors[0].rule_id
+    assert "C120" in errors[0].rule_id
     assert "main program body" in errors[0].message
 
 
@@ -121,7 +121,7 @@ def test_process_quit_with_unreachable_code_in_main():
     errors = linter.lint(tokens)
 
     assert len(errors) == 1
-    assert "S110" in errors[0].rule_id
+    assert "C120" in errors[0].rule_id
     assert "main program body" in errors[0].message
 
 
@@ -141,7 +141,7 @@ def test_process_quit_case_insensitive():
     errors = linter.lint(tokens)
 
     assert len(errors) == 1
-    assert "S110" in errors[0].rule_id
+    assert "C120" in errors[0].rule_id
 
 
 def test_process_quit_nested_if_statements():
@@ -165,7 +165,7 @@ def test_process_quit_nested_if_statements():
     # Should find unreachable code in the nested IF (nResult = 999)
     # but nResult = 10 is reachable (it's in the outer IF after the inner IF)
     assert len(errors) == 1
-    assert "S110" in errors[0].rule_id
+    assert "C120" in errors[0].rule_id
 
 
 def test_multiple_process_quit_calls():
@@ -188,7 +188,7 @@ def test_multiple_process_quit_calls():
 
     # Both blocks have unreachable code
     assert len(errors) == 2
-    assert all("S110" in err.rule_id for err in errors)
+    assert all("C120" in err.rule_id for err in errors)
 
 
 def test_process_quit_without_parens_valid():
@@ -219,7 +219,7 @@ def test_process_quit_without_parens_unreachable():
     errors = Linter(statement_rules=[ProcessQuitRule()]).lint(tokens)
 
     assert len(errors) == 1
-    assert "S110" in errors[0].rule_id
+    assert "C120" in errors[0].rule_id
     assert "unreachable" in errors[0].message.lower()
 
 
@@ -234,7 +234,7 @@ def test_process_quit_without_parens_in_main_body():
     errors = Linter(statement_rules=[ProcessQuitRule()]).lint(tokens)
 
     assert len(errors) == 1
-    assert "S110" in errors[0].rule_id
+    assert "C120" in errors[0].rule_id
     assert "main program body" in errors[0].message
 
 
@@ -251,7 +251,7 @@ def test_process_quit_with_string_not_equal_operator():
     errors = Linter(statement_rules=[ProcessQuitRule()]).lint(tokens)
 
     assert len(errors) == 1
-    assert "S110" in errors[0].rule_id
+    assert "C120" in errors[0].rule_id
     assert "unreachable" in errors[0].message.lower()
 
 

@@ -1,4 +1,4 @@
-"""Tests for DocstringRegionRule (D410)."""
+"""Tests for DocstringRegionRule (D110)."""
 
 from linti.lexer.lexer import Lexer
 from linti.linter.lint_context import LintContext
@@ -37,7 +37,7 @@ def _lint_with_rule(
 
 
 def test_rule_id():
-    assert DocstringRegionRule().RULE_ID == "D410"
+    assert DocstringRegionRule().RULE_ID == "D110"
 
 
 def test_default_disabled():
@@ -79,12 +79,7 @@ def test_ok_no_executable_code():
 
 def test_ok_docstring_only_no_code():
     """Well-formed docstring but no executable code – still OK."""
-    code = (
-        "#Region - Docstring\n"
-        "# Description:\n"
-        "# nothing\n"
-        "#EndRegion - Docstring\n"
-    )
+    code = "#Region - Docstring\n# Description:\n# nothing\n#EndRegion - Docstring\n"
     errors = _lint(code)
     assert errors == []
 
@@ -93,7 +88,7 @@ def test_missing_docstring_reports_at_semicolon():
     code = "nVar = 1;"
     errors = _lint(code)
     assert len(errors) == 1
-    assert "D410" in errors[0].rule_id
+    assert "D110" in errors[0].rule_id
     assert "Expected" in errors[0].message
     assert "Docstring" in errors[0].message
 
@@ -106,20 +101,18 @@ def test_missing_docstring_only_reported_once():
 
 
 def test_unclosed_region_reports_at_semicolon():
-    code = "#Region - Docstring\n" "# Description:\n" "# something\n" "nVar = 1;"
+    code = "#Region - Docstring\n# Description:\n# something\nnVar = 1;"
     errors = _lint(code)
     assert len(errors) == 1
-    assert "D410" in errors[0].rule_id
+    assert "D110" in errors[0].rule_id
     assert "not closed" in errors[0].message.lower()
 
 
 def test_missing_required_header():
-    code = (
-        "#Region - Docstring\n" "# Author: me\n" "#EndRegion - Docstring\n" "nVar = 1;"
-    )
+    code = "#Region - Docstring\n# Author: me\n#EndRegion - Docstring\nnVar = 1;"
     errors = _lint(code)
     assert len(errors) == 1
-    assert "D410" in errors[0].rule_id
+    assert "D110" in errors[0].rule_id
     assert "# Description" in errors[0].message
 
 
@@ -192,11 +185,7 @@ def test_non_generic_does_not_need_extra_header():
 
 def test_custom_region_name():
     code = (
-        "#Region - Header\n"
-        "# Description:\n"
-        "# something\n"
-        "#EndRegion - Header\n"
-        "nVar = 1;"
+        "#Region - Header\n# Description:\n# something\n#EndRegion - Header\nnVar = 1;"
     )
     rule = DocstringRegionRule(region_name="Header")
     errors = _lint_with_rule(code, rule)
@@ -220,12 +209,7 @@ def test_custom_region_name_mismatch_reports_issue():
 
 def test_header_with_colon_only_is_accepted():
     """The bare header may optionally end with a colon."""
-    code = (
-        "#Region - Docstring\n"
-        "# Description:\n"
-        "#EndRegion - Docstring\n"
-        "nVar = 1;"
-    )
+    code = "#Region - Docstring\n# Description:\n#EndRegion - Docstring\nnVar = 1;"
     errors = _lint(code)
     assert errors == []
 
@@ -266,11 +250,7 @@ def test_from_config_defaults():
 
 def test_reset_clears_state():
     code = (
-        "#Region - Docstring\n"
-        "# Description:\n"
-        "# ok\n"
-        "#EndRegion - Docstring\n"
-        "nVar = 1;"
+        "#Region - Docstring\n# Description:\n# ok\n#EndRegion - Docstring\nnVar = 1;"
     )
     rule = DocstringRegionRule()
     ctx = LintContext(block="prolog")

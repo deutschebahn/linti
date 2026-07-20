@@ -69,7 +69,7 @@ def test_report_issues_with_procedure_context(capsys):
                 line=1,
                 column=1,
                 position=5,
-                rule_id="S120",
+                rule_id="C130",
             ),
             15,
         ),
@@ -124,7 +124,7 @@ def test_report_directory_issues_prints_auto_fix_summary_and_command(capsys):
 
 def test_format_issue_path_before_line_for_vscode_links():
     """path:line:col must come first so VS Code terminal creates a clickable link."""
-    issue = LintIssue(message="test msg", line=3, column=5, position=0, rule_id="S210")
+    issue = LintIssue(message="test msg", line=3, column=5, position=0, rule_id="C210")
     result = format_issue(Path("proc.yaml"), "prolog", issue, source_line=10)
 
     # File path and line number must be adjacent (path:line:col) for VS Code link detection.

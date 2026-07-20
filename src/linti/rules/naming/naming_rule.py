@@ -57,7 +57,7 @@ class VariablePrefixRule(BaseStatementRule):
             "- String variables must start with 's': sMessage, sName, sPath\n"
             "- Optional constants may start with 'c': cRate, cMessage\n\n"
             "If `allow_constant_prefix` is enabled, any variable starting with 'c' "
-            "may only be assigned once in the process (see S220).\n\n"
+            "may only be assigned once in the process (see C220).\n\n"
             "If `allow_loop_counter_variables` is enabled, single-character numeric "
             "variables (e.g. i, j) that are assigned directly before a WHILE loop "
             "are exempt from naming conventions.\n\n"

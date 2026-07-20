@@ -17,6 +17,7 @@ class ProcessCallLiteralRule(BaseStatementRule):
     """
 
     CONFIG_KEY = "process_call_literal"
+    DEPRECATED_IDS = ["S310"]
     METADATA = RuleMetadata(
         name="Literal Process Calls",
         description="Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument",
@@ -27,7 +28,7 @@ class ProcessCallLiteralRule(BaseStatementRule):
             "This keeps process lineage explicit and avoids dynamic indirection "
             "through variables/parameters."
         ),
-        config_example=("rules:\n" "  process_call_literal:\n" "    enabled: true"),
+        config_example=("rules:\n  process_call_literal:\n    enabled: true"),
         examples=[
             RuleExample(
                 code="RunProcess('pLoad_Customer', 'pYear', '2026');", valid=True
@@ -43,7 +44,7 @@ class ProcessCallLiteralRule(BaseStatementRule):
 
     @property
     def RULE_ID(self) -> str:
-        return "S310"
+        return "C310"
 
     def interested_in(self):
         return [ExpressionStatement]

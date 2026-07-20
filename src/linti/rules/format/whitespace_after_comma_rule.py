@@ -19,7 +19,7 @@ class WhitespaceAfterCommaRule(BaseRule):
             "Every comma must be followed by exactly one space.  Commas at "
             "the end of a physical line (multi-line argument lists) are exempt."
         ),
-        config_example=("rules:\n" "  whitespace:\n" "    after_comma: true"),
+        config_example=("rules:\n  whitespace:\n    after_comma: true"),
         examples=[
             RuleExample(code="func(a, b, c);", valid=True),
             RuleExample(

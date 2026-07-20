@@ -1,4 +1,4 @@
-"""Tests for EmptyBlockRule (S130)."""
+"""Tests for EmptyBlockRule (C110)."""
 
 from linti.lexer.lexer import Lexer
 from linti.linter.fixer import apply_fixes_iteratively
@@ -47,7 +47,7 @@ def test_nested_block_with_code_is_valid():
 def test_empty_if_is_flagged():
     issues = _lint("IF (x = 1);\nENDIF;")
     assert len(issues) == 1
-    assert issues[0].rule_id == "S130"
+    assert issues[0].rule_id == "C110"
     assert "IF block" in issues[0].message
     assert issues[0].fix is None  # IF blocks are never auto-fixed
 
@@ -55,7 +55,7 @@ def test_empty_if_is_flagged():
 def test_empty_else_is_flagged():
     issues = _lint("IF (x = 1);\n    y = 2;\nELSE;\nENDIF;")
     assert len(issues) == 1
-    assert issues[0].rule_id == "S130"
+    assert issues[0].rule_id == "C110"
     assert "ELSE block" in issues[0].message
 
 

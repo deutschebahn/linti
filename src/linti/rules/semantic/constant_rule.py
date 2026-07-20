@@ -10,6 +10,7 @@ class ConstantAssignmentRule(BaseStatementRule):
     """
 
     CONFIG_KEY = "constant_assignment"
+    DEPRECATED_IDS = ["S220"]
 
     METADATA = RuleMetadata(
         name="Single-assignment Constants",
@@ -25,7 +26,7 @@ class ConstantAssignmentRule(BaseStatementRule):
             "rules:\n"
             "  variable_prefix:\n"
             "    enabled: true\n"
-            "    allow_constant_prefix: true  # Enables S220"
+            "    allow_constant_prefix: true  # Enables C220"
         ),
         examples=[
             RuleExample(
@@ -41,7 +42,7 @@ class ConstantAssignmentRule(BaseStatementRule):
 
     @property
     def RULE_ID(self) -> str:
-        return "S220"
+        return "C220"
 
     def __init__(self):
         self._assigned = {}

@@ -1,4 +1,4 @@
-"""D410 – Docstring region rule.
+"""D110 – Docstring region rule.
 
 Every process prolog must contain a ``#Region - Docstring`` section (the exact
 name is configurable) before any executable code. The region must include
@@ -30,6 +30,7 @@ class DocstringRegionRule(BaseRule):
     """Enforces a docstring region before the first executable statement."""
 
     CONFIG_KEY = "docstring_region"
+    DEPRECATED_IDS = ["D410"]
     DEFAULT_ENABLED = False
     METADATA = RuleMetadata(
         name="Docstring Region",
@@ -161,7 +162,7 @@ class DocstringRegionRule(BaseRule):
 
     @property
     def RULE_ID(self) -> str:
-        return "D410"
+        return "D110"
 
     @classmethod
     def from_config(cls, rule_cfg: dict) -> list:

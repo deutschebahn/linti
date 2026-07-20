@@ -19,9 +19,7 @@ class NoTrailingWhitespaceRule(BaseRule):
             "Lines must not end with whitespace characters.  Trailing spaces "
             "or tabs before a newline (or at end of file) will be removed."
         ),
-        config_example=(
-            "rules:\n" "  whitespace:\n" "    no_trailing_whitespace: true"
-        ),
+        config_example=("rules:\n  whitespace:\n    no_trailing_whitespace: true"),
         examples=[
             RuleExample(code="nVar = 1;", valid=True),
             RuleExample(

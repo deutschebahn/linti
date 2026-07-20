@@ -27,7 +27,7 @@ class ConflictingGenericPrefixesError(ValueError):
 
 _REMOVED_RULE_CONFIGS = {
     "one_space_before_equals": (
-        "Configures removed rule F210 (Equals Spacing). "
+        "Configures the removed Equals Spacing rule. "
         "This setting is ignored; remove 'rules.one_space_before_equals' from the config."
     )
 }
@@ -115,7 +115,7 @@ class ODBCOpenParameterConfig(BaseModel):
 
 
 class UseHierarchyAwareFunctionsConfig(BaseModel):
-    """Configuration for UseHierarchyAwareFunctionsRule (S410)."""
+    """Configuration for UseHierarchyAwareFunctionsRule (C410)."""
 
     enabled: bool = True
     mode: Literal["enforce", "consistent"] = "consistent"
@@ -129,7 +129,7 @@ class NewLinePerStatementConfig(BaseModel):
 
 
 class DocstringRegionConfig(BaseModel):
-    """Configuration for DocstringRegionRule (D410)."""
+    """Configuration for DocstringRegionRule (D110)."""
 
     enabled: bool = False
     region_name: str = "Docstring"
@@ -203,7 +203,7 @@ class Config(BaseModel):
 
     rules: RulesConfig = Field(default_factory=RulesConfig)
     # Names starting with one of these prefixes mark a *generic* (templated)
-    # process. Rules that treat generic processes specially (D410, S410) share
+    # process. Rules that treat generic processes specially (D110, C410) share
     # this single definition.
     generic_prefixes: list[str] = Field(default_factory=list)
     # Files, directories, or glob patterns to skip during discovery. CLI

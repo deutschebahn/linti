@@ -1,4 +1,4 @@
-"""Tests for SqlWhereFilteringRule (S340)."""
+"""Tests for SqlWhereFilteringRule (X210)."""
 
 from linti.linter.api import lint_process_model
 from linti.linter.linter import Linter
@@ -33,7 +33,7 @@ def test_itemskip_without_where_is_flagged():
     code = "IF(vRegion @= 'EMEA');\n  ItemSkip();\nENDIF;"
     issues = _lint(code)
     assert len(issues) == 1
-    assert issues[0].rule_id == "S340"
+    assert issues[0].rule_id == "X210"
     assert "ItemSkip()" in issues[0].message
 
 

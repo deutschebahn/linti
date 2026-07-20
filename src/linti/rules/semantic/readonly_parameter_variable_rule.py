@@ -1,4 +1,4 @@
-"""Rule S210: Read-Only Parameters and Variables - parameters and variables must not be modified."""
+"""Rule C210: Read-Only Parameters and Variables - parameters and variables must not be modified."""
 
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import LintIssue
@@ -16,6 +16,7 @@ class ReadOnlyParameterVariableRule(BaseStatementRule):
     """
 
     CONFIG_KEY = "readonly_parameter_variable"
+    DEPRECATED_IDS = ["S210"]
     METADATA = RuleMetadata(
         name="Read-only Parameters and Variables",
         description="Enforces that parameters and data source variables are read-only",
@@ -32,9 +33,7 @@ class ReadOnlyParameterVariableRule(BaseStatementRule):
             "- Modifying these can make debugging difficult\n"
             "- Following this convention makes code more readable and maintainable"
         ),
-        config_example=(
-            "rules:\n" "  readonly_parameter_variable:\n" "    enabled: true"
-        ),
+        config_example=("rules:\n  readonly_parameter_variable:\n    enabled: true"),
         examples=[
             RuleExample(
                 code="cLogOutput = pLogOutput;\ncLogOutput = 0;",
@@ -56,7 +55,7 @@ class ReadOnlyParameterVariableRule(BaseStatementRule):
 
     @property
     def RULE_ID(self) -> str:
-        return "S210"
+        return "C210"
 
     def interested_in(self):
         """This rule is interested in Assignment statements."""

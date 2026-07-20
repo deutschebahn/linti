@@ -1,4 +1,4 @@
-"""Rule S320: Prevent ExecuteCommand() calls for security reasons."""
+"""Rule X110: Prevent ExecuteCommand() calls for security reasons."""
 
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import LintIssue
@@ -14,6 +14,7 @@ class ExecuteCommandRule(BaseStatementRule):
     """
 
     CONFIG_KEY = "execute_command"
+    DEPRECATED_IDS = ["S320"]
     METADATA = RuleMetadata(
         name="No ExecuteCommand",
         description="Prohibits the use of ExecuteCommand() (disabled for security reasons)",
@@ -25,7 +26,7 @@ class ExecuteCommandRule(BaseStatementRule):
             "- Restricts TI code to approved TM1 API functions only\n"
             "- Improves security audit compliance"
         ),
-        config_example=("rules:\n" "  execute_command:\n" "    enabled: true"),
+        config_example=("rules:\n  execute_command:\n    enabled: true"),
         examples=[
             RuleExample(
                 code="ExecuteCommand('rm -rf /tmp/*');",
@@ -42,7 +43,7 @@ class ExecuteCommandRule(BaseStatementRule):
 
     @property
     def RULE_ID(self) -> str:
-        return "S320"
+        return "X110"
 
     def interested_in(self):
         return [ExpressionStatement]
