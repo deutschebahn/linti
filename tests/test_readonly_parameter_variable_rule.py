@@ -1,5 +1,4 @@
-"""Tests for S210: ReadOnlyParameterVariableRule."""
-
+"""Tests for C210: ReadOnlyParameterVariableRule."""
 
 from linti.lexer.lexer import Lexer
 from linti.linter.lint_context import LintContext

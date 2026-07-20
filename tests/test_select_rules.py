@@ -9,8 +9,8 @@ from linti.rules.rule_factory import _matches_select_pattern, create_rules
 def test_matches_select_pattern_exact():
     """Test exact rule ID matching."""
     assert _matches_select_pattern("F110", ["F110"])
-    assert _matches_select_pattern("D410", ["D410"])
-    assert _matches_select_pattern("S220", ["S220"])
+    assert _matches_select_pattern("D110", ["D110"])
+    assert _matches_select_pattern("C220", ["C220"])
     assert not _matches_select_pattern("F110", ["F111"])
 
 
@@ -18,8 +18,8 @@ def test_matches_select_pattern_first_letter():
     """Test first letter group matching."""
     assert _matches_select_pattern("F110", ["F"])
     assert _matches_select_pattern("F220", ["F"])
-    assert _matches_select_pattern("F310", ["F"])
-    assert _matches_select_pattern("D410", ["D"])
+    assert _matches_select_pattern("F210", ["F"])
+    assert _matches_select_pattern("D110", ["D"])
     assert not _matches_select_pattern("N110", ["F"])
 
 
@@ -29,8 +29,8 @@ def test_matches_select_pattern_two_letters():
     assert _matches_select_pattern("F120", ["F1"])
     assert not _matches_select_pattern("F220", ["F1"])
 
-    assert _matches_select_pattern("D410", ["D4"])
-    assert not _matches_select_pattern("D410", ["D3"])
+    assert _matches_select_pattern("D110", ["D1"])
+    assert not _matches_select_pattern("D110", ["D3"])
 
     assert _matches_select_pattern("F220", ["F2"])
     assert _matches_select_pattern("F220", ["F2"])
@@ -41,22 +41,22 @@ def test_matches_select_pattern_two_letters():
 
 
 def test_matches_select_pattern_three_letters():
-    """Test three-letter group matching (e.g., F11, S22)."""
+    """Test three-letter group matching (e.g., F11, C22)."""
     assert _matches_select_pattern("F110", ["F11"])
     assert not _matches_select_pattern("F120", ["F11"])
 
-    assert _matches_select_pattern("D410", ["D41"])
-    assert not _matches_select_pattern("D410", ["D42"])
+    assert _matches_select_pattern("D110", ["D11"])
+    assert not _matches_select_pattern("D110", ["D12"])
 
-    assert _matches_select_pattern("S220", ["S22"])
-    assert not _matches_select_pattern("S210", ["S22"])
+    assert _matches_select_pattern("C220", ["C22"])
+    assert not _matches_select_pattern("C210", ["C22"])
 
 
 def test_matches_select_pattern_multiple():
     """Test multiple patterns."""
-    assert _matches_select_pattern("F110", ["F110", "S220"])
-    assert _matches_select_pattern("S220", ["F110", "S220"])
-    assert not _matches_select_pattern("N110", ["F110", "S220"])
+    assert _matches_select_pattern("F110", ["F110", "C220"])
+    assert _matches_select_pattern("C220", ["F110", "C220"])
+    assert not _matches_select_pattern("N110", ["F110", "C220"])
 
 
 def test_matches_select_pattern_case_insensitive():
@@ -64,8 +64,8 @@ def test_matches_select_pattern_case_insensitive():
     assert _matches_select_pattern("F110", ["f110"])
     assert _matches_select_pattern("f110", ["F110"])
     assert _matches_select_pattern("F110", ["f"])
-    assert _matches_select_pattern("D410", ["d410"])
-    assert _matches_select_pattern("D410", ["d"])
+    assert _matches_select_pattern("D110", ["d110"])
+    assert _matches_select_pattern("D110", ["d"])
 
 
 def test_create_rules_with_select():
@@ -105,12 +105,12 @@ def test_create_rules_with_multiple_select():
     """Test selecting multiple rules with comma-separated patterns."""
     cfg = Config()
 
-    token_rules, stmt_rules = create_rules(cfg, select="F110,D410")
+    token_rules, stmt_rules = create_rules(cfg, select="F110,D110")
     all_rules = token_rules + stmt_rules
 
-    # All rules should be either F110 or D410
+    # All rules should be either F110 or D110
     for rule in all_rules:
-        assert rule.RULE_ID in ["F110", "D410"], f"Unexpected rule {rule.RULE_ID}"
+        assert rule.RULE_ID in ["F110", "D110"], f"Unexpected rule {rule.RULE_ID}"
 
 
 def test_create_rules_with_groups():
@@ -131,18 +131,18 @@ def test_select_with_whitespace():
     cfg = Config()
 
     # Pattern with spaces around commas
-    token_rules, stmt_rules = create_rules(cfg, select="F110 , D410")
+    token_rules, stmt_rules = create_rules(cfg, select="F110 , D110")
     all_rules = token_rules + stmt_rules
 
     for rule in all_rules:
-        assert rule.RULE_ID in ["F110", "D410"]
+        assert rule.RULE_ID in ["F110", "D110"]
 
 
-def test_removed_rule_is_not_created_when_selected():
-    """Removed rules should not be instantiated even if explicitly selected."""
+def test_unknown_rule_id_is_not_created_when_selected():
+    """An ID owned by no rule (e.g. a removed one) instantiates nothing."""
     cfg = Config()
 
-    token_rules, stmt_rules = create_rules(cfg, select="F210")
+    token_rules, stmt_rules = create_rules(cfg, select="F990")
 
     assert token_rules + stmt_rules == []
 
@@ -156,11 +156,11 @@ def test_top_level_generic_prefixes_shared_with_rules():
     """The top-level generic_prefixes reaches rules that opt into it."""
     cfg = Config(generic_prefixes=["}core."])
 
-    s410 = _rule_by_id(cfg, "S410")
-    d410 = _rule_by_id(cfg, "D410")
+    c410 = _rule_by_id(cfg, "C410")
+    d110 = _rule_by_id(cfg, "D110")
 
-    assert s410._generic_prefixes == ["}core."]
-    assert d410._generic_prefixes == ["}core."]
+    assert c410._generic_prefixes == ["}core."]
+    assert d110._generic_prefixes == ["}core."]
 
 
 def test_per_rule_and_top_level_generic_prefixes_conflict_raises():

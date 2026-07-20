@@ -1,4 +1,4 @@
-"""Rule S330: Validate ODBCOpen password parameter is defined in process parameters."""
+"""Rule X120: Validate ODBCOpen password parameter is defined in process parameters."""
 
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import LintIssue
@@ -19,6 +19,7 @@ class ODBCOpenParameterRule(BaseStatementRule):
     """
 
     CONFIG_KEY = "odbc_open_parameter"
+    DEPRECATED_IDS = ["S330"]
     METADATA = RuleMetadata(
         name="ODBCOpen Password Parameter",
         description="Validates that ODBCOpen() password parameter is a defined TI parameter",
@@ -50,7 +51,7 @@ class ODBCOpenParameterRule(BaseStatementRule):
 
     @property
     def RULE_ID(self) -> str:
-        return "S330"
+        return "X120"
 
     def interested_in(self):
         return [ExpressionStatement]

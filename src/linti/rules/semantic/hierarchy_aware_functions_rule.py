@@ -1,4 +1,4 @@
-"""Rule S410 – Use hierarchy-aware functions.
+"""Rule C410 – Use hierarchy-aware functions.
 
 TM1 exposes two families of element/hierarchy functions:
 
@@ -86,6 +86,7 @@ class UseHierarchyAwareFunctionsRule(BaseRule):
     """Enforces consistent usage of hierarchy-aware functions."""
 
     CONFIG_KEY = "use_hierarchy_aware_functions"
+    DEPRECATED_IDS = ["S410"]
     METADATA = RuleMetadata(
         name="Use Hierarchy-Aware Functions",
         description=(
@@ -166,7 +167,7 @@ class UseHierarchyAwareFunctionsRule(BaseRule):
 
     @property
     def RULE_ID(self) -> str:
-        return "S410"
+        return "C410"
 
     @classmethod
     def from_config(cls, rule_cfg: dict) -> list:
@@ -291,7 +292,7 @@ def _statement_expression(statement):
 
 
 class _HierarchyColonArgumentRule(BaseStatementRule):
-    """S410 companion: a standard hierarchy function fed a ``Dimension:Hierarchy``.
+    """C410 companion: a standard hierarchy function fed a ``Dimension:Hierarchy``.
 
     A standard (non hierarchy-aware) function expects a plain dimension name; a
     colon-bearing value belongs in a hierarchy-aware function with an explicit
@@ -301,7 +302,7 @@ class _HierarchyColonArgumentRule(BaseStatementRule):
     unknown/dynamic values never produce a finding.
 
     This class is intentionally not registered (empty ``CONFIG_KEY``); it is
-    created by :meth:`UseHierarchyAwareFunctionsRule.from_config`, sharing S410's
+    created by :meth:`UseHierarchyAwareFunctionsRule.from_config`, sharing C410's
     id, config and enabled flag.  It stays silent when the effective mode is
     ``enforce`` (generic processes included), because there the standard call is
     already reported by name.
@@ -317,7 +318,7 @@ class _HierarchyColonArgumentRule(BaseStatementRule):
 
     @property
     def RULE_ID(self) -> str:
-        return "S410"
+        return "C410"
 
     def interested_in(self):
         return [Assignment, ExpressionStatement, IfStatement, WhileStatement]

@@ -1,4 +1,4 @@
-"""Rule N230: Variables Consistent Casing."""
+"""Rule N120: Variables Consistent Casing."""
 
 from linti.lexer.token import TokenType
 from linti.linter.lint_context import LintContext
@@ -20,6 +20,7 @@ class VariablesConsistentCasingRule(BaseRule):
     """
 
     CONFIG_KEY = "variable_consistent_casing"
+    DEPRECATED_IDS = ["N230"]
     METADATA = RuleMetadata(
         name="Variables Consistent Casing",
         description="Enforces consistent casing for variable references within a process",
@@ -55,7 +56,7 @@ class VariablesConsistentCasingRule(BaseRule):
 
     @property
     def RULE_ID(self) -> str:
-        return "N230"
+        return "N120"
 
     def reset(self):
         self._canonical = {}

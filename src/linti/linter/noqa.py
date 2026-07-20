@@ -14,7 +14,7 @@ Supported formats (TI uses ``#`` for comments):
 3. **Procedure-level** – the *first* ``# noqa`` comment in a procedure
    (before any code) suppresses rules for the **entire** procedure/file::
 
-       # noqa: S320,S310
+       # noqa: X110,C310
        ExecuteCommand(sCmd, 1);
        RunProcess(pProcess);
 
@@ -41,8 +41,16 @@ _NOQA_END_RE = re.compile(r"#\s*noqa-end\s*:\s*([A-Za-z0-9,\s]+)", re.IGNORECASE
 
 
 def _parse_rule_ids(raw: str) -> set[str]:
-    """Parse comma-separated rule IDs into an upper-cased set."""
-    return {r.strip().upper() for r in raw.split(",") if r.strip()}
+    """Parse comma-separated rule IDs into a canonical, upper-cased set.
+
+    Deprecated rule IDs (e.g. ``S220``) are resolved to their canonical form
+    (``C220``) so suppression matches the canonical ID diagnostics carry, and a
+    deprecation warning is emitted for each deprecated ID used.
+    """
+    # Imported lazily to avoid importing the whole rules package at module load.
+    from linti.rules.rule_ids import resolve_and_warn
+
+    return {resolve_and_warn(r.strip()) for r in raw.split(",") if r.strip()}
 
 
 def _is_standalone_comment(tokens: list[Token], comment_index: int) -> bool:

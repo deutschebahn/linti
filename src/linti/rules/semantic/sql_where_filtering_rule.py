@@ -1,4 +1,4 @@
-"""Rule S340 – Filter ODBC data source rows in SQL, not in the TI script.
+"""Rule X210 – Filter ODBC data source rows in SQL, not in the TI script.
 
 When an ODBC data source returns every row and the filtering happens only in
 the TI script — via ``ItemSkip()`` or cube writes that are *always* guarded by
@@ -162,6 +162,7 @@ class SqlWhereFilteringRule(BaseStatementRule):
     """Flags TI-side row filtering when the ODBC query lacks a ``WHERE`` clause."""
 
     CONFIG_KEY = "sql_where_filtering"
+    DEPRECATED_IDS = ["S340"]
     METADATA = RuleMetadata(
         name="Filter ODBC Rows in SQL",
         description=(
@@ -219,7 +220,7 @@ class SqlWhereFilteringRule(BaseStatementRule):
 
     @property
     def RULE_ID(self) -> str:
-        return "S340"
+        return "X210"
 
     def interested_in(self):
         return [Program]

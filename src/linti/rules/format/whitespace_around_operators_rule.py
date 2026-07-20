@@ -21,7 +21,7 @@ class WhitespaceAroundOperatorsRule(BaseRule):
             "each side.  Unary operators (e.g. a leading `-1`) are exempt.  "
             "Operators at the start or end of a physical line are also exempt."
         ),
-        config_example=("rules:\n" "  whitespace:\n" "    around_operators: true"),
+        config_example=("rules:\n  whitespace:\n    around_operators: true"),
         examples=[
             RuleExample(code="nVar = nA + nB;", valid=True),
             RuleExample(

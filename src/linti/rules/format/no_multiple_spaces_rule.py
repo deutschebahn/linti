@@ -20,7 +20,7 @@ class NoMultipleSpacesRule(BaseRule):
             "start of a line (indentation).  Use exactly one space between "
             "tokens."
         ),
-        config_example=("rules:\n" "  whitespace:\n" "    no_multiple_spaces: true"),
+        config_example=("rules:\n  whitespace:\n    no_multiple_spaces: true"),
         examples=[
             RuleExample(code="nVar = 1;", valid=True),
             RuleExample(

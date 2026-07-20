@@ -23,7 +23,7 @@ def test_odbcopen_undefined_parameter_flagged():
     code = "ODBCOpen('DATASOURCE', 'root', pPassword);"
     errors = _lint(code, parameters=["pOtherParam"])
     assert len(errors) == 1
-    assert errors[0].rule_id == "S330"
+    assert errors[0].rule_id == "X120"
     assert "not defined" in errors[0].message.lower()
 
 
@@ -32,7 +32,7 @@ def test_odbcopen_literal_password_flagged():
     code = "ODBCOpen('DATASOURCE', 'root', 'password123');"
     errors = _lint(code, parameters=[])
     assert len(errors) == 1
-    assert errors[0].rule_id == "S330"
+    assert errors[0].rule_id == "X120"
     assert "must be a ti parameter" in errors[0].message.lower()
 
 
@@ -40,7 +40,7 @@ def test_odbcopen_too_few_arguments():
     code = "ODBCOpen('DATASOURCE', 'root');"
     errors = _lint(code, parameters=[])
     assert len(errors) == 1
-    assert errors[0].rule_id == "S330"
+    assert errors[0].rule_id == "X120"
     assert "requires at least 3 arguments" in errors[0].message
 
 

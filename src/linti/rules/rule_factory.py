@@ -3,6 +3,7 @@
 from linti.config import Config
 from linti.rules import _RULE_REGISTRY  # triggers all rule imports
 from linti.rules.Rule import BaseRule, BaseStatementRule
+from linti.rules.rule_ids import resolve_and_warn
 
 
 def _matches_select_pattern(rule_id: str, patterns: list[str]) -> bool:
@@ -10,10 +11,10 @@ def _matches_select_pattern(rule_id: str, patterns: list[str]) -> bool:
     Check if a rule ID matches any of the select patterns.
 
     Patterns can be:
-    - Full rule ID: "F110", "D410", "S220"
-    - First letter group: "F", "N", "D", "S"
-    - Two-letter group: "F1", "D4", "N2", "S3"
-    - Three-letter group: "F11", "D41", "S22"
+    - Full rule ID: "F110", "D110", "C220"
+    - First letter group: "F", "N", "D", "C", "X"
+    - Two-letter group: "F1", "D1", "N2", "C3"
+    - Three-letter group: "F11", "D11", "C22"
 
     Args:
         rule_id: The rule ID to check (e.g., "F110")
@@ -44,16 +45,20 @@ def create_rules(cfg: Config, select: str | None = None) -> tuple:
     Args:
         cfg: Configuration object with rule settings
         select: Optional comma-separated rule IDs or patterns to select
-                (e.g., "F110" or "F,N1" or "F110,S220")
+                (e.g., "F110" or "F,N1" or "F110,C220")
                 When select is provided, it overrides the enabled flag for matching rules.
 
     Returns:
         Tuple of (token_rules, statement_rules)
     """
-    # Parse select patterns
+    # Parse select patterns. A full deprecated rule ID (e.g. "S220") is
+    # resolved to its canonical form ("C220") with a deprecation warning;
+    # group prefixes ("F", "F1") and canonical IDs pass through unchanged.
     select_patterns = None
     if select:
-        select_patterns = [p.strip() for p in select.split(",")]
+        select_patterns = [
+            resolve_and_warn(p.strip()) for p in select.split(",") if p.strip()
+        ]
 
     token_rules: list[BaseRule] = []
     statement_rules: list[BaseStatementRule] = []

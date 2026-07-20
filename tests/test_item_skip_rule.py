@@ -42,7 +42,7 @@ def test_item_skip_not_allowed_in_prolog():
     """
     errors = _lint(code, block="prolog")
     assert len(errors) == 1
-    assert "S120" in errors[0].rule_id
+    assert "C130" in errors[0].rule_id
     assert "prolog" in errors[0].message.lower()
 
 
@@ -55,7 +55,7 @@ def test_item_skip_not_allowed_in_epilog():
     """
     errors = _lint(code, block="epilog")
     assert len(errors) == 1
-    assert "S120" in errors[0].rule_id
+    assert "C130" in errors[0].rule_id
     assert "epilog" in errors[0].message.lower()
 
 
@@ -71,7 +71,7 @@ def test_item_skip_in_if_block_in_prolog():
     """
     errors = _lint(code, block="prolog")
     assert len(errors) == 1
-    assert "S120" in errors[0].rule_id
+    assert "C130" in errors[0].rule_id
 
 
 def test_item_skip_in_else_block_in_epilog():
@@ -86,7 +86,7 @@ def test_item_skip_in_else_block_in_epilog():
     """
     errors = _lint(code, block="epilog")
     assert len(errors) == 1
-    assert "S120" in errors[0].rule_id
+    assert "C130" in errors[0].rule_id
 
 
 def test_item_skip_case_insensitive():
@@ -98,7 +98,7 @@ def test_item_skip_case_insensitive():
     """
     errors = _lint(code, block="prolog")
     assert len(errors) == 1
-    assert "S120" in errors[0].rule_id
+    assert "C130" in errors[0].rule_id
 
 
 def test_item_skip_nested_if_statements():
@@ -113,7 +113,7 @@ def test_item_skip_nested_if_statements():
     """
     errors = _lint(code, block="epilog")
     assert len(errors) == 1
-    assert "S120" in errors[0].rule_id
+    assert "C130" in errors[0].rule_id
 
 
 def test_multiple_item_skip_calls_in_prolog():
@@ -127,7 +127,7 @@ def test_multiple_item_skip_calls_in_prolog():
     """
     errors = _lint(code, block="prolog")
     assert len(errors) == 2
-    assert all("S120" in err.rule_id for err in errors)
+    assert all("C130" in err.rule_id for err in errors)
 
 
 def test_item_skip_allowed_when_no_block_context():

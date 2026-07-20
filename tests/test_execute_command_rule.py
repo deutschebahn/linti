@@ -14,7 +14,7 @@ def test_executecommand_call_is_flagged():
     code = "ExecuteCommand('ls -la');"
     errors = _lint(code)
     assert len(errors) == 1
-    assert errors[0].rule_id == "S320"
+    assert errors[0].rule_id == "X110"
     assert "not allowed" in errors[0].message.lower()
 
 
@@ -22,14 +22,14 @@ def test_executecommand_case_insensitive():
     code = "executecommand('dir');"
     errors = _lint(code)
     assert len(errors) == 1
-    assert errors[0].rule_id == "S320"
+    assert errors[0].rule_id == "X110"
 
 
 def test_executecommand_with_multiple_args():
     code = "ExecuteCommand('cmd', 'arg1', 'arg2');"
     errors = _lint(code)
     assert len(errors) == 1
-    assert errors[0].rule_id == "S320"
+    assert errors[0].rule_id == "X110"
 
 
 def test_other_functions_allowed():
@@ -42,4 +42,4 @@ def test_executecommand_with_variable_arg():
     code = "ExecuteCommand(sCmd);"
     errors = _lint(code)
     assert len(errors) == 1
-    assert errors[0].rule_id == "S320"
+    assert errors[0].rule_id == "X110"

@@ -117,7 +117,7 @@ rules:
     # When enabled, constants may only be assigned once.
     allow_constant_prefix: false
 
-  # S410 - Use Hierarchy-Aware Functions
+  # C410 - Use Hierarchy-Aware Functions
   # Prefer hierarchy-aware functions (e.g. HierarchyElementExists,
   # ElementParent) over standard ones (e.g. DimensionElementExists, ELPAR).
   use_hierarchy_aware_functions:
@@ -133,8 +133,8 @@ rules:
 Some rules treat *generic* (templated) processes more strictly. A process is
 considered generic when its name starts with one of the prefixes in the
 top-level `generic_prefixes` setting. This single definition is shared by all
-rules that care about it (currently `D410` Docstring Region and `S410`
-Use Hierarchy-Aware Functions — generic processes are always held to S410's
+rules that care about it (currently `D110` Docstring Region and `C410`
+Use Hierarchy-Aware Functions — generic processes are always held to C410's
 `enforce` mode regardless of its base `mode`).
 
 ```yaml
@@ -154,7 +154,9 @@ rules:
 > error: linting fails immediately with a message telling you to remove the
 > deprecated `rules.docstring_region.generic_prefixes` key.
 
-`rules.one_space_before_equals` has been removed with rule `F210`. If it is still present in an older config, linti warns and ignores it.
+`rules.one_space_before_equals` has been removed along with the Equals Spacing
+rule. If it is still present in an older config, linti warns and ignores it.
+Its old ID `F210` is not claimed by any live rule.
 
 ### Excluding Files from Linting
 
@@ -194,7 +196,7 @@ max_nesting_depth: 150    # default
 
 # Cap on how many distinct values the constant evaluation index tracks per
 # variable (across IF/ELSE branches) before treating it as unknown. Used by
-# value-aware rules such as S340 and S410.
+# value-aware rules such as X210 and C410.
 max_values_per_variable: 8           # default
 ```
 
@@ -245,7 +247,7 @@ if(nVar = 1);
 #### Procedure-level — first comment before any code suppresses the entire file/procedure
 
 ```
-# noqa: S320, S310
+# noqa: X110, C310
 ExecuteCommand(sCmd, 1);
 RunProcess(pProcess);
 ```
@@ -259,7 +261,11 @@ endif;
 # noqa-end: F110
 ```
 
-Multiple rule IDs can be combined with commas: `# noqa: F110, N110, S220`
+Multiple rule IDs can be combined with commas: `# noqa: F110, N110, C220`
+
+Deprecated rule IDs (see [Rule ID migration](#rule-id-migration)) still work in
+`noqa` comments for one deprecation cycle; linti resolves them to the canonical
+ID and prints a warning telling you which ID to use instead.
 
 ## CLI Usage
 
@@ -355,22 +361,25 @@ linti process.ti --select F110
 # Run all rules in a category (e.g., all Format rules)
 linti process.ti --select F
 
-# Run all rules in a subcategory (e.g., all F1xx - Casing rules)
-linti process.ti --select F1
+# Run all rules in a subcategory (e.g., all F2xx - Whitespace rules)
+linti process.ti --select F2
 
 # Run multiple rules or groups (comma-separated)
-linti process.ti --select F110,S220
-linti process.ti --select F,N1,S3
+linti process.ti --select F110,C220
+linti process.ti --select F,N1,C3
 
 # Combining with other options
 linti process.ti --select F --auto-fix
-linti process.ti --select N,S --tokens
+linti process.ti --select N,C --tokens
 ```
 
 **Selection patterns:**
-- `D`, `F`, `N`, `S` – Select all rules in a category
-- `D4`, `F1`, `F2`, `F3`, `N1`, `N2`, `S1`, `S2`, `S3` – Select all rules in a subcategory
-- `D410`, `F110`, `S220` – Select a specific rule
+- `F`, `N`, `D`, `C`, `X` – Select all rules in a category
+- `F1`, `F2`, `F3`, `N1`, `N2`, `D1`, `C1`, `C2`, `C3`, `C4`, `X1`, `X2` – Select all rules in a subcategory
+- `F110`, `D110`, `C220` – Select a specific rule
+
+A deprecated rule ID is accepted as a full ID (e.g. `--select S220` runs `C220`)
+and warns; group prefixes are matched against canonical IDs only.
 
 ### Listing Rules
 
@@ -387,61 +396,80 @@ linti explain F110
 
 ## Rule Groups
 
-Rules are organized into three main categories, each with a hierarchical numbering scheme. The categorization helps identify the type of violation and group related rules together.
+Rules are organized by topic, each with a hierarchical numbering scheme. The
+first letter is the category; the hundreds digit is a logical subcategory.
 
-### Format Rules (F1xx, F2xx, F3xx)
+| Letter | Category |
+|--------|----------|
+| `F` | Formatting |
+| `N` | Naming |
+| `D` | Documentation |
+| `C` | Code Quality |
+| `X` | External Interactions |
+| `E` | Error |
+
+### Formatting Rules (F1xx, F2xx, F3xx)
 Formatting and code style rules:
 
-- **F1xx - Casing**: Keyword capitalization and case consistency
+- **F1xx - Casing**: Keyword capitalization
   - `F110` - Keyword Casing
-  
-- **F2xx - Spacing**: Whitespace and spacing requirements
+
+- **F2xx - Whitespace**: Whitespace and spacing requirements
   - `F220` - Whitespace Around Operators
   - `F230` - Whitespace After Comma
   - `F240` - No Space Before Semicolon
   - `F250` - One Space Inside Parentheses
   - `F260` - No Multiple Spaces
   - `F270` - No Trailing Whitespace
-  
-- **F3xx - Structure**: Indentation, line breaks, and code layout
+
+- **F3xx - Layout**: Indentation, line breaks, and code layout
   - `F310` - Block Indentation
   - `F320` - One Statement Per Line
 
 ### Naming Rules (N1xx, N2xx)
 Variable and parameter naming conventions:
 
-- **N1xx - Prefix Naming**: Variable prefix conventions (n, s, c prefixes)
+- **N1xx - Variables**: Variable prefix and casing conventions
   - `N110` - Variable Prefix Naming
-  
-- **N2xx - Metadata Naming**: Naming conventions for specific declarations
+  - `N120` - Variables Consistent Casing
+
+- **N2xx - Inputs**: Naming conventions for parameters and data sources
   - `N210` - Parameter Naming
   - `N220` - Data Source Variable Naming
 
-### Documentation Rules (D4xx)
+### Documentation Rules (D1xx)
 Documentation and process docstring validation:
 
-- **D4xx - Docstrings**: Required docstring regions and headers
-  - `D410` - Docstring Region
+- **D1xx - Documentation**: Required docstring regions and headers
+  - `D110` - Docstring Region
 
-### Semantic Rules (S1xx, S2xx, S3xx, S4xx)
-Logic, control flow, and semantic validation:
+### Code Quality Rules (C1xx, C2xx, C3xx, C4xx)
+Control flow, mutability, and TM1 best practices:
 
-- **S1xx - Control Flow**: Process execution and control flow patterns
-  - `S110` - ProcessQuit Placement
-  - `S120` - ItemSkip Block Usage
-  
-- **S2xx - Immutability**: Variable mutability and assignment constraints
-  - `S210` - Read-only Parameters and Variables
-  - `S220` - Single-assignment Constants
-  
-- **S3xx - Security/Calls**: Security-sensitive operations and function calls
-  - `S310` - Literal Process Calls
-  - `S320` - No ExecuteCommand
-  - `S330` - ODBCOpen Password Parameter
-  - `S340` - Filter ODBC Rows in SQL
+- **C1xx - Control Flow**: Process execution and control flow patterns
+  - `C110` - Empty Block
+  - `C120` - ProcessQuit Placement
+  - `C130` - ItemSkip Block Usage
 
-- **S4xx - Hierarchies**: Dimension hierarchy usage
-  - `S410` - Use Hierarchy-Aware Functions
+- **C2xx - Variables**: Variable mutability and assignment constraints
+  - `C210` - Read-only Parameters and Variables
+  - `C220` - Single-assignment Constants
+
+- **C3xx - Process Design**: How processes call one another
+  - `C310` - Literal Process Calls
+
+- **C4xx - TM1 Best Practices**: Idiomatic TM1 API usage
+  - `C410` - Use Hierarchy-Aware Functions
+
+### External Interactions Rules (X1xx, X2xx)
+Interactions with systems outside the TI process:
+
+- **X1xx - Security**: Security-sensitive operations
+  - `X110` - No ExecuteCommand
+  - `X120` - ODBCOpen Password Parameter
+
+- **X2xx - Performance**: Cost of external data access
+  - `X210` - Filter ODBC Rows in SQL
 
 ### Error Rules (E1xx)
 Parse and syntax errors that reduce linting coverage:
@@ -450,6 +478,41 @@ Parse and syntax errors that reduce linting coverage:
   - `E110` - Unparseable Statement
 
 Use `linti explain` to list all rules or `linti explain <RULE_ID>` for detailed information about a specific rule.
+
+### Rule ID migration
+
+The former generic **Semantic (S)** category was split into **Code Quality (C)**
+and **External Interactions (X)**, and a few rules were renumbered so each
+subcategory describes its topic. **Old IDs keep working for one deprecation
+cycle** wherever a rule is referenced by ID — `--select`, `# noqa` comments,
+and `linti explain`. Using one resolves to the canonical rule and prints:
+
+```
+⚠  Rule ID S220 is deprecated. Use C220 instead.
+```
+
+Diagnostics always report the **canonical (new)** ID.
+
+| Old | New | Rule |
+|-----|-----|------|
+| `N230` | `N120` | Variables Consistent Casing |
+| `D410` | `D110` | Docstring Region |
+| `S130` | `C110` | Empty Block |
+| `S110` | `C120` | ProcessQuit Placement |
+| `S120` | `C130` | ItemSkip Block Usage |
+| `S210` | `C210` | Read-only Parameters and Variables |
+| `S220` | `C220` | Single-assignment Constants |
+| `S310` | `C310` | Literal Process Calls |
+| `S410` | `C410` | Use Hierarchy-Aware Functions |
+| `S320` | `X110` | No ExecuteCommand |
+| `S330` | `X120` | ODBCOpen Password Parameter |
+| `S340` | `X210` | Filter ODBC Rows in SQL |
+
+Every other rule (all Formatting and Naming IDs, plus `E110`) keeps the ID it
+already had.
+
+> Configuration in `linti.yaml` is keyed by rule *name* (e.g. `keyword_casing`,
+> `constant_assignment`), not by rule ID, so no config changes are needed.
 
 ### Auto-Fix Feature
 

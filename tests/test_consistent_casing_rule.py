@@ -1,4 +1,4 @@
-"""Tests for N230: VariablesConsistentCasingRule."""
+"""Tests for N120: VariablesConsistentCasingRule."""
 
 from linti.lexer.lexer import Lexer
 from linti.linter.fixer import apply_fixes

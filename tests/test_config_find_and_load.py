@@ -103,7 +103,7 @@ def test_removed_rule_config_emits_warning(tmp_path: Path):
         "    enabled: false\n"
     )
 
-    with pytest.warns(UserWarning, match="removed rule F210"):
+    with pytest.warns(UserWarning, match="removed Equals Spacing rule"):
         cfg = Config.load_from_file(config_file)
 
     assert cfg.rules.keyword_casing.enabled is False

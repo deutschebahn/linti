@@ -19,6 +19,7 @@ class ProcessQuitRule(BaseStatementRule):
     """
 
     CONFIG_KEY = "process_quit"
+    DEPRECATED_IDS = ["S110"]
     METADATA = RuleMetadata(
         name="ProcessQuit Placement",
         description="Enforces that ProcessQuit() is only at the end of blocks to prevent unreachable code",
@@ -52,7 +53,7 @@ class ProcessQuitRule(BaseStatementRule):
 
     @property
     def RULE_ID(self) -> str:
-        return "S110"
+        return "C120"
 
     def interested_in(self):
         return [ExpressionStatement, IfStatement]

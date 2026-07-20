@@ -10,6 +10,9 @@ Tests cover:
 7. Integration with the full linter pipeline
 """
 
+import pytest
+
+from linti.config import LintiConfigWarning
 from linti.lexer.lexer import Lexer
 from linti.lexer.token import Token, TokenType
 from linti.linter.lint_issue import LintIssue
@@ -23,7 +26,11 @@ from linti.linter.noqa import (
     parse_noqa,
 )
 from linti.rules.format.keyword_casing_rule import KeywordCasingRule
+from linti.rules.format.whitespace_around_operators_rule import (
+    WhitespaceAroundOperatorsRule,
+)
 from linti.rules.naming.naming_rule import VariablePrefixRule
+from linti.rules.semantic.process_quit_rule import ProcessQuitRule
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -53,13 +60,22 @@ class TestParseRuleIds:
         assert _parse_rule_ids("F110") == {"F110"}
 
     def test_multiple(self):
-        assert _parse_rule_ids("F110, S220, N110") == {"F110", "S220", "N110"}
+        assert _parse_rule_ids("F110, C220, N110") == {"F110", "C220", "N110"}
 
     def test_case_normalisation(self):
-        assert _parse_rule_ids("f110, s220") == {"F110", "S220"}
+        assert _parse_rule_ids("f110, c220") == {"F110", "C220"}
+
+    def test_deprecated_id_resolved_to_canonical(self):
+        """A deprecated ID is normalised to the canonical ID it maps to."""
+        with pytest.warns(LintiConfigWarning, match="S220 is deprecated"):
+            assert _parse_rule_ids("S220") == {"C220"}
+
+    def test_deprecated_id_resolution_is_case_insensitive(self):
+        with pytest.warns(LintiConfigWarning):
+            assert _parse_rule_ids("s220") == {"C220"}
 
     def test_extra_whitespace(self):
-        assert _parse_rule_ids("  F110 ,  S220  ") == {"F110", "S220"}
+        assert _parse_rule_ids("  F110 ,  C220  ") == {"F110", "C220"}
 
     def test_empty(self):
         assert _parse_rule_ids("") == set()
@@ -108,12 +124,12 @@ class TestNoqaDirectives:
         d = NoqaDirectives(global_suppressions={"F110"})
         assert d.is_suppressed("F110", 1) is True
         assert d.is_suppressed("F110", 99) is True
-        assert d.is_suppressed("S220", 1) is False
+        assert d.is_suppressed("C220", 1) is False
 
     def test_line_suppression(self):
-        d = NoqaDirectives(line_suppressions={5: {"F110", "S220"}})
+        d = NoqaDirectives(line_suppressions={5: {"F110", "C220"}})
         assert d.is_suppressed("F110", 5) is True
-        assert d.is_suppressed("S220", 5) is True
+        assert d.is_suppressed("C220", 5) is True
         assert d.is_suppressed("F110", 6) is False
 
     def test_case_insensitive_lookup(self):
@@ -130,13 +146,13 @@ class TestFilterIssues:
     def test_filters_suppressed(self):
         issues = [
             LintIssue("msg1", line=5, column=1, position=0, rule_id="F110"),
-            LintIssue("msg2", line=5, column=1, position=0, rule_id="S220"),
+            LintIssue("msg2", line=5, column=1, position=0, rule_id="C220"),
             LintIssue("msg3", line=10, column=1, position=0, rule_id="F110"),
         ]
         directives = NoqaDirectives(line_suppressions={5: {"F110"}})
         result = filter_issues(issues, directives)
         assert len(result) == 2
-        assert result[0].rule_id == "S220"
+        assert result[0].rule_id == "C220"
         assert result[1].rule_id == "F110"
         assert result[1].line == 10
 
@@ -144,12 +160,12 @@ class TestFilterIssues:
         issues = [
             LintIssue("msg1", line=1, column=1, position=0, rule_id="F110"),
             LintIssue("msg2", line=99, column=1, position=0, rule_id="F110"),
-            LintIssue("msg3", line=50, column=1, position=0, rule_id="S220"),
+            LintIssue("msg3", line=50, column=1, position=0, rule_id="C220"),
         ]
         directives = NoqaDirectives(global_suppressions={"F110"})
         result = filter_issues(issues, directives)
         assert len(result) == 1
-        assert result[0].rule_id == "S220"
+        assert result[0].rule_id == "C220"
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +190,7 @@ class TestParseNoqaInline:
         directives = parse_noqa(tokens)
         assert directives.is_suppressed("F220", 1) is True
         assert directives.is_suppressed("N110", 1) is True
-        assert directives.is_suppressed("S220", 1) is False
+        assert directives.is_suppressed("C220", 1) is False
 
 
 class TestParseNoqaStandalone:
@@ -221,14 +237,14 @@ class TestParseNoqaProcedureLevel:
         assert directives.is_suppressed("F110", 3) is True
         assert directives.is_suppressed("F110", 999) is True
         # Other rules not affected
-        assert directives.is_suppressed("S220", 1) is False
+        assert directives.is_suppressed("C220", 1) is False
 
     def test_procedure_level_multiple_rules(self):
-        code = "# noqa: F110, S220\nif(nVar = 1);\nendif;"
+        code = "# noqa: F110, C220\nif(nVar = 1);\nendif;"
         tokens = _tokenize(code)
         directives = parse_noqa(tokens)
         assert directives.is_suppressed("F110", 5) is True
-        assert directives.is_suppressed("S220", 5) is True
+        assert directives.is_suppressed("C220", 5) is True
 
     def test_non_first_standalone_is_not_procedure_level(self):
         code = "nVar = 1;\n# noqa: F110\nif(nVar = 1);"
@@ -264,21 +280,23 @@ class TestParseNoqaRegion:
         assert directives.is_suppressed("F110", 6) is False
         assert directives.is_suppressed("F110", 7) is False
 
+    def test_region_accepts_a_deprecated_rule_id(self):
+        """A deprecated ID in a region marker suppresses the canonical rule."""
+        code = "# noqa-begin: S220\ncRate = 1.5;\n# noqa-end: S220\n"
+        tokens = _tokenize(code)
+        with pytest.warns(LintiConfigWarning, match="S220 is deprecated"):
+            directives = parse_noqa(tokens)
+        assert directives.is_suppressed("C220", 2) is True
+
     def test_region_only_suppresses_specified_rule(self):
-        code = "# noqa-begin: F110\n" "if(nVar = 1);\n" "# noqa-end: F110\n"
+        code = "# noqa-begin: F110\nif(nVar = 1);\n# noqa-end: F110\n"
         tokens = _tokenize(code)
         directives = parse_noqa(tokens)
         assert directives.is_suppressed("F110", 2) is True
-        assert directives.is_suppressed("S220", 2) is False
+        assert directives.is_suppressed("C220", 2) is False
 
     def test_unclosed_region_extends_to_eof(self):
-        code = (
-            "# noqa-begin: F110\n"
-            "if(nVar = 1);\n"
-            "endif;\n"
-            "if(nVar = 2);\n"
-            "endif;"
-        )
+        code = "# noqa-begin: F110\nif(nVar = 1);\nendif;\nif(nVar = 2);\nendif;"
         tokens = _tokenize(code)
         directives = parse_noqa(tokens)
         assert directives.is_suppressed("F110", 2) is True
@@ -287,7 +305,7 @@ class TestParseNoqaRegion:
         assert directives.is_suppressed("F110", 5) is True
 
     def test_multiple_rules_in_region(self):
-        code = "# noqa-begin: F110, N110\n" "if(nVar = 1);\n" "# noqa-end: F110, N110\n"
+        code = "# noqa-begin: F110, N110\nif(nVar = 1);\n# noqa-end: F110, N110\n"
         tokens = _tokenize(code)
         directives = parse_noqa(tokens)
         assert directives.is_suppressed("F110", 2) is True
@@ -308,6 +326,28 @@ class TestNoqaIntegration:
         # 'if' on line 1 is suppressed; 'ENDIF' on line 2 should still flag
         # Actually with uppercase rule — 'if' is the violation, 'ENDIF' is fine
         assert "F110" not in [i.rule_id for i in issues if i.line == 1]
+
+    def test_diagnostics_report_the_canonical_rule_id(self):
+        """A renamed rule reports its new ID, and that ID suppresses it."""
+        rules = [WhitespaceAroundOperatorsRule()]
+        issues = _lint("nVar=1;", rules=rules)
+        assert issues and {i.rule_id for i in issues} == {"F220"}
+        assert _lint("nVar=1; # noqa: F220", rules=rules) == []
+
+    def test_deprecated_id_suppresses_the_canonical_rule(self):
+        """An old ID keeps working for one deprecation cycle, with a warning."""
+        code = "\nnValue = 5;\nProcessQuit();\n"
+        linter = Linter(statement_rules=[ProcessQuitRule()])
+
+        tokens = _tokenize(code)
+        assert [i.rule_id for i in linter.lint(tokens)] == ["C120"]
+
+        tokens = _tokenize(
+            code.replace("ProcessQuit();", "ProcessQuit(); # noqa: S110")
+        )
+        with pytest.warns(LintiConfigWarning, match="S110 is deprecated"):
+            issues = linter.lint(tokens)
+        assert issues == []
 
     def test_standalone_suppresses_next_line(self):
         code = "# noqa: F110\nif(nVar = 1);\nENDIF;"
@@ -333,7 +373,7 @@ class TestNoqaIntegration:
         assert len(outside_issues) > 0
 
     def test_procedure_level_suppresses_all(self):
-        code = "# noqa: F110\n" "if(nVar = 1);\n" "endif;\n" "if(nVar = 2);\n" "endif;"
+        code = "# noqa: F110\nif(nVar = 1);\nendif;\nif(nVar = 2);\nendif;"
         issues = _lint(code)
         f110_issues = [i for i in issues if i.rule_id == "F110"]
         assert len(f110_issues) == 0

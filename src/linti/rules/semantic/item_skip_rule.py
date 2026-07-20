@@ -18,6 +18,7 @@ class ItemSkipRule(BaseStatementRule):
     """
 
     CONFIG_KEY = "item_skip"
+    DEPRECATED_IDS = ["S120"]
     METADATA = RuleMetadata(
         name="ItemSkip Block Usage",
         description="Enforces that ItemSkip() is only used in metadata or data sections",
@@ -33,7 +34,7 @@ class ItemSkipRule(BaseStatementRule):
             "ItemSkip() skips the current record, which only makes sense in Metadata "
             "and Data sections. Using it in Prolog or Epilog is a logic error."
         ),
-        config_example=("rules:\n" "  item_skip:\n" "    enabled: true"),
+        config_example=("rules:\n  item_skip:\n    enabled: true"),
         examples=[
             RuleExample(
                 code="# In Metadata/Data section\nIF (nValue = 0);\n    ItemSkip();\nENDIF;",
@@ -50,7 +51,7 @@ class ItemSkipRule(BaseStatementRule):
 
     @property
     def RULE_ID(self) -> str:
-        return "S120"
+        return "C130"
 
     def interested_in(self):
         return [ExpressionStatement]
