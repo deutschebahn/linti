@@ -30,7 +30,9 @@ from linti.rules.format.whitespace_around_operators_rule import (
     WhitespaceAroundOperatorsRule,
 )
 from linti.rules.naming.naming_rule import VariablePrefixRule
-from linti.rules.semantic.process_quit_rule import ProcessQuitRule
+from linti.rules.semantic.conditional_control_flow_rule import (
+    ConditionalControlFlowRule,
+)
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -337,7 +339,7 @@ class TestNoqaIntegration:
     def test_deprecated_id_suppresses_the_canonical_rule(self):
         """An old ID keeps working for one deprecation cycle, with a warning."""
         code = "\nnValue = 5;\nProcessQuit();\n"
-        linter = Linter(statement_rules=[ProcessQuitRule()])
+        linter = Linter(statement_rules=[ConditionalControlFlowRule()])
 
         tokens = _tokenize(code)
         assert [i.rule_id for i in linter.lint(tokens)] == ["C120"]

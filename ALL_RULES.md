@@ -51,8 +51,9 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 | Rule ID | Rule Name | Description | Auto-fix |
 |---------|-----------|-------------|----------|
 | C110 | Empty Block | Flags IF/ELSEIF/ELSE/WHILE blocks that contain no executable code | ✅ |
-| C120 | ProcessQuit Placement | Enforces that ProcessQuit() is only at the end of blocks to prevent unreachable code | ❌ |
+| C120 | Conditional Control Flow | Enforces that flow-altering statements are only used inside an IF/ELSE block | ❌ |
 | C130 | ItemSkip Block Usage | Enforces that ItemSkip() is only used in metadata or data sections | ❌ |
+| C140 | Unreachable Code | Flags code after a flow-terminating statement that can never execute | ❌ |
 | C210 | Read-only Parameters and Variables | Enforces that parameters and data source variables are read-only | ❌ |
 | C220 | Single-assignment Constants | Enforces that constants (c-prefixed variables) are assigned only once | ❌ |
 | C310 | Literal Process Calls | Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument | ❌ |
@@ -583,44 +584,50 @@ END;
 
 ---
 
-### C120: ProcessQuit Placement
+### C120: Conditional Control Flow
 
-Enforces that ProcessQuit() is only at the end of blocks to prevent unreachable code.
+Enforces that flow-altering statements are only used inside an IF/ELSE block.
 
 > Previous rule ID: S110 (deprecated)
 
-Enforces that ProcessQuit() is only allowed in IF/ELSE blocks, not in the main program body.
+Enforces that flow-altering control statements are only used inside an IF/ELSE block.
 
-Since ProcessQuit() terminates the TI process immediately:
-1. It must not be used in the main program body at all
-2. When used in IF/ELSE blocks, it must be at the end to prevent unreachable code
+The following functions and keywords abruptly change process flow and must be guarded by an explicit IF condition:
+- ProcessQuit
+- ItemReject
+- ProcessBreak
+- ProcessError
+- ProcessExitByChoreRollback
+- ProcessExitByProcessRollback
+- ProcessRollback
+- Break
+
+Using any of them in the main program body — or in a bare WHILE loop with no enclosing IF — is almost always a logic error.
 
 **Configuration:**
 ```yaml
 rules:
-  process_quit:
+  conditional_control_flow:
     enabled: true
 ```
 
 **Valid usage:**
 ```ti
-# ProcessQuit at end of IF block
+# ProcessBreak guarded by an IF condition
 IF (nValue = 1);
-    nResult = 10;
-    ProcessQuit();
+    ProcessBreak();
 ENDIF;
 ```
 
 **Invalid usage:**
 ```ti
-# ProcessQuit in main program body
+# ProcessQuit in the main program body
 nValue = 5;
 ProcessQuit();
-# Unreachable code after ProcessQuit
-IF (nValue = 1);
-    ProcessQuit();
-    nResult = 10;
-ENDIF;
+# Break in a bare WHILE loop (no enclosing IF)
+WHILE (nValue = 1);
+    Break;
+END;
 ```
 
 ---
@@ -662,6 +669,41 @@ ENDIF;
 # ItemSkip in Prolog
 # In Prolog section
 ItemSkip();
+```
+
+---
+
+### C140: Unreachable Code
+
+Flags code after a flow-terminating statement that can never execute.
+
+Flags unreachable code that follows a flow-terminating statement within a block.
+
+Statements such as ProcessQuit, ProcessBreak, ProcessError, ItemReject, the ProcessRollback family and the Break loop keyword end the current flow. A flow-terminating statement must therefore be the last statement in its block; anything after it can never execute.
+
+**Configuration:**
+```yaml
+rules:
+  unreachable_code:
+    enabled: true
+```
+
+**Valid usage:**
+```ti
+# ProcessQuit at the end of the block
+IF (nValue = 1);
+    nResult = 10;
+    ProcessQuit();
+ENDIF;
+```
+
+**Invalid usage:**
+```ti
+# Unreachable code after ProcessQuit
+IF (nValue = 1);
+    ProcessQuit();
+    nResult = 10;
+ENDIF;
 ```
 
 ---
@@ -1046,10 +1088,13 @@ rules:
   empty_block:
     enabled: true
 
-  process_quit:
+  conditional_control_flow:
     enabled: true
 
   item_skip:
+    enabled: true
+
+  unreachable_code:
     enabled: true
 
   readonly_parameter_variable:
