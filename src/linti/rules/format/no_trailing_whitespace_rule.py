@@ -3,10 +3,10 @@
 from linti.lexer.token import TokenType
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import Fix, LintIssue
-from linti.rules.Rule import BaseRule, RuleExample, RuleMetadata
+from linti.rules.Rule import BaseTokenRule, RuleExample, RuleMetadata
 
 
-class NoTrailingWhitespaceRule(BaseRule):
+class NoTrailingWhitespaceRule(BaseTokenRule):
     """Enforces no trailing whitespace at the end of a line."""
 
     CONFIG_KEY = "whitespace"

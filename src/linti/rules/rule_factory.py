@@ -2,7 +2,7 @@
 
 from linti.config import Config
 from linti.rules import _RULE_REGISTRY  # triggers all rule imports
-from linti.rules.Rule import BaseRule, BaseStatementRule
+from linti.rules.Rule import BaseTokenRule, BaseStatementRule
 from linti.rules.rule_ids import resolve_and_warn
 
 
@@ -60,7 +60,7 @@ def create_rules(cfg: Config, select: str | None = None) -> tuple:
             resolve_and_warn(p.strip()) for p in select.split(",") if p.strip()
         ]
 
-    token_rules: list[BaseRule] = []
+    token_rules: list[BaseTokenRule] = []
     statement_rules: list[BaseStatementRule] = []
 
     for rule_cls in _RULE_REGISTRY:
@@ -120,7 +120,7 @@ def create_rules(cfg: Config, select: str | None = None) -> tuple:
         instances = rule_cls.from_config(cfg_dict)
 
         for inst in instances:
-            if isinstance(inst, BaseRule):
+            if isinstance(inst, BaseTokenRule):
                 token_rules.append(inst)
             else:
                 statement_rules.append(inst)

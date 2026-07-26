@@ -3,10 +3,10 @@
 from linti.lexer.token import TokenType
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import Fix, LintIssue
-from linti.rules.Rule import BaseRule, RuleExample, RuleMetadata
+from linti.rules.Rule import BaseTokenRule, RuleExample, RuleMetadata
 
 
-class OneSpaceInsideParenthesesRule(BaseRule):
+class OneSpaceInsideParenthesesRule(BaseTokenRule):
     """Enforces exactly one space immediately inside parentheses."""
 
     CONFIG_KEY = "whitespace"

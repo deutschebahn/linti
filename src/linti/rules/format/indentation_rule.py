@@ -1,10 +1,10 @@
 from linti.lexer.token import TokenType
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import Fix, LintIssue
-from linti.rules.Rule import BaseRule, RuleExample, RuleMetadata
+from linti.rules.Rule import BaseTokenRule, RuleExample, RuleMetadata
 
 
-class IndentationRule(BaseRule):
+class IndentationRule(BaseTokenRule):
     """
     Enforces indentation for IF/WHILE blocks.
 
