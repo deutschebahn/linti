@@ -60,8 +60,14 @@ class VariablePrefixConfig(BaseModel):
     allow_constant_prefix: bool = False
 
 
-class ProcessQuitConfig(BaseModel):
-    """Configuration for ProcessQuitRule."""
+class ConditionalControlFlowConfig(BaseModel):
+    """Configuration for ConditionalControlFlowRule."""
+
+    enabled: bool = True
+
+
+class UnreachableCodeConfig(BaseModel):
+    """Configuration for UnreachableCodeRule."""
 
     enabled: bool = True
 
@@ -165,7 +171,12 @@ class RulesConfig(BaseModel):
     keyword_casing: KeywordCasingConfig = Field(default_factory=KeywordCasingConfig)
     indentation: IndentationConfig = Field(default_factory=IndentationConfig)
     variable_prefix: VariablePrefixConfig = Field(default_factory=VariablePrefixConfig)
-    process_quit: ProcessQuitConfig = Field(default_factory=ProcessQuitConfig)
+    conditional_control_flow: ConditionalControlFlowConfig = Field(
+        default_factory=ConditionalControlFlowConfig
+    )
+    unreachable_code: UnreachableCodeConfig = Field(
+        default_factory=UnreachableCodeConfig
+    )
     item_skip: ItemSkipConfig = Field(default_factory=ItemSkipConfig)
     empty_block: EmptyBlockConfig = Field(default_factory=EmptyBlockConfig)
     parameter_naming: ParameterNamingConfig = Field(

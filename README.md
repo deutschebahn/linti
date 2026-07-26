@@ -448,8 +448,9 @@ Control flow, mutability, and TM1 best practices:
 
 - **C1xx - Control Flow**: Process execution and control flow patterns
   - `C110` - Empty Block
-  - `C120` - ProcessQuit Placement
+  - `C120` - Conditional Control Flow
   - `C130` - ItemSkip Block Usage
+  - `C140` - Unreachable Code
 
 - **C2xx - Variables**: Variable mutability and assignment constraints
   - `C210` - Read-only Parameters and Variables
@@ -498,7 +499,7 @@ Diagnostics always report the **canonical (new)** ID.
 | `N230` | `N120` | Variables Consistent Casing |
 | `D410` | `D110` | Docstring Region |
 | `S130` | `C110` | Empty Block |
-| `S110` | `C120` | ProcessQuit Placement |
+| `S110` | `C120` | Conditional Control Flow |
 | `S120` | `C130` | ItemSkip Block Usage |
 | `S210` | `C210` | Read-only Parameters and Variables |
 | `S220` | `C220` | Single-assignment Constants |
@@ -528,7 +529,7 @@ The linter understands TM1's four execution blocks when procedure sections are a
 - **Epilog**: Finalization and cleanup code
 
 Rules can use block context to enforce block-specific requirements. For example:
-- The ProcessQuit rule only allows `ProcessQuit()` in IF/ELSE blocks within Prolog or Epilog
+- The ItemSkip rule (`C130`) only allows `ItemSkip()` in the Metadata or Data blocks
 - Rules could require certain variable naming patterns based on the block
 
 Metadata-dependent rules (for example checks based on declared Parameters/Variables)

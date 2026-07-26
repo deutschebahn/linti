@@ -133,6 +133,19 @@ class LintContext:
         """
         return len(self.block_stack) > 0
 
+    def in_if_block(self) -> bool:
+        """
+        Check if currently inside an IF/ELSE block.
+
+        Unlike :meth:`in_control_block`, a WHILE loop does not count as a
+        guard: ELSE bodies are walked under the same ``"if"`` stack entry, so
+        this is true iff an ``IF``/``ELSE`` ancestor is present.
+
+        Returns:
+            True if inside an IF/ELSE block, False otherwise.
+        """
+        return "if" in self.block_stack
+
     def current_block_type(self) -> Optional[str]:
         """
         Get the type of the current innermost control block.
