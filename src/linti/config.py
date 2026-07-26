@@ -29,7 +29,11 @@ _REMOVED_RULE_CONFIGS = {
     "one_space_before_equals": (
         "Configures the removed Equals Spacing rule. "
         "This setting is ignored; remove 'rules.one_space_before_equals' from the config."
-    )
+    ),
+    "process_quit": (
+        "The 'process_quit' rule was renamed. This setting is ignored; use "
+        "'rules.conditional_control_flow' (and 'rules.unreachable_code') instead."
+    ),
 }
 
 # Per-rule settings that have moved to a top-level config key. Maps the rule
