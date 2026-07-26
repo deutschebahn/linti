@@ -23,10 +23,10 @@ from linti.lexer.token import TokenType
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import LintIssue
 from linti.rules.generic_process import is_generic_process
-from linti.rules.Rule import BaseRule, RuleExample, RuleMetadata
+from linti.rules.Rule import BaseTokenRule, RuleExample, RuleMetadata
 
 
-class DocstringRegionRule(BaseRule):
+class DocstringRegionRule(BaseTokenRule):
     """Enforces a docstring region before the first executable statement."""
 
     CONFIG_KEY = "docstring_region"

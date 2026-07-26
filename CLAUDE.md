@@ -54,7 +54,7 @@ parameters/variables used by context-aware rules.
 
 ### Rules (`rules/`) — the core extension point
 Two rule base classes in `rules/Rule.py`:
-- `BaseRule` — **token-based**. Declares `interested_in()` → list of `TokenType`s;
+- `BaseTokenRule` — **token-based**. Declares `interested_in()` → list of `TokenType`s;
   `visit(token, window, context)` returns `LintIssue`s.
 - `BaseStatementRule` — **AST-based**. `interested_in()` → AST node types;
   optional `prepare(ast)` for a full pre-scan (e.g. lookahead); `visit(statement, context)`.
@@ -115,7 +115,7 @@ directory runs. `cli/config_loader.py` discovers `linti.yaml` by walking upward
 to a project root. `cli/rule_explainer.py` powers `linti explain`.
 
 ## Adding a rule (typical flow)
-1. Create `rules/<category>/<name>_rule.py` subclassing `BaseRule` or
+1. Create `rules/<category>/<name>_rule.py` subclassing `BaseTokenRule` or
    `BaseStatementRule`; set `CONFIG_KEY`, `RULE_ID`, `METADATA`, and implement
    `interested_in` + `visit`. Attach a `Fix` to issues if it is safely fixable.
 2. Add a test under `tests/`.

@@ -5,7 +5,7 @@ from linti.linter.api import lint_process_model
 from linti.linter.lint_context import LintContext
 from linti.linter.linter import Linter
 from linti.model.process_ir import ProcedureInfo, ProcessIR
-from linti.rules.Rule import BaseRule
+from linti.rules.Rule import BaseTokenRule
 from linti.rules.semantic.hierarchy_aware_functions_rule import (
     UseHierarchyAwareFunctionsRule,
 )
@@ -33,8 +33,8 @@ def _lint_process(
     rules = UseHierarchyAwareFunctionsRule.from_config(
         {"mode": mode, "generic_prefixes": generic_prefixes or []}
     )
-    token_rules = [r for r in rules if isinstance(r, BaseRule)]
-    statement_rules = [r for r in rules if not isinstance(r, BaseRule)]
+    token_rules = [r for r in rules if isinstance(r, BaseTokenRule)]
+    statement_rules = [r for r in rules if not isinstance(r, BaseTokenRule)]
     linter = Linter(rules=token_rules, statement_rules=statement_rules)
     process = ProcessIR(
         name=name,

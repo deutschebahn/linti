@@ -34,7 +34,7 @@ from linti.parser.ast import (
     iter_expression_nodes,
 )
 from linti.rules.generic_process import is_generic_process
-from linti.rules.Rule import BaseRule, BaseStatementRule, RuleExample, RuleMetadata
+from linti.rules.Rule import BaseTokenRule, BaseStatementRule, RuleExample, RuleMetadata
 
 #: Maps a standard/legacy function (lower-cased) to its hierarchy-aware
 #: replacement (canonical casing).  Covers TI functions and Rules functions
@@ -82,7 +82,7 @@ _AWARE = "aware"
 _UNSET = object()
 
 
-class UseHierarchyAwareFunctionsRule(BaseRule):
+class UseHierarchyAwareFunctionsRule(BaseTokenRule):
     """Enforces consistent usage of hierarchy-aware functions."""
 
     CONFIG_KEY = "use_hierarchy_aware_functions"

@@ -1,8 +1,14 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from linti.linter.lint_context import LintContext
+
+if TYPE_CHECKING:
+    from linti.lexer.token import TokenType
+    from linti.parser.ast import Statement
 
 # Global registry of all rule classes with a CONFIG_KEY
 _RULE_REGISTRY: list[type] = []
@@ -32,8 +38,8 @@ class RuleMetadata:
     examples: list[RuleExample] = field(default_factory=list)
 
 
-class BaseRule(ABC):
-    """Base class for token-based linting rules."""
+class _RuleBase(ABC):
+    """Shared machinery for token-based and statement-based rules."""
 
     CONFIG_KEY: ClassVar[str] = ""
     DEFAULT_ENABLED: ClassVar[bool] = True
@@ -73,8 +79,12 @@ class BaseRule(ABC):
     def reset(self) -> None:
         """Reset mutable state before a new lint pass. Override in stateful rules."""
 
+
+class BaseTokenRule(_RuleBase):
+    """Base class for token-based linting rules."""
+
     @abstractmethod
-    def interested_in(self):
+    def interested_in(self) -> list[TokenType]:
         """
         Returns list of TokenTypes this rule wants to see.
         Must be overridden — returning [] silently disables the rule.
@@ -96,43 +106,12 @@ class BaseRule(ABC):
         return []
 
 
-class BaseStatementRule(ABC):
+# Transitional alias — prefer ``BaseTokenRule`` in new code.
+BaseRule = BaseTokenRule
+
+
+class BaseStatementRule(_RuleBase):
     """Base class for AST statement-based linting rules."""
-
-    CONFIG_KEY: ClassVar[str] = ""
-    DEFAULT_ENABLED: ClassVar[bool] = True
-    METADATA: ClassVar[RuleMetadata | None] = None
-    # See ``BaseRule.DEPRECATED_IDS``.
-    DEPRECATED_IDS: ClassVar[list[str]] = []
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        if cls.CONFIG_KEY:
-            _RULE_REGISTRY.append(cls)
-
-    @property
-    @abstractmethod
-    def RULE_ID(self) -> str:
-        """Unique identifier for this rule (e.g., 'N110')."""
-        pass
-
-    @classmethod
-    def from_config(cls, rule_cfg: dict) -> list:
-        """
-        Create rule instance(s) from a config dict.
-
-        Override this for rules with custom config parameters.
-
-        Args:
-            rule_cfg: Dict with rule-specific config
-
-        Returns:
-            List of rule instances.
-        """
-        return [cls()]
-
-    def reset(self) -> None:
-        """Reset mutable state before a new lint pass. Override in stateful rules."""
 
     def prepare(self, ast) -> None:
         """Pre-scan the full AST before visiting starts.
@@ -143,7 +122,7 @@ class BaseStatementRule(ABC):
         """
 
     @abstractmethod
-    def interested_in(self):
+    def interested_in(self) -> list[type[Statement]]:
         """
         Returns list of AST statement types this rule wants to visit.
         Must be overridden — returning [] silently disables the rule.

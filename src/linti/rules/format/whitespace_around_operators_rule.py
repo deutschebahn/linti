@@ -3,10 +3,10 @@
 from linti.lexer.token import BINARY_OP_TYPES, TokenType, is_unary_plus_minus
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import Fix, LintIssue
-from linti.rules.Rule import BaseRule, RuleExample, RuleMetadata
+from linti.rules.Rule import BaseTokenRule, RuleExample, RuleMetadata
 
 
-class WhitespaceAroundOperatorsRule(BaseRule):
+class WhitespaceAroundOperatorsRule(BaseTokenRule):
     """Enforces exactly one space on each side of every binary operator."""
 
     CONFIG_KEY = "whitespace"

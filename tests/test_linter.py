@@ -2,10 +2,10 @@ from linti.lexer.lexer import Lexer
 from linti.lexer.token import TokenType
 from linti.linter.lint_context import LintContext
 from linti.linter.linter import Linter
-from linti.rules.Rule import BaseRule
+from linti.rules.Rule import BaseTokenRule
 
 
-class _CountingRule(BaseRule):
+class _CountingRule(BaseTokenRule):
     @property
     def RULE_ID(self) -> str:
         return "TEST"

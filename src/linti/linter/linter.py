@@ -4,13 +4,13 @@ from linti.linter.lint_context import LintContext
 from linti.linter.noqa import filter_issues, parse_noqa
 from linti.parser.parser import DEFAULT_MAX_NESTING_DEPTH, Parser
 from linti.provider.base import DEFAULT_MAX_FILE_SIZE
-from linti.rules.Rule import BaseRule, BaseStatementRule
+from linti.rules.Rule import BaseTokenRule, BaseStatementRule
 
 
 class Linter:
     def __init__(
         self,
-        rules: list[BaseRule] = None,
+        rules: list[BaseTokenRule] = None,
         statement_rules: list[BaseStatementRule] = None,
         max_nesting_depth: int = DEFAULT_MAX_NESTING_DEPTH,
         max_file_size: int = DEFAULT_MAX_FILE_SIZE,
@@ -20,7 +20,7 @@ class Linter:
         Initialize the linter with token-based and statement-based rules.
 
         Args:
-            rules: List of token-based rules (BaseRule instances).
+            rules: List of token-based rules (BaseTokenRule instances).
             statement_rules: List of AST statement-based rules (BaseStatementRule instances).
             max_nesting_depth: Control-flow nesting cap forwarded to the parser.
             max_file_size: File-size ceiling (bytes) carried for the CLI flows

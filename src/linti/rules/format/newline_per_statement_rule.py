@@ -1,10 +1,10 @@
 from linti.lexer.token import TokenType
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import Fix, LintIssue
-from linti.rules.Rule import BaseRule, RuleExample, RuleMetadata
+from linti.rules.Rule import BaseTokenRule, RuleExample, RuleMetadata
 
 
-class NewLinePerStatementRule(BaseRule):
+class NewLinePerStatementRule(BaseTokenRule):
     """Enforces that after a completed statement, code continues on a new line.
 
     Exception: no newline is required when the statement is immediately
