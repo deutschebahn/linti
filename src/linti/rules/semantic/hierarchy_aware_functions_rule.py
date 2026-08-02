@@ -22,16 +22,13 @@ from linti.lexer.token import TokenType
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import LintIssue
 from linti.parser.ast import (
-    Assignment,
+    EXPRESSION_CARRYING_STATEMENTS,
     BinaryExpression,
-    ExpressionStatement,
-    FunctionCall,
     Identifier,
-    IfStatement,
     String,
-    WhileStatement,
     get_node_token,
     iter_expression_nodes,
+    iter_function_calls,
     statement_expression,
 )
 from linti.rules.generic_process import is_generic_process
@@ -311,7 +308,7 @@ class _HierarchyColonArgumentRule(BaseStatementRule):
         return "C410"
 
     def interested_in(self):
-        return [Assignment, ExpressionStatement, IfStatement, WhileStatement]
+        return list(EXPRESSION_CARRYING_STATEMENTS)
 
     def visit(self, statement, context: LintContext):
         # In enforce mode (and for generic processes) the standard function is
@@ -326,9 +323,7 @@ class _HierarchyColonArgumentRule(BaseStatementRule):
             return []
 
         issues: list[LintIssue] = []
-        for node in iter_expression_nodes(expr):
-            if not isinstance(node, FunctionCall):
-                continue
+        for node in iter_function_calls(expr):
             aware = LEGACY_TO_AWARE.get(node.name.lower())
             if aware is None:
                 continue

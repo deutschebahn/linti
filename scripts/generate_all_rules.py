@@ -77,7 +77,7 @@ CONFIG_SECTION = dedent("""\
     A typical `linti.yaml` file looks like this:
 
     ```yaml
-    rules:
+    {top_level_config}rules:
     {merged_config}
     ```
 
@@ -218,21 +218,50 @@ def _render_rule_detail(rule_id: str, meta: RuleMetadata) -> str:
     return "\n".join(parts)
 
 
+def _split_config_example(config_example: str) -> tuple[list[str], list[str]]:
+    """Split a rule's config_example into its top-level and per-rule lines.
+
+    A snippet may set top-level keys (e.g. C510's ``target_version``) before its
+    ``rules:`` block.  Both halves are needed: dropping the top-level lines
+    leaves the merged example referring to a setting it never defines.
+    """
+    top_level: list[str] = []
+    rule_lines: list[str] = []
+    inside_rules = False
+    for line in config_example.split("\n"):
+        if line.strip() == "rules:":
+            inside_rules = True
+            continue
+        (rule_lines if inside_rules else top_level).append(line)
+    return top_level, rule_lines
+
+
 def _render_merged_config(rules: list[tuple[str, RuleMetadata]]) -> str:
     """Merge all config_example snippets into one combined rules: block."""
     parts: list[str] = []
     for _, meta in rules:
         if not meta.config_example:
             continue
-        inside_rules = False
-        for line in meta.config_example.split("\n"):
-            if line.strip() == "rules:":
-                inside_rules = True
-                continue
-            if inside_rules:
-                parts.append(line)
+        parts.extend(_split_config_example(meta.config_example)[1])
         parts.append("")
     return "\n".join(parts)
+
+
+def _render_top_level_config(rules: list[tuple[str, RuleMetadata]]) -> str:
+    """Collect the top-level settings the rules' config examples rely on.
+
+    Returns them as lines ready to precede the merged ``rules:`` block, or an
+    empty string when no rule declares one.  Duplicates are dropped so two rules
+    sharing a setting (as version-aware rules will) emit it once.
+    """
+    lines: list[str] = []
+    for _, meta in rules:
+        if not meta.config_example:
+            continue
+        for line in _split_config_example(meta.config_example)[0]:
+            if line.strip() and line not in lines:
+                lines.append(line)
+    return "\n".join(lines) + "\n" if lines else ""
 
 
 def generate_markdown() -> str:
@@ -248,7 +277,10 @@ def generate_markdown() -> str:
         "## Rule Details",
         "",
         "\n".join(_render_rule_detail(rid, meta) for rid, meta in rules),
-        CONFIG_SECTION.format(merged_config=_render_merged_config(rules)),
+        CONFIG_SECTION.format(
+            top_level_config=_render_top_level_config(rules),
+            merged_config=_render_merged_config(rules),
+        ),
     ]
 
     return "\n".join(sections).rstrip("\n") + "\n"

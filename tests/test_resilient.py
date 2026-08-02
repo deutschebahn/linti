@@ -76,3 +76,12 @@ def test_deep_while_nesting_raises():
     code = "WHILE(1);" * 50 + "nX = 1;\n" + "END;" * 50
     with pytest.raises(NestingDepthExceeded):
         Parser(Lexer(code).tokenize(), max_nesting_depth=10).parse()
+
+
+def test_unknown_statement_carries_the_whole_statement():
+    """Recovery records tokens from the statement start, not just the tail."""
+    program = Parser(Lexer("nA = 1;\nnX = Foo(d, p").tokenize()).parse()
+
+    unknown = next(s for s in program.statements if isinstance(s, UnknownStatement))
+    values = [t.value for t in unknown.tokens]
+    assert values[:3] == ["nX", "=", "Foo"]

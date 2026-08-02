@@ -1076,6 +1076,11 @@ linti process.ti --config custom-config.yaml
 A typical `linti.yaml` file looks like this:
 
 ```yaml
+# Generic processes (top-level setting) are always enforced
+generic_prefixes:
+  - '}core.'
+# Project-wide target, shared by version-aware rules:
+target_version: both  # v11 | v12 | both
 rules:
   keyword_casing:
     enabled: true

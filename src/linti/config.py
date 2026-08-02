@@ -140,6 +140,10 @@ class FunctionVersionCompatibilityConfig(BaseModel):
     # Per-rule override of the top-level `target_version`. Left unset (None), the
     # rule inherits the top-level value; an explicit value here wins.
     mode: Optional[Literal["CompatibleWithV11AndV12", "V11", "V12"]] = None
+    # The same override in the top-level vocabulary. Declared so that writing it
+    # here — the natural mistake, given the key exists at top level — is honoured
+    # rather than silently dropped by pydantic. `mode` wins if both are set.
+    target_version: Optional[Literal["v11", "v12", "both"]] = None
 
 
 class NewLinePerStatementConfig(BaseModel):

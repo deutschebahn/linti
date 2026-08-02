@@ -247,15 +247,30 @@ def iter_function_calls(node):
     return (n for n in iter_expression_nodes(node) if isinstance(n, FunctionCall))
 
 
+#: The statement types that can carry an expression, and therefore a function
+#: call.  A rule registering on exactly these is handed every statement in the
+#: program — nested ones included — because the linter recurses into IF/WHILE
+#: bodies.  Kept next to :func:`statement_expression` so registration and the
+#: mapping below stay a single edit point: the linter's registry dispatches on
+#: the exact ``type(node)``, so a rule whose list goes stale would silently stop
+#: seeing the new statement type rather than fail.
+EXPRESSION_CARRYING_STATEMENTS = (
+    Assignment,
+    ExpressionStatement,
+    IfStatement,
+    WhileStatement,
+)
+
+
 def statement_expression(statement):
     """The expression a visited statement carries a function call in, if any.
 
     Pairs with the linter's statement walk: a rule that registers on
-    ``Assignment``, ``ExpressionStatement``, ``IfStatement`` and
-    ``WhileStatement`` is handed every statement in the program — nested ones
-    included — and this maps each to the expression worth inspecting, so the rule
-    does not need its own recursive descent.  Returns ``None`` for a statement
-    that carries no expression.
+    :data:`EXPRESSION_CARRYING_STATEMENTS` is handed every statement in the
+    program — nested ones included — and this maps each to the expression worth
+    inspecting, so the rule does not need its own recursive descent.  Returns
+    ``None`` for a statement that carries no expression.
+
     """
     if isinstance(statement, Assignment):
         return statement.right

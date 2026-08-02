@@ -283,6 +283,13 @@ class Parser:
         deliberately *not* recovered — it propagates so the whole recursive
         descent unwinds instead of hitting a RecursionError.
         """
+        # Where this statement began.  The concrete parsers advance as they go,
+        # so by the time one fails ``self.pos`` sits at the point of failure —
+        # recording the start lets the UnknownStatement carry the *whole*
+        # statement (as its docstring promises) instead of only the tail after
+        # the error, which is what positions E110 and lets version-aware rules
+        # still see the call hiding inside a broken statement.
+        start = self.pos
         try:
             # Check for IF statement
             if self.current().type == TokenType.IF:
@@ -308,7 +315,6 @@ class Parser:
             # Error recovery: skip to next semicolon but stop at block
             # boundary keywords so outer block parsers can still see them.
             error_message = str(e)
-            unknown_tokens = []
             block_boundaries = {
                 TokenType.ELSE,
                 TokenType.ELSEIF,
@@ -321,21 +327,18 @@ class Parser:
                 and self.current().type != TokenType.SEMICOLON
                 and self.current().type not in block_boundaries
             ):
-                unknown_tokens.append(self.current())
                 self.advance()
 
             # Consume the semicolon if present
             if not self.at_end() and self.current().type == TokenType.SEMICOLON:
-                unknown_tokens.append(self.current())
                 self.advance()
-            elif not unknown_tokens and not self.at_end():
+            elif self.pos == start and not self.at_end():
                 # Nothing was consumed (e.g. current token is a block
                 # boundary).  Consume it to guarantee forward progress
                 # and prevent an infinite loop.
-                unknown_tokens.append(self.current())
                 self.advance()
 
-            return UnknownStatement(unknown_tokens, error_message)
+            return UnknownStatement(self.tokens[start : self.pos], error_message)
 
     def _parse_assignment(self) -> Assignment:
         """

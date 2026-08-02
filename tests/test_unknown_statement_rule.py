@@ -35,3 +35,11 @@ def test_unparseable_statement_inside_if_body_is_flagged():
     assert len(issues) == 1
     assert issues[0].rule_id == "E110"
     assert issues[0].line == 2
+
+
+def test_error_recovery_reports_the_statement_start_not_the_tail():
+    # The parser consumes tokens before failing, so an UnknownStatement must
+    # carry the whole statement — otherwise E110 lands on the wrong line.
+    issues = _lint("nA = 1;\nnX = Foo(d, p")
+    assert len(issues) == 1
+    assert issues[0].line == 2
