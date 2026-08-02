@@ -127,6 +127,16 @@ rules:
     # 'enforce'    - only hierarchy-aware functions are allowed
     mode: consistent
 
+  # C430 - Do Not Use Undocumented Functions
+  # Reports TI functions that IBM does not document or support (e.g.
+  # DimensionElementInsertByAlias, LockOn, Hex).
+  do_not_use_undocumented_functions:
+    enabled: true
+    # Functions the project knowingly relies on (case-insensitive).
+    # Listed here they are never reported; use `# noqa: C430` for one-off cases.
+    # allowed_functions:
+    #   - DimensionElementInsertByAlias
+
   # C510 - Function Version Compatibility
   # Reports TI functions that are not available on the targeted PA/TM1 version.
   # Disabled by default: the target depends on your deployment strategy.
@@ -514,6 +524,7 @@ Control flow, mutability, and TM1 best practices:
 
 - **C4xx - TM1 Best Practices**: Idiomatic TM1 API usage
   - `C410` - Use Hierarchy-Aware Functions
+  - `C430` - Do Not Use Undocumented Functions
 
 - **C5xx - Version Compatibility**: Compatibility with a target PA/TM1 version
   - `C510` - Function Version Compatibility
