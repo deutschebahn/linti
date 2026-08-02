@@ -58,6 +58,7 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 | C220 | Single-assignment Constants | Enforces that constants (c-prefixed variables) are assigned only once | ❌ |
 | C310 | Literal Process Calls | Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument | ❌ |
 | C410 | Use Hierarchy-Aware Functions | Enforces hierarchy-aware functions, or at least consistent usage of hierarchy-aware vs. standard hierarchy functions | ❌ |
+| C430 | Do Not Use Undocumented Functions | Reports calls to TurboIntegrator functions that are not officially documented or supported by IBM | ❌ |
 | C510 | Function Version Compatibility | Reports TurboIntegrator functions incompatible with a target Planning Analytics / TM1 version (v11, v12, or both) | ❌ |
 
 ### External Interactions Rules (X)
@@ -862,6 +863,44 @@ nExists = DimensionElementExists('Region:Detail', 'EMEA');
 
 ---
 
+### C430: Do Not Use Undocumented Functions
+
+Reports calls to TurboIntegrator functions that are not officially documented or supported by IBM.
+
+Some TI functions exist in the engine but are missing from IBM's documentation — for example DimensionElementInsertByAlias, LockOn or Hex. They are occasionally useful, but they come with no compatibility guarantee: behaviour can change or the function can vanish in any release, and IBM support does not cover them. Production code should rely on the documented API instead.
+
+Matching is case-insensitive, and calls are found wherever they appear — including inside IF/WHILE conditions and nested arguments. Because TI makes the parentheses optional on a no-argument call, `LockOn;` is reported just like `LockOn();`. A name merely read as a variable is not a call and is never reported.
+
+When the use is intentional, suppress the finding inline with `# noqa: C430` (region- and procedure-level suppression works too), or list the function under `allowed_functions` to permit it across the whole project.
+
+**Configuration:**
+```yaml
+rules:
+  do_not_use_undocumented_functions:
+    enabled: true
+    # Functions the project knowingly relies on (case-insensitive):
+    # allowed_functions:
+    #   - DimensionElementInsertByAlias
+```
+
+**Valid usage:**
+```ti
+# The documented equivalent is always allowed
+DimensionElementInsertDirect('Product', '', 'Element', 'N');
+# Allowed once the function is listed under `allowed_functions`
+DataSpread;
+```
+
+**Invalid usage:**
+```ti
+# Undocumented: not part of IBM's supported API
+DimensionElementInsertByAlias('Product', '', 'Alias', 'N');
+# Reported without parentheses too — TI makes them optional on a no-argument call
+LockOn;
+```
+
+---
+
 ### C510: Function Version Compatibility
 
 Reports TurboIntegrator functions incompatible with a target Planning Analytics / TM1 version (v11, v12, or both).
@@ -1161,6 +1200,12 @@ rules:
     enabled: true
     # base mode: 'enforce' or 'consistent'
     mode: consistent
+
+  do_not_use_undocumented_functions:
+    enabled: true
+    # Functions the project knowingly relies on (case-insensitive):
+    # allowed_functions:
+    #   - DimensionElementInsertByAlias
 
   function_version_compatibility:
     enabled: true

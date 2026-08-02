@@ -132,6 +132,15 @@ class UseHierarchyAwareFunctionsConfig(BaseModel):
     # Generic processes are taken from the top-level `generic_prefixes` setting.
 
 
+class DoNotUseUndocumentedFunctionsConfig(BaseModel):
+    """Configuration for DoNotUseUndocumentedFunctionsRule (C430)."""
+
+    enabled: bool = True
+    # Undocumented functions the project knowingly relies on; matched
+    # case-insensitively and never reported.
+    allowed_functions: list[str] = Field(default_factory=list)
+
+
 class FunctionVersionCompatibilityConfig(BaseModel):
     """Configuration for FunctionVersionCompatibilityRule (C510)."""
 
@@ -213,6 +222,9 @@ class RulesConfig(BaseModel):
     )
     use_hierarchy_aware_functions: UseHierarchyAwareFunctionsConfig = Field(
         default_factory=UseHierarchyAwareFunctionsConfig
+    )
+    do_not_use_undocumented_functions: DoNotUseUndocumentedFunctionsConfig = Field(
+        default_factory=DoNotUseUndocumentedFunctionsConfig
     )
     function_version_compatibility: FunctionVersionCompatibilityConfig = Field(
         default_factory=FunctionVersionCompatibilityConfig
