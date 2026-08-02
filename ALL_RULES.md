@@ -58,6 +58,7 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 | C220 | Single-assignment Constants | Enforces that constants (c-prefixed variables) are assigned only once | ❌ |
 | C310 | Literal Process Calls | Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument | ❌ |
 | C410 | Use Hierarchy-Aware Functions | Enforces hierarchy-aware functions, or at least consistent usage of hierarchy-aware vs. standard hierarchy functions | ❌ |
+| C510 | Function Version Compatibility | Reports TurboIntegrator functions incompatible with a target Planning Analytics / TM1 version (v11, v12, or both) | ❌ |
 
 ### External Interactions Rules (X)
 
@@ -861,6 +862,50 @@ nExists = DimensionElementExists('Region:Detail', 'EMEA');
 
 ---
 
+### C510: Function Version Compatibility
+
+Reports TurboIntegrator functions incompatible with a target Planning Analytics / TM1 version (v11, v12, or both).
+
+Some TI functions exist only in PA/TM1 v11 and are unsupported in v12; others were introduced in v12 and do not exist in v11. This rule reports calls that break a chosen compatibility target.
+
+Modes:
+- CompatibleWithV11AndV12: only functions available in both versions are allowed; any version-specific function is reported.
+- V11: v11 functions are allowed; functions introduced in v12 are reported.
+- V12: v12 functions are allowed; functions removed or unsupported in v12 are reported.
+
+Matching is case-insensitive, and calls are found wherever they appear — including inside IF/WHILE conditions and nested arguments. Because TI makes the parentheses optional on a no-argument call, `SaveDataAll;` is reported just like `SaveDataAll();`.
+
+The target version is normally set once via the top-level `target_version` (v11 | v12 | both) so other version-aware rules can share it; the per-rule `mode` overrides it when present.
+
+**Configuration:**
+```yaml
+# Project-wide target, shared by version-aware rules:
+target_version: both  # v11 | v12 | both
+rules:
+  function_version_compatibility:
+    enabled: true
+    # Optional per-rule override of target_version:
+    # mode: CompatibleWithV11AndV12  # | V11 | V12
+```
+
+**Valid usage:**
+```ti
+# A function available in both versions is always allowed
+nValue = CellGetN('Sales', 'Actual', 'Jan');
+```
+
+**Invalid usage:**
+```ti
+# V11 mode: GetJobStatus was introduced in v12
+nStatus = GetJobStatus(nJobId);
+# V12 mode: CubeSaveData is not supported in v12
+CubeSaveData('Sales');
+# V12 mode: reported without parentheses too — TI makes them optional on a no-argument call
+SaveDataAll;
+```
+
+---
+
 ### X110: No ExecuteCommand
 
 Prohibits the use of ExecuteCommand() (disabled for security reasons).
@@ -1111,6 +1156,11 @@ rules:
     enabled: true
     # base mode: 'enforce' or 'consistent'
     mode: consistent
+
+  function_version_compatibility:
+    enabled: true
+    # Optional per-rule override of target_version:
+    # mode: CompatibleWithV11AndV12  # | V11 | V12
 
   execute_command:
     enabled: true
