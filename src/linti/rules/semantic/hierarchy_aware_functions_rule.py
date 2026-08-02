@@ -32,6 +32,7 @@ from linti.parser.ast import (
     WhileStatement,
     get_node_token,
     iter_expression_nodes,
+    statement_expression,
 )
 from linti.rules.generic_process import is_generic_process
 from linti.rules.Rule import BaseTokenRule, BaseStatementRule, RuleExample, RuleMetadata
@@ -280,17 +281,6 @@ class UseHierarchyAwareFunctionsRule(BaseTokenRule):
         ]
 
 
-def _statement_expression(statement):
-    """The expression a visited statement carries a function call in, if any."""
-    if isinstance(statement, Assignment):
-        return statement.right
-    if isinstance(statement, ExpressionStatement):
-        return statement.expression
-    if isinstance(statement, (IfStatement, WhileStatement)):
-        return statement.condition
-    return None
-
-
 class _HierarchyColonArgumentRule(BaseStatementRule):
     """C410 companion: a standard hierarchy function fed a ``Dimension:Hierarchy``.
 
@@ -331,7 +321,7 @@ class _HierarchyColonArgumentRule(BaseStatementRule):
         if self.mode != "consistent":
             return []
 
-        expr = _statement_expression(statement)
+        expr = statement_expression(statement)
         if expr is None:
             return []
 

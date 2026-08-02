@@ -236,3 +236,31 @@ class FunctionCall(Expression):
         self.name = name
         self.args = args
         self.token = token
+
+
+# Walking helpers that need the node classes above. ``iter_expression_nodes``
+# lives near the top with ``get_node_token``; these two build on it.
+
+
+def iter_function_calls(node):
+    """Yield every FunctionCall in an expression subtree."""
+    return (n for n in iter_expression_nodes(node) if isinstance(n, FunctionCall))
+
+
+def statement_expression(statement):
+    """The expression a visited statement carries a function call in, if any.
+
+    Pairs with the linter's statement walk: a rule that registers on
+    ``Assignment``, ``ExpressionStatement``, ``IfStatement`` and
+    ``WhileStatement`` is handed every statement in the program — nested ones
+    included — and this maps each to the expression worth inspecting, so the rule
+    does not need its own recursive descent.  Returns ``None`` for a statement
+    that carries no expression.
+    """
+    if isinstance(statement, Assignment):
+        return statement.right
+    if isinstance(statement, ExpressionStatement):
+        return statement.expression
+    if isinstance(statement, (IfStatement, WhileStatement)):
+        return statement.condition
+    return None
