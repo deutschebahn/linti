@@ -147,6 +147,33 @@ rules:
     # 'V11'                     - flags functions introduced in v12
     # 'V12'                     - flags functions unsupported in v12
     mode: CompatibleWithV11AndV12
+
+  # X130 - No Hardcoded Secrets
+  # Reports secret-looking variables fed from a hardcoded string literal
+  # (sPassword = 'letmein') or read out of a cube
+  # (sPassword = CellGetS(...)). Neither the value nor the cube
+  # coordinates are ever printed.
+  # The value is taken from constant evaluation, so a literal split across
+  # a concatenation (sPassword = 'let' | 'mein') or routed through another
+  # variable is caught too. Half-known values (sPassword = 'prefix_' | pDyn)
+  # are not reported - the secret itself may be the dynamic part.
+  hardcoded_secret:
+    enabled: true
+    # Which names count as secret-looking (matched case-insensitively as
+    # substrings of the variable name):
+    # 'relaxed'  - password, passwd, pwd, secret
+    # 'standard' - and apikey, api_key, token, credential
+    # 'strict'   - and key, auth, cert, salt, signature
+    # 'custom'   - only the names listed under `secret_names`
+    mode: standard
+    # Extra name fragments, added on top of the preset above
+    # (and the whole list when mode is 'custom'):
+    # secret_names:
+    #   - kennwort
+    # Accept credentials kept in a cube (CellGetS, AttrS, ...). Off by
+    # default: the TM1 data directory can be encrypted, but rarely is,
+    # so anyone with file access reads the value.
+    allow_secrets_in_cubes: false
 ```
 
 ### Generic Processes
@@ -535,6 +562,7 @@ Interactions with systems outside the TI process:
 - **X1xx - Security**: Security-sensitive operations
   - `X110` - No ExecuteCommand
   - `X120` - ODBCOpen Password Parameter
+  - `X130` - No Hardcoded Secrets
 
 - **X2xx - Performance**: Cost of external data access
   - `X210` - Filter ODBC Rows in SQL

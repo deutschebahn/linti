@@ -124,6 +124,21 @@ class ODBCOpenParameterConfig(BaseModel):
     enabled: bool = True
 
 
+class HardcodedSecretConfig(BaseModel):
+    """Configuration for HardcodedSecretRule (X130)."""
+
+    enabled: bool = True
+    # Which preset of secret-looking name fragments to match. `custom` starts
+    # from an empty preset, so `secret_names` becomes the whole list.
+    mode: Literal["relaxed", "standard", "strict", "custom"] = "standard"
+    # Extra name fragments, matched case-insensitively as substrings. Added on
+    # top of the preset selected by `mode`.
+    secret_names: list[str] = Field(default_factory=list)
+    # Whether reading a secret out of a cube (CellGetS, AttrS, …) is accepted.
+    # Off by default: the TM1 data directory can be encrypted but rarely is.
+    allow_secrets_in_cubes: bool = False
+
+
 class UseHierarchyAwareFunctionsConfig(BaseModel):
     """Configuration for UseHierarchyAwareFunctionsRule (C410)."""
 
@@ -219,6 +234,9 @@ class RulesConfig(BaseModel):
     execute_command: ExecuteCommandConfig = Field(default_factory=ExecuteCommandConfig)
     odbc_open_parameter: ODBCOpenParameterConfig = Field(
         default_factory=ODBCOpenParameterConfig
+    )
+    hardcoded_secret: HardcodedSecretConfig = Field(
+        default_factory=HardcodedSecretConfig
     )
     use_hierarchy_aware_functions: UseHierarchyAwareFunctionsConfig = Field(
         default_factory=UseHierarchyAwareFunctionsConfig
