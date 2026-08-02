@@ -6,6 +6,13 @@ from linti.rules.Rule import BaseTokenRule, BaseStatementRule
 from linti.rules.rule_ids import resolve_and_warn
 
 
+#: Top-level ``Config`` settings forwarded into every rule's ``from_config``
+#: input, so a rule can share a project-wide fact instead of redeclaring it.
+#: A per-rule value of the same name always takes precedence. Rules that do not
+#: care simply ignore the key — none unpacks its config as keyword arguments.
+_SHARED_TOP_LEVEL_KEYS = ("generic_prefixes", "target_version")
+
+
 def _matches_select_pattern(rule_id: str, patterns: list[str]) -> bool:
     """
     Check if a rule ID matches any of the select patterns.
@@ -112,16 +119,14 @@ def create_rules(cfg: Config, select: str | None = None) -> tuple:
                 else vars(rule_cfg)
             )
 
-        # Share the top-level generic_prefixes with rules that opt into it.
-        # A non-empty per-rule value still wins (deprecated override path).
-        if not cfg_dict.get("generic_prefixes") and cfg.generic_prefixes:
-            cfg_dict = {**cfg_dict, "generic_prefixes": cfg.generic_prefixes}
-
-        # Share the top-level target_version with version-aware rules (C510).
-        # A per-rule override still wins (handled inside the rule's from_config).
-        # Disabled rules already returned above, so this never opts a rule in.
-        if cfg.target_version and not cfg_dict.get("target_version"):
-            cfg_dict = {**cfg_dict, "target_version": cfg.target_version}
+        # Share the top-level settings that rules opt into (generic_prefixes for
+        # D110/C410, target_version for C510). A per-rule value always wins; the
+        # key only ever supplies a value, so it can never enable a rule that the
+        # checks above decided to skip.
+        for key in _SHARED_TOP_LEVEL_KEYS:
+            shared_value = getattr(cfg, key, None)
+            if shared_value and not cfg_dict.get(key):
+                cfg_dict = {**cfg_dict, key: shared_value}
 
         instances = rule_cls.from_config(cfg_dict)
 

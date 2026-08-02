@@ -24,13 +24,12 @@ a ``FunctionCall`` node while leaving a plain variable read (``nX = JsonGet + 2`
 alone.
 """
 
+from linti.lexer.token import TokenType
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import LintIssue
 from linti.parser.ast import (
-    Assignment,
-    ExpressionStatement,
-    IfStatement,
-    WhileStatement,
+    EXPRESSION_CARRYING_STATEMENTS,
+    UnknownStatement,
     get_node_token,
     iter_function_calls,
     statement_expression,
@@ -136,23 +135,20 @@ _MODE_ALIASES = {
     _MODE_V12: _MODE_V12,
 }
 
-# The version families a function can belong to. ``_SHARED`` is a real category,
-# not a sentinel: the function exists in both versions and is never reported.
+# The two version-specific function families.
 _V11_ONLY = "v11-only"
 _V12_ONLY = "v12-only"
-_SHARED = "shared"
 
-#: Every version-specific function mapped to its family, derived from the two
-#: tables above so those stay the single source of truth.
-_FAMILY_BY_FUNCTION: dict[str, str] = {
-    **dict.fromkeys(V11_ONLY_FUNCTIONS, _V11_ONLY),
-    **dict.fromkeys(V12_ONLY_FUNCTIONS, _V12_ONLY),
+#: The functions making up each family. A function in neither exists in both
+#: versions and is never reported.
+_FUNCTIONS_BY_FAMILY: dict[str, frozenset[str]] = {
+    _V11_ONLY: V11_ONLY_FUNCTIONS,
+    _V12_ONLY: V12_ONLY_FUNCTIONS,
 }
 
 #: How each mode phrases a finding, keyed by (mode, family). A pair that is
 #: absent means the mode allows that family — there is no "allowed" sentinel to
-#: check, and ``_SHARED`` never appears here at all. ``{name}`` is filled with
-#: the call's original casing.
+#: check. ``{name}`` is filled with the call's original casing.
 _MESSAGES: dict[tuple[str, str], str] = {
     (_MODE_COMPATIBLE, _V11_ONLY): (
         "'{name}' is only available in PA/TM1 v11 (unsupported in v12); "
@@ -169,6 +165,22 @@ _MESSAGES: dict[tuple[str, str], str] = {
         "'{name}' is not supported in PA/TM1 v12 (deprecated in v11)"
     ),
 }
+
+
+def _templates_for_mode(mode: str) -> dict[str, str]:
+    """Flatten the (mode, family) spec above into a name -> message map.
+
+    Built once per rule instance so each visited call costs a single lookup.
+    A function the mode allows — because it exists in both versions, or because
+    its family is not reported in this mode — is simply absent from the result.
+    """
+    templates: dict[str, str] = {}
+    for family, names in _FUNCTIONS_BY_FAMILY.items():
+        template = _MESSAGES.get((mode, family))
+        if template is None:
+            continue  # this mode allows the whole family
+        templates.update(dict.fromkeys(names, template))
+    return templates
 
 
 class FunctionVersionCompatibilityRule(BaseStatementRule):
@@ -242,6 +254,7 @@ class FunctionVersionCompatibilityRule(BaseStatementRule):
 
     def __init__(self, mode: str = _DEFAULT_MODE) -> None:
         self.mode = _MODE_ALIASES.get(str(mode).lower(), _DEFAULT_MODE)
+        self._templates = _templates_for_mode(self.mode)
 
     @property
     def RULE_ID(self) -> str:
@@ -255,36 +268,70 @@ class FunctionVersionCompatibilityRule(BaseStatementRule):
         return [cls(mode=mode)]
 
     def interested_in(self):
-        # Every statement that can carry a call. The linter's walk recurses into
-        # IF/WHILE bodies, so nested statements arrive here too; only the
-        # expression *within* each statement still needs traversing.
-        return [Assignment, ExpressionStatement, IfStatement, WhileStatement]
+        # Every statement that can carry a call — the linter's walk recurses into
+        # IF/WHILE bodies, so nested statements arrive here too and only the
+        # expression *within* each statement still needs traversing. Statements
+        # the parser could not read are covered separately (see _visit_unknown);
+        # an incompatible call is worth reporting even in broken code, since the
+        # whole point of the rule is to catch it before the target server does.
+        return [*EXPRESSION_CARRYING_STATEMENTS, UnknownStatement]
 
     def visit(self, statement, context: LintContext):
+        if isinstance(statement, UnknownStatement):
+            return self._visit_unknown(statement)
+
         expr = statement_expression(statement)
         if expr is None:
             return []
 
         issues = []
         for call in iter_function_calls(expr):
-            family = _FAMILY_BY_FUNCTION.get(call.name.lower(), _SHARED)
-            template = _MESSAGES.get((self.mode, family))
+            template = self._templates.get(call.name.lower())
             if template is None:
-                # Either available in both versions, or allowed in this mode.
                 continue
-
-            token = get_node_token(call)
-            line, column, position = (
-                (token.line, token.column, token.position) if token else (0, 0, 0)
-            )
-            issues.append(
-                LintIssue(
-                    rule_id=self.RULE_ID,
-                    message=template.format(name=call.name),
-                    line=line,
-                    column=column,
-                    position=position,
-                )
-            )
-
+            issues.append(self._issue(template, call.name, get_node_token(call)))
         return issues
+
+    def _visit_unknown(self, statement) -> list:
+        """Best-effort scan of a statement the parser could not read.
+
+        No AST exists here, so the token stream is matched by name: an
+        identifier is reported when it is directly followed by ``(``, or when it
+        stands alone as the statement (TI makes the parentheses optional on a
+        no-argument call). E110 already reports the statement itself as
+        unparseable; this only recovers the version finding hiding inside it.
+        """
+        tokens = [
+            tok
+            for tok in statement.tokens
+            if tok.type not in (TokenType.WHITESPACE, TokenType.NEWLINE)
+        ]
+        issues = []
+        for index, token in enumerate(tokens):
+            if token.type != TokenType.IDENTIFIER:
+                continue
+            template = self._templates.get(token.value.lower())
+            if template is None:
+                continue
+            following = tokens[index + 1] if index + 1 < len(tokens) else None
+            # Anything else (an operator, '=', a comma) means the name is being
+            # used as a value, not called — skip it rather than guess.
+            if following is not None and following.type not in (
+                TokenType.LPAREN,
+                TokenType.SEMICOLON,
+            ):
+                continue
+            issues.append(self._issue(template, token.value, token))
+        return issues
+
+    def _issue(self, template: str, name: str, token) -> LintIssue:
+        line, column, position = (
+            (token.line, token.column, token.position) if token else (0, 0, 0)
+        )
+        return LintIssue(
+            rule_id=self.RULE_ID,
+            message=template.format(name=name),
+            line=line,
+            column=column,
+            position=position,
+        )

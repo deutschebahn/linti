@@ -191,3 +191,29 @@ def test_top_level_version_does_not_enable_the_rule():
 def test_default_when_neither_set():
     mode = _c510_mode({"rules": {"function_version_compatibility": {"enabled": True}}})
     assert mode == "compatiblewithv11andv12"
+
+
+# -- unparseable statements --------------------------------------------------
+# The parser turns a statement it cannot read into an UnknownStatement with no
+# expression tree, so the rule falls back to matching the token stream by name.
+# E110 reports the statement itself; C510 recovers the version finding in it.
+
+
+def test_reports_call_inside_an_unparseable_statement():
+    # Missing closing paren: no FunctionCall node is ever built for this.
+    issues = _lint("nX = JsonGet(d, p", "V11")
+    assert _names(issues) == ["JsonGet"]
+
+
+def test_unparseable_recovery_reports_the_right_line():
+    issues = _lint("nA = 1;\nnB = CubeSaveData(c;", "V12")
+    assert [(i.message.split("'")[1], i.line) for i in issues] == [("CubeSaveData", 2)]
+
+
+def test_unparseable_recovery_ignores_names_used_as_values():
+    # 'SaveDataAll' followed by an operator is a value, not a call.
+    assert _lint("nX = SaveDataAll + @@", "V12") == []
+
+
+def test_unparseable_recovery_respects_the_mode():
+    assert _lint("nX = JsonGet(d, p", "V12") == []

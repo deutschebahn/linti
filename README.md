@@ -187,7 +187,8 @@ rules:
 `target_version` only *supplies* the version — it never enables a rule. `C510` is
 opt-in and stays silent until you set `enabled: true`.
 
-A rule may override the shared value with its own `mode`, which takes precedence:
+A rule may override the shared value, either with its own `mode` or with a
+per-rule `target_version`. Both are accepted; `mode` wins if you set both:
 
 ```yaml
 target_version: v12
@@ -198,11 +199,17 @@ rules:
     mode: V11            # this rule checks against v11 regardless
 ```
 
-The two settings use different spellings on purpose: `target_version`
-(`v11` | `v12` | `both`) reads as a fact about the project, while `mode`
-(`V11` | `V12` | `CompatibleWithV11AndV12`) reads as a setting on the rule.
-They mean the same thing — `both` and `CompatibleWithV11AndV12` are equivalent.
-With neither set, `C510` defaults to `CompatibleWithV11AndV12`.
+Each key has its own spelling, and each accepts **only** its own:
+
+| Key | Accepted values |
+|-----|-----------------|
+| `target_version` (top-level or per-rule) | `v11`, `v12`, `both` |
+| `mode` (per-rule) | `V11`, `V12`, `CompatibleWithV11AndV12` |
+
+`both` and `CompatibleWithV11AndV12` select the same behaviour, but each spelling
+belongs to one key only — `mode: both` and `target_version: V11` are rejected
+with a config error. With neither key set, `C510` defaults to
+`CompatibleWithV11AndV12`.
 
 ### Excluding Files from Linting
 
