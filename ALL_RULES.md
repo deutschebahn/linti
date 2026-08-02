@@ -67,6 +67,7 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 |---------|-----------|-------------|----------|
 | X110 | No ExecuteCommand | Prohibits the use of ExecuteCommand() (disabled for security reasons) | ❌ |
 | X120 | ODBCOpen Password Parameter | Validates that ODBCOpen() password parameter is a defined TI parameter | ❌ |
+| X130 | No Hardcoded Secrets | Reports variables whose name looks like a credential being fed from a hardcoded string literal or read out of a cube | ❌ |
 | X210 | Filter ODBC Rows in SQL | Flags ItemSkip() or exclusively conditional writes in Metadata/Data when the ODBC data source query has no WHERE clause | ❌ |
 
 ### Error Rules (E)
@@ -1011,6 +1012,58 @@ ODBCOpen('MyDatasource', 'AdminUser', 'hardcodedPassword');
 
 ---
 
+### X130: No Hardcoded Secrets
+
+Reports variables whose name looks like a credential being fed from a hardcoded string literal or read out of a cube.
+
+A credential written straight into the source ships with the process. Once the process is committed, the value is in version control for good — rotating it later does not remove it from the history. Pass secrets in as process parameters instead, so the value lives in the caller (or a secure store) rather than in the script.
+
+Keeping the credential in a control cube and reading it back with CellGetS() is reported for the same reason. Cube values — attributes included, since they live in `}ElementAttributes_*` cubes — are held in the TM1 data directory. That directory *can* be encrypted, but in practice almost never is, so anyone with file access to the server, a backup or a snapshot reads the value without needing a TM1 login. Set `allow_secrets_in_cubes: true` if your deployment accepts that risk.
+
+A variable is considered secret-looking when its name contains one of the configured fragments, matched case-insensitively (so `sPassword`, `vApiKey` and `sPwd_Prod` all qualify). It is reported when the value is provably a non-empty string — whether written directly, folded from a concatenation (`'let' | 'mein'`) or carried over from another variable that holds a literal — or when it comes from a direct cube read. For the most unambiguous fragments (`password`, `apikey`, `token`, ... — the `standard` preset) a numeric literal such as `sPassword = 12345;` counts too, since a PIN is still a hardcoded secret; the generic `strict`-only fragments (`key`, `auth`, `cert`, ...) and custom `secret_names` stay string-only, since those names are just as commonly an ordinary integer. Whatever cannot be resolved statically is left alone: parameters, datasource variables and other function results. So are half-known values such as `sPassword = 'prefix_' | pDyn;`, where the secret itself may well be dynamic, and the common `sPassword = '';` initialisation.
+
+Neither the value nor the cube coordinates ever appear in linti's output — reports often end up in CI logs. Widen or narrow the name detection with `mode`, extend it with `secret_names`, or suppress a single finding inline with `# noqa: X130`.
+
+**Configuration:**
+```yaml
+rules:
+  hardcoded_secret:
+    enabled: true
+    # relaxed | standard | strict | custom
+    mode: standard
+    # Extra name fragments (the whole list when mode is 'custom'):
+    # secret_names:
+    #   - kennwort
+    # Set to true to accept credentials stored in a cube:
+    allow_secrets_in_cubes: false
+```
+
+**Valid usage:**
+```ti
+# Passed in as a process parameter
+sPassword = pPassword;
+# Only half known — the secret itself may be dynamic
+sPassword = 'prefix_' | pDyn;
+# Empty-string initialisation is a common no-op
+sPassword = '';
+# Ordinary cube read — the name is not secret-looking
+sCustomer = CellGetS('Sales', '2026', 'Customer');
+```
+
+**Invalid usage:**
+```ti
+# Hardcoded credential — ships with the process
+sPassword = 'hunter2';
+# Split across a concatenation — folded back together
+sPassword = 'let' | 'mein';
+# A numeric PIN is still a hardcoded secret
+sPassword = 12345;
+# Stored in a cube — readable by anyone with file access to the TM1 data directory
+sApiKey = CellGetS('Config', 'Api', 'Key');
+```
+
+---
+
 ### X210: Filter ODBC Rows in SQL
 
 Flags ItemSkip() or exclusively conditional writes in Metadata/Data when the ODBC data source query has no WHERE clause.
@@ -1217,6 +1270,16 @@ rules:
 
   odbc_open_parameter:
     enabled: true
+
+  hardcoded_secret:
+    enabled: true
+    # relaxed | standard | strict | custom
+    mode: standard
+    # Extra name fragments (the whole list when mode is 'custom'):
+    # secret_names:
+    #   - kennwort
+    # Set to true to accept credentials stored in a cube:
+    allow_secrets_in_cubes: false
 
   sql_where_filtering:
     enabled: true
