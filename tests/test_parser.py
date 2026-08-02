@@ -14,6 +14,8 @@ from linti.parser.ast import (
     String,
     UnaryExpression,
     WhileStatement,
+    iter_function_calls,
+    statement_expression,
 )
 from linti.parser.parser import Parser
 
@@ -761,3 +763,43 @@ def test_parse_peek():
     assert next_tok.type == TokenType.EQUALS
     # Current should still be IDENTIFIER
     assert parser.current().type == TokenType.IDENTIFIER
+
+
+# -- AST walking helpers -----------------------------------------------------
+# Shared by the rules that inspect expressions (C410, C510, X210), so they are
+# covered here directly rather than only through those rules' suites.
+
+
+def test_iter_function_calls_finds_nested_calls():
+    """Calls nested in arguments and operands are all yielded."""
+    stmt = _parse("nA = Outer(Inner(x), y + Other(z));").statements[0]
+    names = sorted(c.name for c in iter_function_calls(stmt.right))
+    assert names == ["Inner", "Other", "Outer"]
+
+
+def test_iter_function_calls_ignores_non_call_nodes():
+    """An expression with no call yields nothing."""
+    stmt = _parse("nA = x + 2;").statements[0]
+    assert list(iter_function_calls(stmt.right)) == []
+
+
+def test_statement_expression_returns_the_inspectable_expression():
+    """Each statement type maps to the expression that can carry a call."""
+    assignment, expression_stmt, if_stmt, while_stmt = _parse(
+        "nA = Foo(x);\nBar(y);\nIF(Baz(z) = 1);\nENDIF;\nWHILE(Qux(w) = 1);\nEND;"
+    ).statements
+
+    assert isinstance(assignment, Assignment)
+    assert statement_expression(assignment) is assignment.right
+    assert isinstance(expression_stmt, ExpressionStatement)
+    assert statement_expression(expression_stmt) is expression_stmt.expression
+    assert isinstance(if_stmt, IfStatement)
+    assert statement_expression(if_stmt) is if_stmt.condition
+    assert isinstance(while_stmt, WhileStatement)
+    assert statement_expression(while_stmt) is while_stmt.condition
+
+
+def test_statement_expression_returns_none_for_other_nodes():
+    """A node carrying no inspectable expression yields None."""
+    assert statement_expression(_parse("nA = 1;")) is None
+    assert statement_expression(None) is None

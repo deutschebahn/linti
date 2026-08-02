@@ -32,7 +32,7 @@ from linti.parser.ast import (
     Program,
     WhileStatement,
     get_node_token,
-    iter_expression_nodes,
+    iter_function_calls,
 )
 from linti.rules.Rule import BaseStatementRule, RuleExample, RuleMetadata
 
@@ -85,11 +85,6 @@ def _query_may_lack_where(context: LintContext, metadata_value) -> bool:
     return pv.any_of(lambda v: isinstance(v, str) and not _has_where(v))
 
 
-def _iter_calls(node):
-    """Yield every FunctionCall in an expression subtree."""
-    return (n for n in iter_expression_nodes(node) if isinstance(n, FunctionCall))
-
-
 @dataclass
 class _Scan:
     """Calls found while walking a block, tagged by conditional context."""
@@ -121,13 +116,14 @@ def _always_writes(statements: list) -> bool:
                 return True
         elif isinstance(stmt, Assignment):
             if any(
-                call.name.lower() in WRITE_FUNCTIONS for call in _iter_calls(stmt.right)
+                call.name.lower() in WRITE_FUNCTIONS
+                for call in iter_function_calls(stmt.right)
             ):
                 return True
         elif isinstance(stmt, ExpressionStatement):
             if any(
                 call.name.lower() in WRITE_FUNCTIONS
-                for call in _iter_calls(stmt.expression)
+                for call in iter_function_calls(stmt.expression)
             ):
                 return True
     return False
@@ -137,7 +133,7 @@ def _scan(statements: list, in_conditional: bool, acc: _Scan) -> None:
     """Walk statements, tracking whether a call sits inside an ``IF`` branch."""
     for stmt in statements:
         if isinstance(stmt, IfStatement):
-            for call in _iter_calls(stmt.condition):
+            for call in iter_function_calls(stmt.condition):
                 _classify(call, in_conditional, acc)
             exhaustive = _always_writes(stmt.then_body) and _always_writes(
                 stmt.else_body or []
@@ -146,15 +142,15 @@ def _scan(statements: list, in_conditional: bool, acc: _Scan) -> None:
             _scan(stmt.then_body, branch_conditional, acc)
             _scan(stmt.else_body or [], branch_conditional, acc)
         elif isinstance(stmt, WhileStatement):
-            for call in _iter_calls(stmt.condition):
+            for call in iter_function_calls(stmt.condition):
                 _classify(call, in_conditional, acc)
             # A loop is not a record filter: keep the surrounding conditionality.
             _scan(stmt.body, in_conditional, acc)
         elif isinstance(stmt, Assignment):
-            for call in _iter_calls(stmt.right):
+            for call in iter_function_calls(stmt.right):
                 _classify(call, in_conditional, acc)
         elif isinstance(stmt, ExpressionStatement):
-            for call in _iter_calls(stmt.expression):
+            for call in iter_function_calls(stmt.expression):
                 _classify(call, in_conditional, acc)
 
 
