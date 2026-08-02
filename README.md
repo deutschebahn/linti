@@ -126,6 +126,17 @@ rules:
     # 'consistent' - either style is allowed, but mixing both in one file is reported
     # 'enforce'    - only hierarchy-aware functions are allowed
     mode: consistent
+
+  # C510 - Function Version Compatibility
+  # Reports TI functions that are not available on the targeted PA/TM1 version.
+  # Disabled by default: the target depends on your deployment strategy.
+  function_version_compatibility:
+    enabled: true
+    # Optional override of the top-level `target_version` (see below):
+    # 'CompatibleWithV11AndV12' - only functions available in both are allowed
+    # 'V11'                     - flags functions introduced in v12
+    # 'V12'                     - flags functions unsupported in v12
+    mode: CompatibleWithV11AndV12
 ```
 
 ### Generic Processes
@@ -157,6 +168,41 @@ rules:
 `rules.one_space_before_equals` has been removed along with the Equals Spacing
 rule. If it is still present in an older config, linti warns and ignores it.
 Its old ID `F210` is not claimed by any live rule.
+
+### Target Version
+
+Which Planning Analytics / TM1 version your code has to run on is a project-wide
+fact, so it lives in the top-level `target_version` setting. Version-aware rules
+(currently `C510` Function Version Compatibility) read it from there:
+
+```yaml
+# Top-level (shared across rules)
+target_version: both   # v11 | v12 | both
+
+rules:
+  function_version_compatibility:
+    enabled: true
+```
+
+`target_version` only *supplies* the version — it never enables a rule. `C510` is
+opt-in and stays silent until you set `enabled: true`.
+
+A rule may override the shared value with its own `mode`, which takes precedence:
+
+```yaml
+target_version: v12
+
+rules:
+  function_version_compatibility:
+    enabled: true
+    mode: V11            # this rule checks against v11 regardless
+```
+
+The two settings use different spellings on purpose: `target_version`
+(`v11` | `v12` | `both`) reads as a fact about the project, while `mode`
+(`V11` | `V12` | `CompatibleWithV11AndV12`) reads as a setting on the rule.
+They mean the same thing — `both` and `CompatibleWithV11AndV12` are equivalent.
+With neither set, `C510` defaults to `CompatibleWithV11AndV12`.
 
 ### Excluding Files from Linting
 
@@ -443,7 +489,7 @@ Documentation and process docstring validation:
 - **D1xx - Documentation**: Required docstring regions and headers
   - `D110` - Docstring Region
 
-### Code Quality Rules (C1xx, C2xx, C3xx, C4xx)
+### Code Quality Rules (C1xx, C2xx, C3xx, C4xx, C5xx)
 Control flow, mutability, and TM1 best practices:
 
 - **C1xx - Control Flow**: Process execution and control flow patterns
@@ -461,6 +507,9 @@ Control flow, mutability, and TM1 best practices:
 
 - **C4xx - TM1 Best Practices**: Idiomatic TM1 API usage
   - `C410` - Use Hierarchy-Aware Functions
+
+- **C5xx - Version Compatibility**: Compatibility with a target PA/TM1 version
+  - `C510` - Function Version Compatibility
 
 ### External Interactions Rules (X1xx, X2xx)
 Interactions with systems outside the TI process:
