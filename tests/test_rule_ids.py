@@ -49,6 +49,7 @@ EXPECTED_CANONICAL_IDS = {
     "F270",
     "F310",
     "F320",
+    "F330",
     "N110",
     "N120",
     "N210",

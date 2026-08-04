@@ -59,7 +59,16 @@ class WhitespaceAroundOperatorsRule(BaseTokenRule):
 
         # ------------------------------------------------------------------
         # Check space BEFORE operator
+        #
+        # An operator that opens a continuation line has indentation in front
+        # of it, not a spacing mistake — that whitespace belongs to F310:
+        #
+        #     sX = 'aaa'
+        #         | 'bbb';
         # ------------------------------------------------------------------
+        if self._leads_its_line(token, context):
+            prev = None
+
         if prev is not None and prev.type != TokenType.NEWLINE:
             if prev.type != TokenType.WHITESPACE:
                 fix = Fix(position=token.position, old_value="", new_value=" ")
@@ -88,7 +97,15 @@ class WhitespaceAroundOperatorsRule(BaseTokenRule):
 
         # ------------------------------------------------------------------
         # Check space AFTER operator
+        #
+        # An operator with no right-hand operand at all — `nA = ;`, which the
+        # parser reports as an unknown statement — has nothing to space away
+        # from. F240 owns that whitespace and wants it gone; demanding a space
+        # here would leave the two rules undoing each other forever.
         # ------------------------------------------------------------------
+        if self._precedes_semicolon(window):
+            nxt = None
+
         if nxt is not None and nxt.type not in (TokenType.NEWLINE, TokenType.COMMENT):
             if nxt.type != TokenType.WHITESPACE:
                 after_pos = token.position + len(token.value)
@@ -117,3 +134,15 @@ class WhitespaceAroundOperatorsRule(BaseTokenRule):
                 )
 
         return issues
+
+    @staticmethod
+    def _leads_its_line(token, context: LintContext) -> bool:
+        """Whether *token* is the first significant token on its line."""
+        lines = context.lines
+        return lines is not None and lines.leads_line(token)
+
+    @staticmethod
+    def _precedes_semicolon(window) -> bool:
+        """Whether the operator is followed by ``;`` instead of an operand."""
+        nxt = window.next_non_ws()
+        return nxt is not None and nxt.type == TokenType.SEMICOLON

@@ -101,11 +101,22 @@ rules:
     style: uppercase
 
   # F310 - Block Indentation
-  # Enforces indentation for IF/WHILE blocks
+  # Enforces indentation for IF/WHILE blocks and for continuation lines
   # size: number of spaces per indentation level
+  # continuation_style: how a line that continues an earlier statement is
+  #   indented - hanging (one level per open parenthesis), aligned (under the
+  #   opening parenthesis), or ignore (leave hand-formatted lines alone)
   indentation:
     enabled: true
     size: 4
+    continuation_style: hanging
+
+  # F330 - Maximum Line Length
+  # Flags lines over `limit` characters and rewraps them at argument or
+  # operator boundaries, in the hanging style F310 enforces.
+  max_line_length:
+    enabled: true
+    limit: 120
 
   # N110 - Variable Prefix Naming
   # Enforces TM1 naming conventions
@@ -515,6 +526,7 @@ Formatting and code style rules:
 - **F3xx - Layout**: Indentation, line breaks, and code layout
   - `F310` - Block Indentation
   - `F320` - One Statement Per Line
+  - `F330` - Maximum Line Length
 
 ### Naming Rules (N1xx, N2xx)
 Variable and parameter naming conventions:
@@ -613,6 +625,40 @@ already had.
 ### Auto-Fix Feature
 
 The linter offers an automatic fix for many rules whenever the fix is safe to apply. In the linting issue report, every issue that can be fixed automatically is marked with a 🔧 indicator, so you can see at a glance which rules will be resolved. Apply the fixes with the `--auto-fix` flag.
+
+### Multi-line Statements
+
+A statement that does not fit on one line is laid out in a **hanging indent**: the opening parenthesis stays at the end of its line, everything inside it is indented one level deeper, and the line that closes it returns to the level of the line that opened it.
+
+```ti
+IF( nA = 1 );
+    sValue = CellGetS(
+        'Cube',
+        'Element'
+    );
+ENDIF;
+```
+
+Long conditions and concatenations break before their operators:
+
+```ti
+IF(
+    nA = 1
+    & nB = 2
+);
+```
+
+`F310` enforces this layout and `F330` produces it when a line exceeds the limit, so the two never disagree.
+
+Two things auto-fix will not do: it never joins short lines back together, and it never rewraps a statement that contains a comment or a multi-line string literal — moving either could change what the code means. Such lines are reported without a 🔧.
+
+If your project already wraps arguments by hand and you would rather keep that layout, set `continuation_style` to `aligned` (line wrapped content up under the opening parenthesis) or `ignore` (leave continuation lines alone entirely):
+
+```yaml
+rules:
+  indentation:
+    continuation_style: ignore
+```
 
 ## TM1 Block Context Awareness
 

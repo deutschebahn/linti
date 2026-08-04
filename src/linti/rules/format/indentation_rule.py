@@ -1,31 +1,46 @@
-from linti.lexer.token import TokenType
+"""F310 – Block indentation."""
+
+from linti.cst.lines import CONTINUATION_STYLES, HANGING
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import Fix, LintIssue
-from linti.rules.Rule import BaseTokenRule, RuleExample, RuleMetadata
+from linti.parser.ast import Program
+from linti.rules.Rule import BaseStatementRule, RuleExample, RuleMetadata
 
 
-class IndentationRule(BaseTokenRule):
+class IndentationRule(BaseStatementRule):
     """
-    Enforces indentation for IF/WHILE blocks.
+    Enforces indentation for IF/WHILE blocks and for continuation lines.
 
-    Indentation is validated per line based on block nesting.
+    Indentation is validated per physical line against the concrete syntax
+    tree, so a line that *continues* a statement is judged as a continuation
+    rather than as a badly indented statement of its own.
     """
 
     CONFIG_KEY = "indentation"
     METADATA = RuleMetadata(
         name="Block Indentation",
-        description="Enforces indentation for IF/WHILE blocks",
+        description="Enforces indentation for IF/WHILE blocks and wrapped lines",
         auto_fix=True,
         explanation=(
             "Enforces consistent indentation for IF and WHILE blocks.\n"
             "The default indentation size is 4 spaces per nesting level. "
-            "This can be configured via the `size` parameter."
+            "This can be configured via the `size` parameter.\n\n"
+            "A line that continues a statement started earlier — a wrapped "
+            "argument list, a multi-line condition — is indented in the "
+            "*hanging* style: one level deeper per open parenthesis, and the "
+            "line that closes a parenthesis returns to the level of the line "
+            "that opened it. Set `continuation_style` to `aligned` to line "
+            "wrapped content up under the opening parenthesis instead, or to "
+            "`ignore` to leave hand-formatted continuation lines alone.\n\n"
+            "Lines inside a multi-line string literal are never touched: their "
+            "indentation is part of the string's value."
         ),
         config_example=(
             "rules:\n"
             "  indentation:\n"
             "    enabled: true\n"
-            "    size: 4  # number of spaces per indentation level"
+            "    size: 4  # number of spaces per indentation level\n"
+            "    continuation_style: hanging  # hanging | aligned | ignore"
         ),
         examples=[
             RuleExample(
@@ -34,8 +49,18 @@ class IndentationRule(BaseTokenRule):
                 valid=True,
             ),
             RuleExample(
+                code="sValue = CellGetS(\n    'Cube',\n    'Element'\n);",
+                description="Wrapped argument list (hanging indent)",
+                valid=True,
+            ),
+            RuleExample(
                 code="IF (nValue > 0);\nnResult = 10;\nENDIF;",
                 description="Missing indentation",
+                valid=False,
+            ),
+            RuleExample(
+                code="sValue = CellGetS( 'Cube',\n           'Element' );",
+                description="Wrapped line not at the hanging indent",
                 valid=False,
             ),
         ],
@@ -43,139 +68,75 @@ class IndentationRule(BaseTokenRule):
 
     @classmethod
     def from_config(cls, rule_cfg: dict) -> list:
-        size = (
-            rule_cfg.get("size", 4)
-            if isinstance(rule_cfg, dict)
-            else getattr(rule_cfg, "size", 4)
-        )
-        return [cls(indent_size=size)]
+        def setting(name, default):
+            if isinstance(rule_cfg, dict):
+                return rule_cfg.get(name, default)
+            return getattr(rule_cfg, name, default)
+
+        return [
+            cls(
+                indent_size=setting("size", 4),
+                continuation_style=setting("continuation_style", HANGING),
+            )
+        ]
 
     @property
     def RULE_ID(self) -> str:
         return "F310"
 
-    def __init__(self, indent_size: int = 4):
+    def __init__(self, indent_size: int = 4, continuation_style: str = HANGING):
         self.indent_size = indent_size
-        self._current_level = 0
-
-    def reset(self) -> None:
-        self._current_level = 0
+        self.continuation_style = (
+            continuation_style if continuation_style in CONTINUATION_STYLES else HANGING
+        )
 
     def interested_in(self):
-        return [TokenType.NEWLINE]
+        # One visit per program: indentation is a property of physical lines,
+        # not of any single statement, and the line model already knows which
+        # statement each line belongs to.
+        return [Program]
 
-    def visit(self, token, window, context: LintContext):
+    def visit(self, statement, context: LintContext):
+        lines = context.lines
+        if lines is None:
+            return []
+
         issues = []
-        line = token.line
-
-        self._update_level_from_line(line, window)
-
-        next_line = line + 1
-        next_info = self._next_line_info(next_line, window)
-        if not next_info:
-            return issues
-
-        indent_token, line_start_token, indent_count = next_info
-
-        if line_start_token.type in (
-            TokenType.ENDIF,
-            TokenType.END,
-            TokenType.ELSE,
-            TokenType.ELSEIF,
-        ):
-            expected_level = max(self._current_level - 1, 0)
-        else:
-            expected_level = self._current_level
-
-        expected_indent = expected_level * self.indent_size
-        if indent_count != expected_indent:
-            # Create fix for indentation
-            correct_indent = " " * expected_indent
-            if indent_token:
-                # Replace existing whitespace
-                fix = Fix(
-                    position=indent_token.position,
-                    old_value=indent_token.value,
-                    new_value=correct_indent,
-                )
-            else:
-                # Insert whitespace at start of first non-whitespace
-                fix = Fix(
-                    position=line_start_token.position,
-                    old_value="",
-                    new_value=correct_indent,
-                )
-
-            issue_token = indent_token or line_start_token
-            issues.append(
-                LintIssue(
-                    f"Expected indentation of {expected_indent} spaces",
-                    issue_token.line,
-                    issue_token.column,
-                    issue_token.position,
-                    rule_id=self.RULE_ID,
-                    fix=fix,
-                )
+        for info in lines:
+            expected = lines.expected_indent(
+                info.line, self.indent_size, self.continuation_style
             )
+            if expected is None or expected == info.indent_width:
+                continue
+            issues.append(self._issue(info, expected))
 
         return issues
 
-    def _update_level_from_line(self, line, window):
-        line_start = self._line_start_token(line, window)
-        if not line_start:
-            return
+    def _issue(self, info, expected: int) -> LintIssue:
+        correct_indent = " " * expected
 
-        if line_start.type in (TokenType.ELSE, TokenType.ELSEIF):
-            self._current_level = max(self._current_level - 1, 0)
-            self._current_level += 1
-            return
+        if info.indent_token is not None:
+            fix = Fix(
+                position=info.indent_token.position,
+                old_value=info.indent_token.value,
+                new_value=correct_indent,
+            )
+            anchor = info.indent_token
+        else:
+            # Nothing to replace — insert the indent before the first token.
+            fix = Fix(
+                position=info.first_token.position,
+                old_value="",
+                new_value=correct_indent,
+            )
+            anchor = info.first_token
 
-        if line_start.type in (TokenType.ENDIF, TokenType.END):
-            self._current_level = max(self._current_level - 1, 0)
-            return
-
-        if line_start.type in (TokenType.IF, TokenType.WHILE):
-            self._current_level += 1
-
-    def _line_start_token(self, line, window):
-        offset = 1
-        candidate = None
-        while True:
-            prev = window.previous(offset)
-            if prev is None or prev.line != line:
-                return candidate
-            if prev.type not in (
-                TokenType.WHITESPACE,
-                TokenType.COMMENT,
-                TokenType.NEWLINE,
-            ):
-                candidate = prev
-            offset += 1
-
-    def _next_line_info(self, line, window):
-        offset = 1
-        indent_token = None
-
-        while True:
-            nxt = window.next(offset)
-            if nxt is None:
-                return None
-            if nxt.line < line:
-                offset += 1
-                continue
-            if nxt.line > line:
-                return None
-
-            if nxt.type == TokenType.NEWLINE:
-                return None
-
-            if nxt.type == TokenType.WHITESPACE:
-                indent_token = nxt
-                offset += 1
-                continue
-
-            if nxt.type == TokenType.COMMENT:
-                return None
-
-            indent_count = len(indent_token.value) if indent_token else 0
-            return indent_token, nxt, indent_count
+        what = "continuation " if info.is_continuation else ""
+        return LintIssue(
+            f"Expected {what}indentation of {expected} spaces",
+            anchor.line,
+            anchor.column,
+            anchor.position,
+            rule_id=self.RULE_ID,
+            fix=fix,
+        )

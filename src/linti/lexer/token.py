@@ -155,8 +155,35 @@ def is_unary_plus_minus(window) -> bool:
 
 @dataclass
 class Token:
+    """A lexed token, carrying its exact span in the input string.
+
+    ``value`` is the *decoded* text and is not always what the source says: a
+    STRING token drops its surrounding quotes and collapses ``''`` to ``'``.
+    ``position``/``end`` therefore delimit the token's source text, while
+    ``value`` carries its meaning — use :meth:`raw_text` whenever the exact
+    characters matter (fix spans, CST rendering).
+
+    ``end`` defaults to ``-1`` for hand-built tokens in tests; the accessors
+    below fall back to ``position + len(value)``, which is correct for every
+    token type except STRING.
+    """
+
     type: TokenType
     value: str
     position: int  # start index in the full input string
     line: int
     column: int
+    end: int = -1  # exclusive end index; -1 when unknown
+
+    @property
+    def end_position(self) -> int:
+        """Exclusive end offset of this token in the input string."""
+        return self.end if self.end >= 0 else self.position + len(self.value)
+
+    def span(self) -> tuple[int, int]:
+        """``(start, end)`` offsets of this token in the input string."""
+        return self.position, self.end_position
+
+    def raw_text(self, source: str) -> str:
+        """The exact source characters this token was lexed from."""
+        return source[self.position : self.end_position]

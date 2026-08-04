@@ -1,7 +1,15 @@
 class ASTNode:
-    """Base class for all abstract syntax tree nodes."""
+    """Base class for all abstract syntax tree nodes.
 
-    pass
+    Every node carries a ``cst`` back-pointer to the
+    :class:`~linti.cst.node.CstNode` it was projected from, set by the parser
+    as it closes each span.  The AST says what the code means; follow ``cst``
+    to reach what it looks like — parentheses, commas, comments, exact source
+    spans.  It is ``None`` only for nodes built outside the parser (tests,
+    hand-assembled trees), so read it defensively.
+    """
+
+    cst = None
 
 
 def get_node_token(node):

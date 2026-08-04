@@ -86,10 +86,18 @@ class OneSpaceInsideParenthesesRule(BaseTokenRule):
 
         else:  # RPAREN
             prev = window.previous()
-            # Skip: multiline (content on previous line) or empty parens
+            # Skip: multiline (content on previous line) or empty parens.
+            # A ')' that opens its own line has indentation in front of it,
+            # not a spacing mistake — that whitespace belongs to F310:
+            #
+            #     sValue = CellGetS(
+            #         'Cube'
+            #     );
             if prev is None or prev.type == TokenType.NEWLINE:
                 return issues
             if prev.type == TokenType.LPAREN:
+                return issues
+            if context.lines is not None and context.lines.leads_line(token):
                 return issues
 
             if prev.type != TokenType.WHITESPACE:

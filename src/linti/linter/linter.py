@@ -69,6 +69,14 @@ class Linter:
         if source is not None:
             context.source = source
 
+        # The token pass runs before the AST is built, but layout rules need
+        # the CST, so parse up front when the caller did not supply a tree.
+        # ``collect_fixable_issues`` is one such caller.
+        if ast is None:
+            ast = Parser(tokens, max_nesting_depth=self.max_nesting_depth).parse()
+        context.cst = getattr(ast, "cst", None)
+        context._line_index = None
+
         # Reset mutable rule state so each lint pass starts clean
         for rules in self.token_registry.values():
             for rule in rules:
@@ -88,9 +96,6 @@ class Linter:
             window.set_index(i)
             for rule in self.token_registry.get(token.type, []):
                 issues.extend(rule.visit(token, window, context))
-
-        if ast is None:
-            ast = Parser(tokens, max_nesting_depth=self.max_nesting_depth).parse()
 
         # Let statement rules pre-scan the full AST (e.g. for lookahead)
         seen_prepare: set[int] = set()

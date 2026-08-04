@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
+from typing import Iterator, List, Optional, Sequence
 
+from linti.cst.node import CstKind, CstNode
 from linti.lexer.token import Token, TokenType
 from linti.parser.ast import (
     Assignment,
@@ -84,6 +86,51 @@ INFIX_PRECEDENCE = {
 }
 
 
+@dataclass(frozen=True)
+class _Checkpoint:
+    """A point the parser can retroactively open a CST node from.
+
+    Records both the token position and how many sibling nodes had been
+    collected, so a node opened later can still claim the tokens *and* the
+    child nodes produced since.  That is what lets the Pratt loop wrap an
+    already-parsed left operand in a BINARY_EXPR or CALL.
+    """
+
+    pos: int
+    child_count: int
+
+
+class _Span:
+    """Handle for one open CST node, yielded by :meth:`Parser._span`."""
+
+    __slots__ = ("kind", "node", "_ast", "_flatten")
+
+    def __init__(self, kind: CstKind):
+        self.kind = kind
+        self.node: Optional[CstNode] = None
+        self._ast = None
+        self._flatten = False
+
+    def attach(self, ast_node):
+        """Bind *ast_node* to this span and return it unchanged.
+
+        The ``cst`` back-pointer is set when the span closes, since that is
+        when the node exists.  Written as ``return sp.attach(Assignment(...))``
+        so the parse methods keep their original shape.
+        """
+        self._ast = ast_node
+        return ast_node
+
+    def flatten(self) -> None:
+        """Drop the child nodes collected so far, keeping only the span.
+
+        Used for error recovery: a half-built ASSIGNMENT inside a statement
+        that turned out to be unparseable would be misleading as a child of
+        the resulting UNKNOWN_STATEMENT.
+        """
+        self._flatten = True
+
+
 class Parser:
     """
     Minimal Pratt parser for TM1-like TI expressions + assignment statements.
@@ -113,14 +160,85 @@ class Parser:
                               NestingDepthExceeded is raised (guards against a
                               RecursionError on pathological input).
         """
+        self.raw_tokens: list[Token] = list(tokens)
         if ignore_whitespace:
-            self.tokens = [t for t in tokens if t.type not in IGNORED_FOR_PARSING]
+            kept = [
+                (i, t)
+                for i, t in enumerate(self.raw_tokens)
+                if t.type not in IGNORED_FOR_PARSING
+            ]
+            self.tokens = [t for _, t in kept]
+            #: Maps a position in ``self.tokens`` back to ``self.raw_tokens``.
+            #: The CST spans raw indices so trivia stays addressable.
+            self._raw_index = [i for i, _ in kept]
         else:
             self.tokens = list(tokens)
+            self._raw_index = list(range(len(self.tokens)))
 
         self.pos = 0
         self._max_nesting_depth = max_nesting_depth
         self._depth = 0
+
+        #: CST nodes closed but not yet claimed by an enclosing span, in source
+        #: order.  A closing span takes everything from its checkpoint onward.
+        self._pending: list[CstNode] = []
+        #: Root of the concrete syntax tree; set by :meth:`parse`.
+        self.cst: Optional[CstNode] = None
+
+    # -----------------------------
+    # CST construction
+    # -----------------------------
+    def _checkpoint(self) -> _Checkpoint:
+        """Mark the current position so a node can be opened here later."""
+        return _Checkpoint(pos=self.pos, child_count=len(self._pending))
+
+    def _raw_span(self, start_pos: int, end_pos: int) -> tuple[int, int]:
+        """Translate a ``self.tokens`` range into a ``self.raw_tokens`` range.
+
+        The result is half-open and includes any trivia *between* the first and
+        last significant token, but not the trivia around them — that belongs
+        to the enclosing node.
+        """
+        if end_pos <= start_pos:
+            # Nothing was consumed (e.g. an empty block).  Anchor the empty
+            # span where the next token would have been.
+            anchor = (
+                self._raw_index[start_pos]
+                if start_pos < len(self._raw_index)
+                else len(self.raw_tokens)
+            )
+            return anchor, anchor
+        return self._raw_index[start_pos], self._raw_index[end_pos - 1] + 1
+
+    @contextmanager
+    def _span(
+        self, kind: CstKind, checkpoint: Optional[_Checkpoint] = None
+    ) -> Iterator[_Span]:
+        """Open a CST node covering everything parsed inside the block.
+
+        Pass *checkpoint* to open the node retroactively at an earlier point —
+        the Pratt loop uses that to wrap an already-parsed left operand.
+
+        The node is closed in a ``finally``, so a ParseError unwinding through
+        here still leaves a well-formed (if partial) tree.
+        """
+        mark = self._checkpoint() if checkpoint is None else checkpoint
+        span = _Span(kind)
+        try:
+            yield span
+        finally:
+            children = self._pending[mark.child_count :]
+            del self._pending[mark.child_count :]
+            if span._flatten:
+                children = []
+            raw_start, raw_end = self._raw_span(mark.pos, self.pos)
+            node = CstNode(kind, raw_start, raw_end, children)
+            for child in children:
+                child.parent = node
+            self._pending.append(node)
+            span.node = node
+            if span._ast is not None:
+                span._ast.cst = node
 
     # -----------------------------
     # basic stream helpers
@@ -244,12 +362,22 @@ class Parser:
         """
         statements = []
 
-        while not self.at_end():
-            stmt = self._parse_one_statement()
-            if stmt:
-                statements.append(stmt)
+        with self._span(CstKind.PROGRAM) as span:
+            while not self.at_end():
+                stmt = self._parse_one_statement()
+                if stmt:
+                    statements.append(stmt)
+            program = span.attach(Program(statements))
 
-        return Program(statements)
+        # The root claims the entire stream so leading and trailing trivia are
+        # inside the tree — a CST that stops at the last semicolon could not
+        # render a file back out.
+        root = program.cst
+        root.start = 0
+        root.end = len(self.raw_tokens)
+        self.cst = root
+
+        return program
 
     def _parse_one_statement(self) -> Optional[Statement]:
         """
@@ -290,6 +418,7 @@ class Parser:
         # the error, which is what positions E110 and lets version-aware rules
         # still see the call hiding inside a broken statement.
         start = self.pos
+        children_before = len(self._pending)
         try:
             # Check for IF statement
             if self.current().type == TokenType.IF:
@@ -338,7 +467,17 @@ class Parser:
                 # and prevent an infinite loop.
                 self.advance()
 
-            return UnknownStatement(self.tokens[start : self.pos], error_message)
+            # Discard whatever the failed parse left behind: a half-built
+            # ASSIGNMENT node inside an UNKNOWN_STATEMENT would claim structure
+            # the source does not have.  The statement stays a flat span.
+            del self._pending[children_before:]
+            raw_start, raw_end = self._raw_span(start, self.pos)
+            node = CstNode(CstKind.UNKNOWN_STATEMENT, raw_start, raw_end, [])
+            self._pending.append(node)
+
+            statement = UnknownStatement(self.tokens[start : self.pos], error_message)
+            statement.cst = node
+            return statement
 
     def _parse_assignment(self) -> Assignment:
         """
@@ -352,29 +491,32 @@ class Parser:
         Raises:
             ParseError: If assignment syntax is invalid.
         """
-        # Check for identifier (regular or predefined)
-        if self.at_end() or not self.is_identifier(self.current()):
-            got = self._current_token_name_for_error()
-            raise ParseError(f"Assignment must start with an identifier, got {got}")
-        left_tok = self.advance()
+        with self._span(CstKind.ASSIGNMENT) as span:
+            # Check for identifier (regular or predefined)
+            if self.at_end() or not self.is_identifier(self.current()):
+                got = self._current_token_name_for_error()
+                raise ParseError(f"Assignment must start with an identifier, got {got}")
 
-        self.expect(TokenType.EQUALS, "Expected '=' in assignment")
+            with self._span(CstKind.IDENTIFIER) as target:
+                left_tok = self.advance()
+                left = target.attach(Identifier(left_tok.value, left_tok))
 
-        right_expr = self.parse_expression()
+            self.expect(TokenType.EQUALS, "Expected '=' in assignment")
 
-        self.expect(TokenType.SEMICOLON, "Expected ';' after assignment")
+            right_expr = self.parse_expression()
 
-        return Assignment(
-            Identifier(left_tok.value, left_tok), right_expr, token=left_tok
-        )
+            self.expect(TokenType.SEMICOLON, "Expected ';' after assignment")
+
+            return span.attach(Assignment(left, right_expr, token=left_tok))
 
     def _parse_block_until(self, stop_tokens: set[TokenType]) -> list[Statement]:
         """Parse a statement block until one of ``stop_tokens`` is reached."""
         body: list[Statement] = []
-        while not self.at_end() and self.current().type not in stop_tokens:
-            stmt = self._parse_one_statement()
-            if stmt:
-                body.append(stmt)
+        with self._span(CstKind.BLOCK):
+            while not self.at_end() and self.current().type not in stop_tokens:
+                stmt = self._parse_one_statement()
+                if stmt:
+                    body.append(stmt)
         return body
 
     def _parse_if_else_tail(
@@ -390,9 +532,11 @@ class Parser:
             return [self._parse_elseif_branch()], None
 
         if not self.at_end() and self.current().type == TokenType.ELSE:
-            else_tok = self.advance()
-            self.expect(TokenType.SEMICOLON, "Expected ';' after ELSE")
-            return self._parse_block_until({endif_token}), else_tok
+            with self._span(CstKind.ELSE_CLAUSE):
+                else_tok = self.advance()
+                self.expect(TokenType.SEMICOLON, "Expected ';' after ELSE")
+                body = self._parse_block_until({endif_token})
+            return body, else_tok
 
         return [], None
 
@@ -414,25 +558,29 @@ class Parser:
         Raises:
             ParseError: If IF statement syntax is invalid.
         """
-        if_tok = self.expect(TokenType.IF, "Expected 'IF'")
-        self.expect(TokenType.LPAREN, "Expected '(' after IF")
+        with self._span(CstKind.IF_STATEMENT) as span:
+            with self._span(CstKind.IF_HEADER):
+                if_tok = self.expect(TokenType.IF, "Expected 'IF'")
+                self.expect(TokenType.LPAREN, "Expected '(' after IF")
 
-        condition = self.parse_expression()
+                condition = self.parse_expression()
 
-        self.expect(TokenType.RPAREN, "Expected ')' after IF condition")
-        self.expect(TokenType.SEMICOLON, "Expected ';' after IF condition")
+                self.expect(TokenType.RPAREN, "Expected ')' after IF condition")
+                self.expect(TokenType.SEMICOLON, "Expected ';' after IF condition")
 
-        then_body = self._parse_block_until(
-            {TokenType.ELSEIF, TokenType.ELSE, TokenType.ENDIF}
-        )
-        else_body, else_tok = self._parse_if_else_tail(TokenType.ENDIF)
+            then_body = self._parse_block_until(
+                {TokenType.ELSEIF, TokenType.ELSE, TokenType.ENDIF}
+            )
+            else_body, else_tok = self._parse_if_else_tail(TokenType.ENDIF)
 
-        self.expect(TokenType.ENDIF, "Expected 'ENDIF' to close IF statement")
-        self.expect(TokenType.SEMICOLON, "Expected ';' after ENDIF")
+            self.expect(TokenType.ENDIF, "Expected 'ENDIF' to close IF statement")
+            self.expect(TokenType.SEMICOLON, "Expected ';' after ENDIF")
 
-        return IfStatement(
-            condition, then_body, else_body, token=if_tok, else_token=else_tok
-        )
+            return span.attach(
+                IfStatement(
+                    condition, then_body, else_body, token=if_tok, else_token=else_tok
+                )
+            )
 
     def _parse_elseif_branch(self) -> IfStatement:
         """
@@ -448,22 +596,30 @@ class Parser:
         Returns:
             An IfStatement AST node representing the ELSEIF chain.
         """
-        elseif_tok = self.expect(TokenType.ELSEIF, "Expected 'ELSEIF'")
-        self.expect(TokenType.LPAREN, "Expected '(' after ELSEIF")
+        with self._span(CstKind.ELSEIF_CLAUSE) as span:
+            with self._span(CstKind.IF_HEADER):
+                elseif_tok = self.expect(TokenType.ELSEIF, "Expected 'ELSEIF'")
+                self.expect(TokenType.LPAREN, "Expected '(' after ELSEIF")
 
-        condition = self.parse_expression()
+                condition = self.parse_expression()
 
-        self.expect(TokenType.RPAREN, "Expected ')' after ELSEIF condition")
-        self.expect(TokenType.SEMICOLON, "Expected ';' after ELSEIF condition")
+                self.expect(TokenType.RPAREN, "Expected ')' after ELSEIF condition")
+                self.expect(TokenType.SEMICOLON, "Expected ';' after ELSEIF condition")
 
-        then_body = self._parse_block_until(
-            {TokenType.ELSEIF, TokenType.ELSE, TokenType.ENDIF}
-        )
-        else_body, else_tok = self._parse_if_else_tail(TokenType.ENDIF)
+            then_body = self._parse_block_until(
+                {TokenType.ELSEIF, TokenType.ELSE, TokenType.ENDIF}
+            )
+            else_body, else_tok = self._parse_if_else_tail(TokenType.ENDIF)
 
-        return IfStatement(
-            condition, then_body, else_body, token=elseif_tok, else_token=else_tok
-        )
+            return span.attach(
+                IfStatement(
+                    condition,
+                    then_body,
+                    else_body,
+                    token=elseif_tok,
+                    else_token=else_tok,
+                )
+            )
 
     def _parse_while_statement(self) -> WhileStatement:
         """
@@ -478,27 +634,23 @@ class Parser:
         Raises:
             ParseError: If WHILE statement syntax is invalid.
         """
-        while_tok = self.expect(TokenType.WHILE, "Expected 'WHILE'")
-        self.expect(TokenType.LPAREN, "Expected '(' after WHILE")
+        with self._span(CstKind.WHILE_STATEMENT) as span:
+            with self._span(CstKind.WHILE_HEADER):
+                while_tok = self.expect(TokenType.WHILE, "Expected 'WHILE'")
+                self.expect(TokenType.LPAREN, "Expected '(' after WHILE")
 
-        condition = self.parse_expression()
+                condition = self.parse_expression()
 
-        self.expect(TokenType.RPAREN, "Expected ')' after WHILE condition")
-        self.expect(TokenType.SEMICOLON, "Expected ';' after WHILE condition")
+                self.expect(TokenType.RPAREN, "Expected ')' after WHILE condition")
+                self.expect(TokenType.SEMICOLON, "Expected ';' after WHILE condition")
 
-        # Parse statements in the loop body until END
-        body = []
-        while not self.at_end():
-            if self.current().type == TokenType.END:
-                break
-            stmt = self._parse_one_statement()
-            if stmt:
-                body.append(stmt)
+            # Parse statements in the loop body until END
+            body = self._parse_block_until({TokenType.END})
 
-        self.expect(TokenType.END, "Expected 'END' to close WHILE statement")
-        self.expect(TokenType.SEMICOLON, "Expected ';' after END")
+            self.expect(TokenType.END, "Expected 'END' to close WHILE statement")
+            self.expect(TokenType.SEMICOLON, "Expected ';' after END")
 
-        return WhileStatement(condition, body, token=while_tok)
+            return span.attach(WhileStatement(condition, body, token=while_tok))
 
     def _parse_expression_statement(self) -> ExpressionStatement:
         """
@@ -512,12 +664,17 @@ class Parser:
         Raises:
             ParseError: If expression statement syntax is invalid.
         """
-        expr = self.parse_expression()
-        self.expect(TokenType.SEMICOLON, "Expected ';' after expression")
-        # In TM1, a bare identifier used as a statement is a no-arg function call.
-        if isinstance(expr, Identifier):
-            expr = FunctionCall(name=expr.name, args=[], token=expr.token)
-        return ExpressionStatement(expr)
+        with self._span(CstKind.EXPRESSION_STATEMENT) as span:
+            expr = self.parse_expression()
+            self.expect(TokenType.SEMICOLON, "Expected ';' after expression")
+            # In TM1, a bare identifier used as a statement is a no-arg function call.
+            if isinstance(expr, Identifier):
+                call = FunctionCall(name=expr.name, args=[], token=expr.token)
+                # The desugared call has no parentheses of its own, so it keeps
+                # the identifier's CST node — the source really is just a name.
+                call.cst = expr.cst
+                expr = call
+            return span.attach(ExpressionStatement(expr))
 
     def parse_expression(self) -> Expression:
         """
@@ -553,6 +710,9 @@ class Parser:
         Raises:
             ParseError: If expression is invalid.
         """
+        # Taken before the left operand so a CALL or BINARY_EXPR node can be
+        # opened *around* it once we know the operand was only the left side.
+        mark = self._checkpoint()
         left = self._parse_prefix()
 
         while True:
@@ -566,19 +726,23 @@ class Parser:
             # We implement call parsing as: if next token is LPAREN and left is Identifier.
             if tok.type == TokenType.LPAREN and isinstance(left, Identifier):
                 # call binds very strong; no need to compare with min_precedence unless you add more postfix ops
-                left = self._parse_call(left)
+                with self._span(CstKind.CALL, mark) as span:
+                    left = span.attach(self._parse_call(left))
                 continue
 
             prec = INFIX_PRECEDENCE.get(tok.type)
             if prec is None or prec < min_precedence:
                 break
 
-            op_tok = self.advance()  # consume operator
+            with self._span(CstKind.BINARY_EXPR, mark) as span:
+                op_tok = self.advance()  # consume operator
 
-            # left-associative operators: parse RHS with prec+1
-            rhs = self._parse_pratt(min_precedence=prec + 1)
+                # left-associative operators: parse RHS with prec+1
+                rhs = self._parse_pratt(min_precedence=prec + 1)
 
-            left = BinaryExpression(left=left, operator=op_tok, right=rhs)
+                left = span.attach(
+                    BinaryExpression(left=left, operator=op_tok, right=rhs)
+                )
 
         return left
 
@@ -601,23 +765,28 @@ class Parser:
         """
         tok = self.current()
 
-        # Parenthesized expression
+        # Parenthesized expression.  The AST discards the parentheses and keeps
+        # only the inner expression; the CST keeps them as a PAREN_GROUP so a
+        # formatter can still see (and break inside) them.
         if tok.type == TokenType.LPAREN:
-            self.advance()
-            expr = self.parse_expression()
-            self.expect(TokenType.RPAREN, "Expected ')' after expression")
+            with self._span(CstKind.PAREN_GROUP):
+                self.advance()
+                expr = self.parse_expression()
+                self.expect(TokenType.RPAREN, "Expected ')' after expression")
             return expr
 
         # Number literal
         if tok.type == TokenType.NUMBER:
-            self.advance()
-            # TM1 has no integer type; all numbers are IEEE-754 doubles.
-            return Number(float(tok.value), token=tok)
+            with self._span(CstKind.NUMBER) as span:
+                self.advance()
+                # TM1 has no integer type; all numbers are IEEE-754 doubles.
+                return span.attach(Number(float(tok.value), token=tok))
 
         # String literal
         if tok.type == TokenType.STRING:
-            self.advance()
-            return String(tok.value, token=tok)
+            with self._span(CstKind.STRING) as span:
+                self.advance()
+                return span.attach(String(tok.value, token=tok))
 
         # Inline `If(cond, then, else)` expression function. TI overloads `If`:
         # the statement form (IF ... ENDIF) is intercepted by the statement
@@ -626,29 +795,31 @@ class Parser:
         # loop parses the argument list via _parse_call, yielding a FunctionCall.
         next_tok = self.peek()
         if tok.type == TokenType.IF and next_tok and next_tok.type == TokenType.LPAREN:
-            self.advance()
-            return Identifier(tok.value, tok)
+            with self._span(CstKind.IDENTIFIER) as span:
+                self.advance()
+                return span.attach(Identifier(tok.value, tok))
 
         # Identifier (variable, function name, or predefined variable)
         if self.is_identifier(tok):
-            tok_copy = tok  # Save token before advancing
-            self.advance()
-            ident = Identifier(tok_copy.value, tok_copy)
-
-            # If immediately followed by '(' it becomes a call in _parse_pratt loop
-            return ident
+            with self._span(CstKind.IDENTIFIER) as span:
+                tok_copy = tok  # Save token before advancing
+                self.advance()
+                # If immediately followed by '(' it becomes a call in _parse_pratt loop
+                return span.attach(Identifier(tok_copy.value, tok_copy))
 
         # Optional unary +/-
         if tok.type in (TokenType.PLUS, TokenType.MINUS):
-            op = self.advance()
-            right = self._parse_pratt(min_precedence=Precedence.PREFIX)
-            return UnaryExpression(operator=op, operand=right)
+            with self._span(CstKind.UNARY_EXPR) as span:
+                op = self.advance()
+                right = self._parse_pratt(min_precedence=Precedence.PREFIX)
+                return span.attach(UnaryExpression(operator=op, operand=right))
 
         # Logical NOT (~)
         if tok.type == TokenType.NOT:
-            op = self.advance()
-            right = self._parse_pratt(min_precedence=Precedence.PREFIX)
-            return UnaryExpression(operator=op, operand=right)
+            with self._span(CstKind.UNARY_EXPR) as span:
+                op = self.advance()
+                right = self._parse_pratt(min_precedence=Precedence.PREFIX)
+                return span.attach(UnaryExpression(operator=op, operand=right))
 
         raise ParseError(
             f"Unexpected token in expression: {tok.type.name} ({tok.value!r})"
@@ -669,36 +840,46 @@ class Parser:
         Raises:
             ParseError: If function call syntax is invalid.
         """
-        self.expect(TokenType.LPAREN)
-
         args: List[Expression] = []
 
-        # empty args: "()"
-        if self.match(TokenType.RPAREN):
-            return FunctionCall(name=ident.name, args=args, token=ident.token)
+        # ARG_LIST spans '(' through ')' — the unit a line-breaking formatter
+        # rewraps, and the only place commas survive.
+        with self._span(CstKind.ARG_LIST):
+            self.expect(TokenType.LPAREN)
 
-        # Some cell-address functions accept a `hierarchy:element` reference in
-        # their element arguments — every argument after the leading cube name.
-        allow_element_ref = ident.name.lower() in ELEMENT_REF_FUNCTIONS
+            # empty args: "()"
+            if self.match(TokenType.RPAREN):
+                return FunctionCall(name=ident.name, args=args, token=ident.token)
 
-        # one or more args
-        while True:
-            arg = self.parse_expression()
-            # Only the 2nd..n argument may carry the colon reference; a
-            # non-empty ``args`` means at least the cube name is already parsed.
-            if allow_element_ref and args:
-                arg = self._maybe_element_reference(arg)
-            args.append(arg)
+            # Some cell-address functions accept a `hierarchy:element` reference in
+            # their element arguments — every argument after the leading cube name.
+            allow_element_ref = ident.name.lower() in ELEMENT_REF_FUNCTIONS
 
-            if self.match(TokenType.COMMA):
-                continue
+            # one or more args
+            while True:
+                # ARGUMENT wraps the expression rather than carrying it: the
+                # expression keeps its own ``cst``, and the wrapper marks the
+                # comma-delimited slot a formatter may break at.
+                with self._span(CstKind.ARGUMENT):
+                    mark = self._checkpoint()
+                    arg = self.parse_expression()
+                    # Only the 2nd..n argument may carry the colon reference; a
+                    # non-empty ``args`` means at least the cube name is already parsed.
+                    if allow_element_ref and args:
+                        arg = self._maybe_element_reference(arg, mark)
+                args.append(arg)
 
-            self.expect(TokenType.RPAREN, "Expected ')' after function arguments")
-            break
+                if self.match(TokenType.COMMA):
+                    continue
+
+                self.expect(TokenType.RPAREN, "Expected ')' after function arguments")
+                break
 
         return FunctionCall(name=ident.name, args=args, token=ident.token)
 
-    def _maybe_element_reference(self, left: Expression) -> Expression:
+    def _maybe_element_reference(
+        self, left: Expression, mark: _Checkpoint
+    ) -> Expression:
         """Fold a trailing ``:element`` onto *left* as a hierarchy:element ref.
 
         TI addresses an element within an explicit hierarchy as
@@ -710,6 +891,7 @@ class Parser:
         """
         if self.at_end() or self.current().type != TokenType.COLON:
             return left
-        colon = self.advance()
-        right = self.parse_expression()
-        return BinaryExpression(left=left, operator=colon, right=right)
+        with self._span(CstKind.ELEMENT_REF, mark) as span:
+            colon = self.advance()
+            right = self.parse_expression()
+            return span.attach(BinaryExpression(left=left, operator=colon, right=right))

@@ -13,11 +13,50 @@ from linti.model.process_ir import ProcedureInfo, ProcessIR, extract_procedures
 MAX_AUTO_FIX_PASSES = 10
 
 
+def _select_non_overlapping(fixable: list[LintIssue]) -> list[LintIssue]:
+    """Pick the fixes that can all be applied in one pass, widest span first.
+
+    Fixes from different rules can address the same text — a structural fix
+    that rewrites a whole statement overlaps every spacing fix inside it.
+    Applying both would corrupt the source, so one has to win.  The wider span
+    does: it is the more structural change, and the narrower ones it displaced
+    are re-derived from the rewritten code on the next pass of
+    :func:`apply_fixes_iteratively`.
+
+    Insertions have an empty span.  They only lose when they fall strictly
+    inside a chosen replacement, so two rules inserting at the same offset both
+    still apply, as they did before.
+    """
+    ordered = sorted(
+        fixable,
+        key=lambda i: (-len(i.fix.old_value), i.fix.position),
+    )
+
+    chosen: list[LintIssue] = []
+    claimed: list[tuple[int, int]] = []
+    for issue in ordered:
+        start = issue.fix.position
+        end = start + len(issue.fix.old_value)
+        if start == end:
+            conflicts = any(begin < start < finish for begin, finish in claimed)
+        else:
+            conflicts = any(start < finish and end > begin for begin, finish in claimed)
+        if conflicts:
+            continue
+        chosen.append(issue)
+        if start != end:
+            claimed.append((start, end))
+
+    return chosen
+
+
 def apply_fixes(code: str, issues: list[LintIssue]) -> tuple[str, int]:
     """Apply all fixable issues to code.
 
     Replaces text at positions specified by each issue's Fix object.
     Works with any rule that provides a Fix — no rule-specific logic needed.
+    Fixes whose spans overlap cannot all land in one pass; see
+    :func:`_select_non_overlapping` for which one wins.
 
     Returns:
         Tuple of (fixed_code, num_fixes_applied)
@@ -27,6 +66,10 @@ def apply_fixes(code: str, issues: list[LintIssue]) -> tuple[str, int]:
     if not fixable:
         return code, 0
 
+    fixable = _select_non_overlapping(fixable)
+
+    # Descending position, so applying one fix cannot shift the offsets of the
+    # fixes still to come.  At equal offsets replacements go before insertions.
     fixable.sort(key=lambda i: (-i.fix.position, len(i.fix.old_value) == 0))
 
     fixed_code = code

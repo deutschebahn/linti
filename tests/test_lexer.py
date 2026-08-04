@@ -300,3 +300,84 @@ def test_tokenize_string_not_equal_in_if_condition():
         TokenType.RPAREN,
         TokenType.SEMICOLON,
     ]
+
+
+# ---------------------------------------------------------------------------
+# Token spans / full fidelity
+#
+# The CST addresses tokens by index and renders code back out of raw source
+# slices, so the token stream must cover every source character exactly once.
+# `value` alone cannot carry that: a STRING token drops its quotes and
+# collapses `''`, so `end` is what makes the stream reconstructible.
+# ---------------------------------------------------------------------------
+
+#: Inputs that exercise every branch of the tokenizer that could lose a
+#: character: quote escaping, embedded newlines, CRLF, comments, and the
+#: greedy UNKNOWN fallback.
+LOSSLESS_SAMPLES = [
+    "",
+    "nA = 1;",  # no trailing newline
+    "sX = 'it''s';\n",
+    "sM = 'line1\nline2';\n",
+    "nA = 1;\r\nnB = 2;\r\n",
+    "# top\nnA = 1;  # trailing comment\n",
+    'sY = "dq";\n@@ junk\n',
+    "IF( 1 = 1 );\n\tnA = 1;\nENDIF;\n",
+    "nZ = 1.5 + -2 * (3 \\ 4);\n",
+    "IF( sA @<> 'x' & nB >= 2 % nC <> 3 );\nEND;\n",
+]
+
+
+@pytest.mark.parametrize("source", LOSSLESS_SAMPLES)
+def test_tokens_reconstruct_the_source_exactly(source):
+    tokens = Lexer(source).tokenize()
+    assert "".join(t.raw_text(source) for t in tokens) == source
+
+
+@pytest.mark.parametrize("source", LOSSLESS_SAMPLES)
+def test_token_spans_are_contiguous_and_cover_the_whole_input(source):
+    tokens = Lexer(source).tokenize()
+    if not tokens:
+        assert source == ""
+        return
+
+    assert tokens[0].position == 0
+    assert tokens[-1].end_position == len(source)
+    for previous, current in zip(tokens, tokens[1:]):
+        assert previous.end_position == current.position
+
+
+def test_string_token_span_covers_the_quotes_its_value_drops():
+    source = "sX = 'O''Brien';"
+    string_token = next(
+        t for t in Lexer(source).tokenize() if t.type == TokenType.STRING
+    )
+
+    # The decoded value is shorter than the source text it came from, which is
+    # exactly why `position + len(value)` is not a usable end offset.
+    assert string_token.value == "O'Brien"
+    assert string_token.raw_text(source) == "'O''Brien'"
+    assert string_token.span() == (5, 15)
+
+
+def test_end_falls_back_to_value_length_for_hand_built_tokens():
+    """Tests construct Tokens positionally without an end; they still work."""
+    from linti.lexer.token import Token
+
+    token = Token(TokenType.IDENTIFIER, "nValue", 4, 1, 5)
+
+    assert token.end == -1
+    assert token.end_position == 10
+    assert token.span() == (4, 10)
+
+
+def test_example_files_round_trip():
+    from pathlib import Path
+
+    example_dir = Path(__file__).resolve().parent.parent / "example"
+    sources = [p.read_text() for p in sorted(example_dir.glob("*.ti"))]
+    assert sources, "expected .ti files in example/ to lex against"
+
+    for source in sources:
+        tokens = Lexer(source).tokenize()
+        assert "".join(t.raw_text(source) for t in tokens) == source

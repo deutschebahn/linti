@@ -122,6 +122,20 @@ class TestWhitespaceAroundOperators:
         fixed = _fix("nVar = nA+nB;", self.rule)
         assert fixed == "nVar = nA + nB;"
 
+    def test_ok_operator_opening_a_continuation_line(self):
+        """The indentation in front of it belongs to F310, not F220."""
+        assert _lint("sX = 'aaa'\n    | 'bbb';\n", self.rule) == []
+
+    def test_ok_operator_opening_a_wrapped_condition(self):
+        code = "IF( nA = 1\n    & nB = 2 );\n    nX = 1;\nENDIF;\n"
+        assert _lint(code, self.rule) == []
+
+    def test_operator_opening_a_line_is_still_checked_on_its_right(self):
+        issues = _lint("sX = 'aaa'\n    |'bbb';\n", self.rule)
+
+        assert len(issues) == 1
+        assert "Expected one space after '|'" in issues[0].message
+
     def test_from_config_disabled(self):
         instances = WhitespaceAroundOperatorsRule.from_config(
             {"around_operators": False}
