@@ -55,6 +55,10 @@ class IndentationConfig(BaseModel):
 
     enabled: bool = True
     size: int = 4
+    # How a line that continues an earlier statement is indented.
+    # "hanging" is the house style; "aligned" lines wrapped content up under
+    # the opening parenthesis; "ignore" leaves such lines alone entirely.
+    continuation_style: Literal["hanging", "aligned", "ignore"] = "hanging"
 
 
 class VariablePrefixConfig(BaseModel):
@@ -188,6 +192,16 @@ class DocstringRegionConfig(BaseModel):
     generic_extra_headers: list[str] = Field(default_factory=lambda: ["# Use Case"])
 
 
+class MaxLineLengthConfig(BaseModel):
+    """Configuration for MaxLineLengthRule."""
+
+    enabled: bool = True
+    limit: int = 120
+    # Spaces per level in the rewrapped output. Kept in step with
+    # `indentation.size` so the fix produces F310-conformant code.
+    indent_size: int = 4
+
+
 class WhitespaceConfig(BaseModel):
     """Configuration for the whitespace rule group (W101-W106)."""
 
@@ -253,6 +267,7 @@ class RulesConfig(BaseModel):
     docstring_region: DocstringRegionConfig = Field(
         default_factory=DocstringRegionConfig
     )
+    max_line_length: MaxLineLengthConfig = Field(default_factory=MaxLineLengthConfig)
     whitespace: WhitespaceConfig = Field(default_factory=WhitespaceConfig)
 
 

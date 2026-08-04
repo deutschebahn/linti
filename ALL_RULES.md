@@ -28,8 +28,9 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 | F250 | One Space Inside Parentheses | Enforces exactly one space inside '(' and ')' | ✅ |
 | F260 | No Multiple Spaces | Enforces no multiple consecutive spaces (except indentation) | ✅ |
 | F270 | No Trailing Whitespace | Enforces no trailing whitespace at the end of lines | ✅ |
-| F310 | Block Indentation | Enforces indentation for IF/WHILE blocks | ✅ |
+| F310 | Block Indentation | Enforces indentation for IF/WHILE blocks and wrapped lines | ✅ |
 | F320 | One Statement Per Line | Enforces that each statement is followed by a newline | ✅ |
+| F330 | Maximum Line Length | Limits how long a physical line may be | ✅ |
 
 ### Naming Convention Rules (N)
 
@@ -292,12 +293,16 @@ nVar = 1;
 
 ### F310: Block Indentation
 
-Enforces indentation for IF/WHILE blocks.
+Enforces indentation for IF/WHILE blocks and wrapped lines.
 
 **✨ Auto-fix available:** Use `linti --auto-fix` to automatically fix issues.
 
 Enforces consistent indentation for IF and WHILE blocks.
 The default indentation size is 4 spaces per nesting level. This can be configured via the `size` parameter.
+
+A line that continues a statement started earlier — a wrapped argument list, a multi-line condition — is indented in the *hanging* style: one level deeper per open parenthesis, and the line that closes a parenthesis returns to the level of the line that opened it. Set `continuation_style` to `aligned` to line wrapped content up under the opening parenthesis instead, or to `ignore` to leave hand-formatted continuation lines alone.
+
+Lines inside a multi-line string literal are never touched: their indentation is part of the string's value.
 
 **Configuration:**
 ```yaml
@@ -305,6 +310,7 @@ rules:
   indentation:
     enabled: true
     size: 4  # number of spaces per indentation level
+    continuation_style: hanging  # hanging | aligned | ignore
 ```
 
 **Valid usage:**
@@ -313,6 +319,11 @@ rules:
 IF (nValue > 0);
     nResult = 10;
 ENDIF;
+# Wrapped argument list (hanging indent)
+sValue = CellGetS(
+    'Cube',
+    'Element'
+);
 ```
 
 **Invalid usage:**
@@ -321,6 +332,9 @@ ENDIF;
 IF (nValue > 0);
 nResult = 10;
 ENDIF;
+# Wrapped line not at the hanging indent
+sValue = CellGetS( 'Cube',
+           'Element' );
 ```
 
 ---
@@ -353,6 +367,48 @@ sMessage = 'test';
 ```ti
 # Multiple statements on same line
 nValue = 5; sMessage = 'test';
+```
+
+---
+
+### F330: Maximum Line Length
+
+Limits how long a physical line may be.
+
+**✨ Auto-fix available:** Use `linti --auto-fix` to automatically fix issues.
+
+Flags any physical line longer than `limit` characters (120 by default).
+
+The fix rewraps the statement across several lines, breaking at the commas of an argument list or before the operators of a long condition, and indenting the result in the hanging style F310 enforces.
+
+Some long lines cannot be broken — a single long string literal, or a statement containing a comment that would change meaning if it moved. Those are reported without a fix.
+
+**Configuration:**
+```yaml
+rules:
+  max_line_length:
+    enabled: true
+    limit: 120
+```
+
+**Valid usage:**
+```ti
+# Wrapped at the argument boundaries
+sValue = CellGetS(
+    'Cube',
+    'Element'
+);
+# Wrapped before each operator
+IF(
+    nA = 1
+    & nB = 2
+);
+```
+
+**Invalid usage:**
+```ti
+# Single line over the limit
+sValue = CellGetS( 'Cube', 'AAAA', 'BBBB', 'CCCC', 'DDDD' );
 ```
 
 ---
@@ -1199,9 +1255,14 @@ rules:
   indentation:
     enabled: true
     size: 4  # number of spaces per indentation level
+    continuation_style: hanging  # hanging | aligned | ignore
 
   newline_per_statement:
     enabled: true
+
+  max_line_length:
+    enabled: true
+    limit: 120
 
   variable_prefix:
     enabled: true

@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
+    from linti.cst.lines import LineIndex
+    from linti.cst.node import CstNode
     from linti.semantic.constant_evaluation import ConstantEvaluationIndex
     from linti.semantic.possible_values import PossibleValues
     from linti.model.process_ir import ProcedureInfo, ProcessIR
@@ -30,6 +32,11 @@ class LintContext:
         source: Raw source text of the procedure being linted.  Used to slice
             the exact text span of an auto-fix; token values cannot be relied
             on for this because string literals are stored unquoted.
+        cst: Root of the procedure's concrete syntax tree, or None when the
+            procedure could not be parsed.  Rules that reason about layout
+            rather than meaning — which physical line continues which
+            statement, where a call's arguments may be broken — go through
+            :attr:`lines` rather than reading this directly.
         constants: Process-wide ConstantEvaluationIndex shared by all
             sections of the process, or None when none was supplied (e.g. a
             rule linted in isolation without a process model).
@@ -50,9 +57,12 @@ class LintContext:
     block_stack: list[str] = field(default_factory=list)
     tokens: Optional[list] = None
     source: Optional[str] = None
+    cst: Optional["CstNode"] = None
     constants: Optional["ConstantEvaluationIndex"] = None
     datasource_type: Optional[str] = None
     datasource_query: Optional[str] = None
+    #: Lazily built line model; see :attr:`lines`.
+    _line_index: Optional["LineIndex"] = field(default=None, repr=False, compare=False)
 
     @classmethod
     def for_procedure(
@@ -123,6 +133,23 @@ class LintContext:
         if self.constants is None or self.block is None:
             return UNASSIGNED
         return self.constants.possible_values_at(name, self.block, line)
+
+    @property
+    def lines(self) -> Optional["LineIndex"]:
+        """The procedure's physical-line model, or None without a parsed CST.
+
+        Answers the questions token lookaround cannot: does this physical line
+        start a statement or continue one, how deep inside parentheses does it
+        begin, what indentation does the house style call for.  Built lazily on
+        first access, so rules that never ask cost nothing.
+        """
+        if self._line_index is None:
+            if self.cst is None or self.tokens is None:
+                return None
+            from linti.cst.lines import LineIndex
+
+            self._line_index = LineIndex(self.tokens, self.cst)
+        return self._line_index
 
     def in_control_block(self) -> bool:
         """

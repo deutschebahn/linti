@@ -229,7 +229,10 @@ PrologProcedure: |-
         file_path = Path(tmpdir) / "process.yaml"
         file_path.write_text(yaml_content)
 
-        linter = Linter(rules=[KeywordCasingRule(style="uppercase"), IndentationRule()])
+        linter = Linter(
+            rules=[KeywordCasingRule(style="uppercase")],
+            statement_rules=[IndentationRule()],
+        )
 
         fixes_by_proc = auto_fix_file(file_path, linter)
         fixed_content = file_path.read_text()
@@ -259,11 +262,8 @@ def test_iterative_fixes_resolve_indentation_after_newlines():
     """A later pass should fix indentation revealed by newline insertion."""
     code = "a = 1;iF(a=1);a = b;ENDif;"
     linter = Linter(
-        rules=[
-            KeywordCasingRule(style="lowercase"),
-            NewLinePerStatementRule(),
-            IndentationRule(),
-        ]
+        rules=[KeywordCasingRule(style="lowercase"), NewLinePerStatementRule()],
+        statement_rules=[IndentationRule()],
     )
 
     fixed_code, num_fixes = apply_fixes_iteratively(code, linter)
@@ -281,11 +281,8 @@ def test_auto_fix_ti_file_runs_multiple_passes():
         file_path.write_text(code)
 
         linter = Linter(
-            rules=[
-                KeywordCasingRule(style="lowercase"),
-                NewLinePerStatementRule(),
-                IndentationRule(),
-            ]
+            rules=[KeywordCasingRule(style="lowercase"), NewLinePerStatementRule()],
+            statement_rules=[IndentationRule()],
         )
 
         fixes_by_proc = auto_fix_file(file_path, linter)
@@ -331,3 +328,112 @@ def test_auto_fix_context_wires_constant_evaluation():
 
     # The Prolog value is visible while the Data block is being fixed.
     assert seen["data"] == "Region:Default"
+
+
+# ---------------------------------------------------------------------------
+# Overlapping fixes
+#
+# Rules do not coordinate, so two of them can propose edits to the same text —
+# most sharply when a structural rule rewrites a whole statement that spacing
+# rules also want to touch.  Only one can land per pass.
+# ---------------------------------------------------------------------------
+
+
+def _issue(position, old_value, new_value, rule_id="F999"):
+    return LintIssue(
+        message="test",
+        line=1,
+        column=position + 1,
+        position=position,
+        rule_id=rule_id,
+        fix=Fix(position=position, old_value=old_value, new_value=new_value),
+    )
+
+
+def test_wider_fix_wins_over_a_narrower_one_inside_it():
+    code = "func(a,b);"
+    wide = _issue(0, "func(a,b)", "func(\n    a,\n    b\n)")
+    narrow = _issue(7, "", " ")  # a space after the comma
+
+    fixed_code, num_fixes = apply_fixes(code, [narrow, wide])
+
+    assert fixed_code == "func(\n    a,\n    b\n);"
+    assert num_fixes == 1
+
+
+def test_displaced_fix_is_not_lost_across_passes():
+    """The narrow fix comes back once the wide rewrite has landed."""
+    code = "nA=1;"
+
+    class _Stub:
+        def __init__(self, batches):
+            self.batches = list(batches)
+            self.max_nesting_depth = 150
+            self.max_values_per_variable = 8
+
+        def lint(self, tokens, context=None, ast=None, source=None):
+            return self.batches.pop(0) if self.batches else []
+
+    first_pass = [_issue(0, "nA=1", "nB=1"), _issue(2, "", " ")]
+    second_pass = [_issue(2, "", " ")]
+    linter = _Stub([first_pass, second_pass, []])
+
+    fixed_code, total = apply_fixes_iteratively(code, linter)
+
+    assert fixed_code == "nB =1;"
+    assert total == 2
+
+
+def test_two_insertions_at_the_same_offset_both_apply():
+    """Insertions have no span, so they do not displace each other."""
+    fixed_code, num_fixes = apply_fixes("ab", [_issue(1, "", "X"), _issue(1, "", "Y")])
+
+    assert num_fixes == 2
+    assert fixed_code in ("aXYb", "aYXb")
+
+
+def test_insertion_strictly_inside_a_replacement_is_displaced():
+    code = "func(a,b);"
+    replacement = _issue(0, "func(a,b)", "call(a, b)")
+    inside = _issue(7, "", " ")
+
+    fixed_code, num_fixes = apply_fixes(code, [inside, replacement])
+
+    assert fixed_code == "call(a, b);"
+    assert num_fixes == 1
+
+
+def test_insertion_at_a_replacement_boundary_still_applies():
+    code = "ab;"
+    replacement = _issue(0, "ab", "cd")
+    at_end = _issue(2, "", "!")
+
+    fixed_code, num_fixes = apply_fixes(code, [at_end, replacement])
+
+    assert fixed_code == "cd!;"
+    assert num_fixes == 2
+
+
+def test_adjacent_non_overlapping_fixes_all_apply():
+    fixed_code, num_fixes = apply_fixes(
+        "aabb", [_issue(0, "aa", "AA"), _issue(2, "bb", "BB")]
+    )
+
+    assert fixed_code == "AABB"
+    assert num_fixes == 2
+
+
+def test_reused_context_does_not_carry_a_stale_line_model():
+    """Each pass re-derives the layout of the code it is actually looking at.
+
+    ``apply_fixes_iteratively`` hands the *same* LintContext to every pass, but
+    the source changes underneath it. A line model cached from an earlier pass
+    would indent against lines that no longer exist.
+    """
+    code = "IF( a );\nnX = 1;\nENDIF;\n"
+    linter = Linter(statement_rules=[IndentationRule()])
+    context = LintContext(block="prolog")
+
+    fixed, _ = apply_fixes_iteratively(code, linter, context)
+
+    assert fixed == "IF( a );\n    nX = 1;\nENDIF;\n"

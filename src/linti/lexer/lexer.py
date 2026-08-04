@@ -44,7 +44,7 @@ class Lexer:
 
         self.advance()
 
-        return Token(token_type, value, start_pos, line, column)
+        return Token(token_type, value, start_pos, line, column, self.position)
 
     def whitespace(self):
         start_pos = self.position
@@ -61,7 +61,9 @@ class Lexer:
             chars.append(self.current_char)
             self.advance()
 
-        return Token(TokenType.WHITESPACE, "".join(chars), start_pos, line, column)
+        return Token(
+            TokenType.WHITESPACE, "".join(chars), start_pos, line, column, self.position
+        )
 
     def newline(self):
         start_pos = self.position
@@ -70,7 +72,7 @@ class Lexer:
 
         self.advance()
 
-        return Token(TokenType.NEWLINE, "\n", start_pos, line, column)
+        return Token(TokenType.NEWLINE, "\n", start_pos, line, column, self.position)
 
     def identifier(self):
         start_pos = self.position
@@ -97,7 +99,7 @@ class Lexer:
         else:
             token_type = TokenType.IDENTIFIER
 
-        return Token(token_type, result, start_pos, line, column)
+        return Token(token_type, result, start_pos, line, column, self.position)
 
     def operator(self):
         start_pos = self.position
@@ -112,7 +114,7 @@ class Lexer:
             self.advance()
             self.advance()
             token_type = OPERATORS[three_char]
-            return Token(token_type, three_char, start_pos, line, column)
+            return Token(token_type, three_char, start_pos, line, column, self.position)
 
         # Try 2 characters
         two_char = self.current_char + self.peek()
@@ -121,7 +123,7 @@ class Lexer:
             self.advance()
             self.advance()
             token_type = OPERATORS[two_char]
-            return Token(token_type, two_char, start_pos, line, column)
+            return Token(token_type, two_char, start_pos, line, column, self.position)
 
         # Fallback to single character
         one_char = self.current_char
@@ -129,7 +131,7 @@ class Lexer:
         if one_char in OPERATORS:
             self.advance()
             token_type = OPERATORS[one_char]
-            return Token(token_type, one_char, start_pos, line, column)
+            return Token(token_type, one_char, start_pos, line, column, self.position)
 
     def unknown(self):
         start_pos = self.position
@@ -142,7 +144,9 @@ class Lexer:
             chars.append(self.current_char)
             self.advance()
 
-        return Token(TokenType.UNKNOWN, "".join(chars), start_pos, line, column)
+        return Token(
+            TokenType.UNKNOWN, "".join(chars), start_pos, line, column, self.position
+        )
 
     def string(self):
         start_pos = self.position
@@ -178,7 +182,9 @@ class Lexer:
 
         self.advance()  # skip closing quote
 
-        return Token(TokenType.STRING, "".join(chars), start_pos, line, column)
+        return Token(
+            TokenType.STRING, "".join(chars), start_pos, line, column, self.position
+        )
 
     def number(self):
         start_pos = self.position
@@ -199,7 +205,9 @@ class Lexer:
             self.advance()
             consume_digits()
 
-        return Token(TokenType.NUMBER, "".join(chars), start_pos, line, column)
+        return Token(
+            TokenType.NUMBER, "".join(chars), start_pos, line, column, self.position
+        )
 
     def comment(self):
         start_pos = self.position
@@ -212,7 +220,9 @@ class Lexer:
             chars.append(self.current_char)
             self.advance()
 
-        return Token(TokenType.COMMENT, "".join(chars), start_pos, line, column)
+        return Token(
+            TokenType.COMMENT, "".join(chars), start_pos, line, column, self.position
+        )
 
     def tokenize(self):
         tokens = []
@@ -255,7 +265,12 @@ class Lexer:
 
             if self.current_char == "=":
                 tok = Token(
-                    TokenType.EQUALS, "=", self.position, self.line, self.column
+                    TokenType.EQUALS,
+                    "=",
+                    self.position,
+                    self.line,
+                    self.column,
+                    self.position + 1,
                 )
                 tokens.append(tok)
                 last_non_ws_type = tok.type
@@ -264,7 +279,12 @@ class Lexer:
 
             if self.current_char == ";":
                 tok = Token(
-                    TokenType.SEMICOLON, ";", self.position, self.line, self.column
+                    TokenType.SEMICOLON,
+                    ";",
+                    self.position,
+                    self.line,
+                    self.column,
+                    self.position + 1,
                 )
                 tokens.append(tok)
                 last_non_ws_type = tok.type
@@ -272,7 +292,14 @@ class Lexer:
                 continue
 
             if self.current_char == ",":
-                tok = Token(TokenType.COMMA, ",", self.position, self.line, self.column)
+                tok = Token(
+                    TokenType.COMMA,
+                    ",",
+                    self.position,
+                    self.line,
+                    self.column,
+                    self.position + 1,
+                )
                 tokens.append(tok)
                 last_non_ws_type = tok.type
                 self.advance()
