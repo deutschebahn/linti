@@ -16,7 +16,7 @@ from linti.model.process_ir import (
     ProcessIR,
     extract_procedures,  # noqa: F401 – re-export
 )
-from linti.provider.base import extract_datasource
+from linti.provider.base import ProviderError, extract_datasource
 
 
 # Custom YAML constructor to handle !TM1py.ProcessObject tags
@@ -197,7 +197,7 @@ class YamlProvider:
     def get_process(self, name: str) -> ProcessIR:
         process = self._load_process()
         if process.name != name:
-            raise ValueError(
+            raise ProviderError(
                 f"Unknown YAML process: {name!r} (expected {process.name!r})"
             )
         return process
@@ -214,7 +214,9 @@ class YamlProvider:
 
         for _name, proc_info in procedure_infos:
             if proc_info.source_line < 1:
-                raise ValueError("ProcessIR is missing valid YAML source line metadata")
+                raise ProviderError(
+                    "ProcessIR is missing valid YAML source line metadata"
+                )
             # Empty procedure (no content lines in YAML) — nothing to replace.
             if proc_info.source_end_line < proc_info.source_line:
                 continue
@@ -269,10 +271,10 @@ class YamlProvider:
         data = yaml.safe_load(content)
 
         if not data:
-            raise ValueError(f"Empty or invalid YAML file: {self.file_path}")
+            raise ProviderError(f"Empty or invalid YAML file: {self.file_path}")
 
         if not _is_tm1_process_yaml(content, data):
-            raise ValueError(
+            raise ProviderError(
                 f"Not a TM1 process YAML file (missing !TM1py.ProcessObject "
                 f'tag or kind: "process_definition"): {self.file_path}'
             )

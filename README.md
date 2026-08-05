@@ -52,6 +52,71 @@ It is not affiliated with, endorsed by, sponsored by, or maintained by IBM. TM1,
   - Entire file is treated as Prolog.
   - Only Prolog-valid and section-independent rules are meaningful.
 
+## Linting Processes on a TM1 Server
+
+Processes that live only on a server — never exported to a file — can be linted
+through `TM1Provider`, which reads and writes them over an existing
+[TM1py](https://github.com/cubewise-code/tm1py) connection.
+
+**linti does not depend on TM1py.** The provider is duck-typed: it takes a
+connection you already opened and never builds one itself. That keeps the
+integration usable from either side — a TM1py script can call linti, and linti
+can be pointed at a server later, without either package owning the other.
+
+Lint a single process you already hold, without touching the server:
+
+```python
+from linti import Config, Linter, create_rules, lint_process_model, process_ir_from_tm1
+
+token_rules, statement_rules = create_rules(Config())
+linter = Linter(rules=token_rules, statement_rules=statement_rules)
+
+process = tm1.processes.get("Bedrock.Dim.Clone")
+issues = lint_process_model(process_ir_from_tm1(process), linter)
+```
+
+Lint a whole server and report the results:
+
+```python
+from TM1py import TM1Service
+from linti import TM1Provider, lint_all, render_directory_report
+
+with TM1Service(address="localhost", port=12354, user="admin", password="apple", ssl=True) as tm1:
+    results = lint_all(TM1Provider(tm1, prefetch=True), linter)
+
+flat = [(name, proc, issue, line)
+        for name, issues in results.items()
+        for proc, issue, line in issues]
+print("\n".join(render_directory_report("tm1srv01", flat, label_caption="PROCESS")))
+```
+
+Pass `auto_fix=True` to `lint_all` or `lint_process` to write fixes back. Note
+that each process that actually changes costs four requests — fetch, compile,
+update, and a re-fetch for the authoritative re-lint — so a fixing run across a
+whole model is considerably slower than a reporting one. Processes that need no
+fix are never written and cost one request.
+
+### What the provider does with server-side code
+
+- **Generated statements.** TM1 wraps every procedure in a
+  `#****Begin: Generated Statements***` block. It is removed before linting and
+  restored byte for byte on write, so no rule fires on it and no fix can land
+  inside it.
+- **Line numbers.** Reported lines count from line 1 of the stored procedure,
+  the generated block included — the same numbering `tm1.processes.compile()`
+  uses, so linti's output and the server's own errors line up.
+- **Line endings.** Server code is CRLF. It is normalised for linting and
+  restored on write; without that, every line of every process would report
+  F270 and auto-fix would never converge.
+- **Write-back safety.** Only the four procedures are ever written — parameters,
+  variables and the data source are read-only. A process whose code did not
+  change is not written at all, and before each write the server is asked to
+  compile the fixed code; if it reports syntax errors, the write is refused.
+  Pass `verify_before_save=False` to skip that check.
+- **Options.** `skip_control_processes` (default on) hides TM1's own `}`/`{`
+  processes; `prefetch=True` fetches the whole model in one call instead of one
+  request per process.
+
 ## Install via Pypi
 
 The linter is available on PyPI and can be installed using `pip install linti`.

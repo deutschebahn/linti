@@ -8,7 +8,7 @@ Supports both formats:
 from pathlib import Path
 
 from linti.model.process_ir import ProcedureInfo, ProcessIR
-from linti.provider.base import validate_process_name
+from linti.provider.base import ProviderError, count_code_lines, validate_process_name
 from linti.provider.ti_regions import parse_ti_regions, serialize_ti_regions
 
 
@@ -29,7 +29,7 @@ class TiProvider:
         """
         expected_name = self.file_path.stem
         if name != expected_name:
-            raise ValueError(
+            raise ProviderError(
                 f"Unknown TI process: {name!r} (expected {expected_name!r})"
             )
 
@@ -45,7 +45,7 @@ class TiProvider:
                 provider_data={"ti_has_regions": True},
             )
 
-        line_count = code.count("\n") + (1 if code and not code.endswith("\n") else 0)
+        line_count = count_code_lines(code)
 
         return ProcessIR(
             name=expected_name,
