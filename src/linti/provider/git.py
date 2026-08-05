@@ -19,6 +19,7 @@ from pathlib import Path
 from linti.model.process_ir import ProcessIR
 from linti.provider.base import (
     DEFAULT_MAX_FILE_SIZE,
+    ProviderError,
     ensure_within_size_limit,
     extract_datasource,
     extract_named_entries,
@@ -37,10 +38,10 @@ class GitProvider:
         try:
             self._meta = json.loads(json_path.read_text())
         except json.JSONDecodeError as exc:
-            raise ValueError(f"Invalid JSON in {json_path}: {exc}") from exc
+            raise ProviderError(f"Invalid JSON in {json_path}: {exc}") from exc
         code_link = self._meta.get("Code@Code.link")
         if not code_link:
-            raise ValueError(
+            raise ProviderError(
                 f"JSON metadata missing 'Code@Code.link' field: {json_path}"
             )
         self._ti_path = self._resolve_code_link(json_path, code_link)
@@ -56,14 +57,14 @@ class GitProvider:
         """
         link = Path(code_link)
         if link.is_absolute():
-            raise ValueError(
+            raise ProviderError(
                 f"'Code@Code.link' must be a relative path, got absolute: "
                 f"{code_link!r} in {json_path}"
             )
         base = json_path.parent.resolve()
         resolved = (base / link).resolve()
         if not resolved.is_relative_to(base):
-            raise ValueError(
+            raise ProviderError(
                 f"'Code@Code.link' escapes the process directory: "
                 f"{code_link!r} in {json_path}"
             )
@@ -75,7 +76,9 @@ class GitProvider:
     def get_process(self, name: str) -> ProcessIR:
         expected_name = self._meta["Name"]
         if name != expected_name:
-            raise ValueError(f"Unknown process: {name!r} (expected {expected_name!r})")
+            raise ProviderError(
+                f"Unknown process: {name!r} (expected {expected_name!r})"
+            )
 
         ensure_within_size_limit(self._ti_path, self._max_file_size)
         code = self._ti_path.read_text()

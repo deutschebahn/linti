@@ -7,6 +7,7 @@ from typing import Any
 
 from linti.model.process_ir import ProcedureInfo, ProcessIR
 from linti.provider.base import (
+    ProviderError,
     extract_datasource,
     extract_named_entries,
     validate_process_name,
@@ -96,7 +97,7 @@ def _parse_json_properties(lines: list[str]) -> tuple[dict[str, Any], int]:
     try:
         data = json.loads(json_text)
     except json.JSONDecodeError as exc:
-        raise ValueError("Invalid #JSON_PROPERTIES JSON block") from exc
+        raise ProviderError("Invalid #JSON_PROPERTIES JSON block") from exc
 
     return data if isinstance(data, dict) else {}, json_marker_line
 
@@ -127,13 +128,13 @@ class PaCodeProvider:
     def get_process(self, name: str) -> ProcessIR:
         expected_name = self.file_path.stem
         if name != expected_name:
-            raise ValueError(
+            raise ProviderError(
                 f"Unknown PA code process: {name!r} (expected {expected_name!r})"
             )
 
         content = self.file_path.read_text()
         if not is_pa_code_content(content):
-            raise ValueError(f"Not a PA code file: {self.file_path}")
+            raise ProviderError(f"Not a PA code file: {self.file_path}")
 
         lines = content.splitlines()
         metadata, json_marker_line = _parse_json_properties(lines)

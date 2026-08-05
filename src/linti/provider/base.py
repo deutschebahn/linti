@@ -10,13 +10,46 @@ from linti.model.process_ir import ProcessIR
 DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
+class ProviderError(ValueError):
+    """A provider could not load or save a process.
+
+    Subclasses ``ValueError`` so it stays compatible with the error contract
+    providers had before this type existed: callers that catch ``ValueError``
+    keep working, while callers that want to tell a provider failure apart from
+    a programming error now can.
+    """
+
+
 def ensure_within_size_limit(path: Path, max_bytes: int) -> None:
     """Raise if *path* exceeds *max_bytes*, checking size without reading it."""
     size = path.stat().st_size
     if size > max_bytes:
-        raise ValueError(
+        raise ProviderError(
             f"File exceeds size limit ({size} > {max_bytes} bytes): {path}"
         )
+
+
+def ensure_text_within_size_limit(size: int, max_bytes: int, label: str) -> None:
+    """Raise if an already-fetched process of *size* bytes exceeds *max_bytes*.
+
+    The counterpart to :func:`ensure_within_size_limit` for providers whose
+    input never touches the filesystem and therefore cannot be ``stat``\\ ed
+    ahead of the read. *label* names the process in the error message.
+    """
+    if size > max_bytes:
+        raise ProviderError(
+            f"Process exceeds size limit ({size} > {max_bytes} bytes): {label}"
+        )
+
+
+def count_code_lines(code: str) -> int:
+    """Return the number of lines in *code*.
+
+    A trailing newline does not open a further line, so ``"a\\nb\\n"`` is two
+    lines, as is ``"a\\nb"``. Empty code is zero lines; callers that need a
+    1-based end line clamp with ``max(..., 1)``.
+    """
+    return code.count("\n") + (1 if code and not code.endswith("\n") else 0)
 
 
 class ProcessProvider(Protocol):
@@ -31,9 +64,9 @@ def require_single_process_name(provider: ProcessProvider) -> str:
     """Return the only process name from *provider* or raise a clear error."""
     process_names = provider.list_processes()
     if not process_names:
-        raise ValueError("Provider returned no process names")
+        raise ProviderError("Provider returned no process names")
     if len(process_names) > 1:
-        raise ValueError(
+        raise ProviderError(
             "Expected exactly one process name, got "
             f"{len(process_names)}: {process_names!r}"
         )
@@ -49,7 +82,7 @@ def load_single_process(provider: ProcessProvider) -> ProcessIR:
 def validate_process_name(actual: str, expected: str, context: str) -> None:
     """Raise if *actual* does not match *expected* process name."""
     if actual != expected:
-        raise ValueError(
+        raise ProviderError(
             f"Cannot save process {actual!r} to {context} (expected {expected!r})"
         )
 

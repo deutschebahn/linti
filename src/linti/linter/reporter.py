@@ -10,12 +10,17 @@ source file format — the provider layer normalises everything.
 import re
 from pathlib import Path
 from shlex import quote
+from typing import Optional, Union
 
 from linti.linter.lint_issue import LintIssue
 
+# What an issue is attributed to. A path for file-backed processes; a plain
+# string for sources that have no path, such as a process on a TM1 server.
+SourceLabel = Union[Path, str]
+
 # Canonical issue type returned by the API layer.
 ProcedureIssue = tuple[str, LintIssue, int]
-FileProcedureIssue = tuple[Path, str, LintIssue, int]
+FileProcedureIssue = tuple[SourceLabel, str, LintIssue, int]
 
 
 def separator(char: str = "=", width: int = 70) -> str:
@@ -33,7 +38,7 @@ def adjust_line_numbers_in_message(message: str, source_line: int) -> str:
 
 
 def format_issue(
-    file_path: Path, proc_name: str, issue: LintIssue, source_line: int
+    file_path: SourceLabel, proc_name: str, issue: LintIssue, source_line: int
 ) -> str:
     """Format a single issue with adjusted line numbers and procedure context."""
     adjusted_line = source_line + issue.line - 1
@@ -47,7 +52,7 @@ def format_issue(
 
 def collect_report(
     all_issues: list[ProcedureIssue],
-    file_path: Path,
+    file_path: SourceLabel,
 ) -> list[str]:
     """Format all issues for one file. Returns list of formatted lines."""
     return [
@@ -63,8 +68,17 @@ def summary(issues: list[ProcedureIssue]) -> tuple[int, int]:
     return total, fixable
 
 
-def render_file_report(file_path: Path, issues: list[ProcedureIssue]) -> list[str]:
-    """Build output lines for a single-file report."""
+def render_file_report(
+    file_path: SourceLabel,
+    issues: list[ProcedureIssue],
+    fix_command: Optional[str] = None,
+) -> list[str]:
+    """Build output lines for a single-file report.
+
+    *fix_command* overrides the suggested auto-fix invocation, which defaults to
+    re-running linti against *file_path*. Sources that are not addressable by
+    path — a process on a TM1 server — pass whatever command does reach them.
+    """
     if not issues:
         return [f"✓ No issues found in {file_path}"]
 
@@ -79,19 +93,28 @@ def render_file_report(file_path: Path, issues: list[ProcedureIssue]) -> list[st
     lines.append(f"\n{separator()}")
     lines.append(f"Total Issues: {total} (Auto-fixable: {fixable_count})")
     if fixable_count > 0:
-        lines.append(f"Run: linti {quote(str(file_path))} --auto-fix")
+        command = fix_command or f"linti {quote(str(file_path))} --auto-fix"
+        lines.append(f"Run: {command}")
     lines.append("")
     return lines
 
 
 def render_directory_report(
-    directory: Path, all_file_issues: list[FileProcedureIssue]
+    directory: SourceLabel,
+    all_file_issues: list[FileProcedureIssue],
+    label_caption: str = "FILE",
+    fix_command: Optional[str] = None,
 ) -> list[str]:
-    """Build output lines for a multi-file directory report."""
+    """Build output lines for a report spanning several processes.
+
+    *label_caption* names what each group is (``FILE`` for a directory scan,
+    ``PROCESS`` for a server run); *fix_command* works as in
+    :func:`render_file_report`.
+    """
     if not all_file_issues:
         return [f"\n✓ No issues found in {directory}"]
 
-    issues_by_file: dict[Path, list[ProcedureIssue]] = {}
+    issues_by_file: dict[SourceLabel, list[ProcedureIssue]] = {}
     for file_path, proc_name, issue, source_line in all_file_issues:
         issues_by_file.setdefault(file_path, []).append((proc_name, issue, source_line))
 
@@ -99,11 +122,13 @@ def render_directory_report(
     total_issues = 0
     total_fixable = 0
 
-    for file_path in sorted(issues_by_file):
+    # Sort by rendered text: paths and plain labels are not comparable to each
+    # other, and this keeps a mixed batch from blowing up on an ordering detail.
+    for file_path in sorted(issues_by_file, key=str):
         file_issues = issues_by_file[file_path]
         file_fixable = sum(1 for _, issue, _ in file_issues if issue.fix is not None)
 
-        lines.append(f"\n  FILE: {file_path}")
+        lines.append(f"\n  {label_caption}: {file_path}")
         lines.append(f"  {separator('-', 50)}")
 
         for proc_name, issue, source_line in file_issues:
@@ -119,13 +144,15 @@ def render_directory_report(
     lines.append(f"\n{separator()}")
     lines.append("SUMMARY")
     lines.append(separator())
-    lines.append(f"  Total Files:   {len(issues_by_file)}")
+    total_caption = f"Total {label_caption.capitalize()}s:"
+    lines.append(f"  {total_caption:<14} {len(issues_by_file)}")
     lines.append(f"  Total Issues:  {total_issues}")
     lines.append(f"    ├─ Auto-fixable: {total_fixable}")
     lines.append(f"    └─ Other:       {total_issues - total_fixable}")
 
     if total_fixable > 0:
-        lines.append(f"\n  Run: linti {quote(str(directory))} --auto-fix")
+        command = fix_command or f"linti {quote(str(directory))} --auto-fix"
+        lines.append(f"\n  Run: {command}")
     lines.append("")
     return lines
 

@@ -6,6 +6,7 @@ from linti.model.process_ir import ProcessIR
 from linti.provider.base import (
     DEFAULT_MAX_FILE_SIZE,
     ProcessProvider,
+    ProviderError,
     ensure_within_size_limit,
     load_single_process,
 )
@@ -61,7 +62,7 @@ def provider_for_path(
             return PaCodeProvider(file_path)
 
         return TiProvider(file_path)
-    raise ValueError(
+    raise ProviderError(
         f"No loader registered for file type: {file_path.suffix!r} ({file_path})"
     )
 

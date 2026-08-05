@@ -1,5 +1,7 @@
 """High-level linting operations on ProcessIR and providers."""
 
+from typing import Callable, Optional
+
 from linti.semantic.constant_evaluation import ConstantEvaluationIndex
 from linti.linter.fixer import auto_fix_process
 from linti.linter.lint_context import LintContext
@@ -73,14 +75,30 @@ def lint_all(
     provider: ProcessProvider,
     linter: Linter,
     auto_fix: bool = False,
+    on_error: Optional[Callable[[str, Exception], None]] = None,
 ) -> dict[str, list[ProcedureIssue]]:
-    """Lint all provider-backed processes and return results keyed by name."""
+    """Lint all provider-backed processes and return results keyed by name.
+
+    Processes are visited in sorted order so iteration, write and error order
+    stay deterministic even when the provider's listing is unordered (a remote
+    provider returns whatever the server sends).
+
+    *on_error* controls what a per-process failure does. Left at ``None`` the
+    first failure propagates, which is what a single-process file run wants.
+    A callback receives ``(process_name, exception)`` and lets the run continue
+    with the remaining processes — relevant for a provider spanning hundreds of
+    processes, where one unreadable process must not hide the rest. There is
+    deliberately no "ignore errors" flag: continuing requires the caller to say
+    what happens to the failure.
+    """
     results: dict[str, list[ProcedureIssue]] = {}
-    for process_name in provider.list_processes():
-        results[process_name] = lint_process(
-            provider,
-            process_name,
-            linter,
-            auto_fix=auto_fix,
-        )
+    for process_name in sorted(provider.list_processes()):
+        try:
+            results.update(
+                lint_process(provider, process_name, linter, auto_fix=auto_fix)
+            )
+        except Exception as exc:
+            if on_error is None:
+                raise
+            on_error(process_name, exc)
     return results
