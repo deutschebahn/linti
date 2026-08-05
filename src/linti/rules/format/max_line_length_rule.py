@@ -133,7 +133,10 @@ class MaxLineLengthRule(BaseStatementRule):
                 return self._fix_comment(number, context, fixed_spans)
             return None
 
-        node = context.cst.covering_node(self._token_index(context, info.first_token))
+        if info.first_token_index is None:
+            return None
+
+        node = context.cst.covering_node(info.first_token_index)
         target = reflow_target(node)
         if target is None:
             return None
@@ -199,13 +202,6 @@ class MaxLineLengthRule(BaseStatementRule):
     @staticmethod
     def _first_line_of(node, context) -> int:
         return context.tokens[node.start].line
-
-    @staticmethod
-    def _token_index(context, token) -> int:
-        for index, candidate in enumerate(context.tokens):
-            if candidate is token:
-                return index
-        return 0
 
     @staticmethod
     def _line_offset(source: str, number: int) -> int:
