@@ -76,12 +76,45 @@ def test_each_long_line_is_reported():
     assert [i.line for i in issues] == [2, 3]
 
 
-def test_long_comment_line_is_reported_without_a_fix():
+def test_long_comment_single_word_is_reported_without_a_fix():
     code = "# " + "x" * 60 + "\nnA = 1;\n"
     issues = _lint(code)
 
     assert len(issues) == 1
     assert issues[0].fix is None
+
+
+def test_long_comment_is_wrapped_at_word_boundaries():
+    code = "# Element mapping for new dimensions is also required when the target cube has more dimensions\n"
+
+    fixed = _fix(code, limit=60)
+    assert fixed == (
+        "# Element mapping for new dimensions is also required when\n"
+        "# the target cube has more dimensions\n"
+    )
+
+
+def test_indented_comment_is_wrapped_preserving_indent():
+    code = "    # Element mapping for new dimensions is also required when the target cube has more dimensions\n"
+
+    fixed = _fix(code, limit=60)
+    assert fixed == (
+        "    # Element mapping for new dimensions is also required\n"
+        "    # when the target cube has more dimensions\n"
+    )
+
+
+def test_comment_wrapping_is_idempotent():
+    code = "# This is a very long comment line that should be wrapped at word boundaries to fit the limit\n"
+    once = _fix(code, limit=40)
+
+    assert _fix(once, limit=40) == once
+
+
+def test_short_comment_is_not_changed():
+    code = "# short comment\nnA = 1;\n"
+
+    assert _fix(code) == code
 
 
 def test_issue_position_points_at_the_start_of_its_line():

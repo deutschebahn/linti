@@ -1,5 +1,8 @@
 """F330 – Maximum line length."""
 
+import re
+import textwrap
+
 from linti.cst.layout import Reflow, reflow_target
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import Fix, LintIssue
@@ -23,7 +26,8 @@ class MaxLineLengthRule(BaseStatementRule):
             "The fix rewraps the statement across several lines, breaking at "
             "the commas of an argument list or before the operators of a long "
             "condition, and indenting the result in the hanging style F310 "
-            "enforces.\n\n"
+            "enforces.  Long comment lines are wrapped at word boundaries, "
+            "preserving the leading ``#`` prefix on each continuation line.\n\n"
             "Some long lines cannot be broken — a single long string literal, "
             "or a statement containing a comment that would change meaning if "
             "it moved. Those are reported without a fix."
@@ -121,8 +125,13 @@ class MaxLineLengthRule(BaseStatementRule):
             return None
 
         info = lines.get(number)
-        if info is None or info.first_token is None:
-            return None  # a long comment or a line inside a string literal
+        if info is None:
+            return None
+
+        if info.first_token is None:
+            if info.is_comment_only:
+                return self._fix_comment(number, context, fixed_spans)
+            return None
 
         node = context.cst.covering_node(self._token_index(context, info.first_token))
         target = reflow_target(node)
@@ -149,6 +158,43 @@ class MaxLineLengthRule(BaseStatementRule):
             old_value=context.source[span[0] : span[1]],
             new_value=rendered,
         )
+
+    def _fix_comment(self, number, context, fixed_spans):
+        """Wrap a long comment line at word boundaries."""
+        source = context.source
+        line_offset = self._line_offset(source, number)
+        nl = source.find("\n", line_offset)
+        line_text = source[line_offset : nl if nl != -1 else len(source)]
+
+        m = re.match(r"^(\s*)(#\s*)", line_text)
+        if m is None:
+            return None
+
+        indent = m.group(1)
+        marker = m.group(2)
+        body = line_text[len(m.group(0)) :]
+        prefix = indent + "# "
+        width = self.limit - len(prefix)
+        if width < 10:
+            return None
+
+        wrapped = textwrap.fill(
+            body, width=width, break_long_words=False, break_on_hyphens=False
+        )
+        lines = wrapped.split("\n")
+        result = indent + marker + lines[0]
+        for continuation in lines[1:]:
+            result += "\n" + prefix + continuation
+
+        if result == line_text:
+            return None
+
+        key = ("comment", line_offset)
+        if key in fixed_spans:
+            return None
+        fixed_spans.add(key)
+
+        return Fix(position=line_offset, old_value=line_text, new_value=result)
 
     @staticmethod
     def _first_line_of(node, context) -> int:
