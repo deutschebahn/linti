@@ -232,3 +232,41 @@ EpilogProcedure: null
 
     assert provider.list_processes() == ["TestProcess"]
     assert provider.get_process("TestProcess").prolog.code == "nValue = 1;\n"
+
+
+def test_save_process_preserves_empty_procedures(tmp_path):
+    """Test that save_process does not corrupt empty procedure blocks."""
+    p = tmp_path / "test.yaml"
+    content = """\
+apiVersion: "1.0"
+kind: process_definition
+metadata:
+  name: "TestProcess"
+config:
+  definition:
+    Name: TestProcess
+    PrologProcedure: |-
+      nValue = 1;
+    MetadataProcedure: |
+    DataProcedure: |
+    EpilogProcedure: |
+    HasSecurityAccess: false
+    DataSource:
+      Type: None
+    Parameters:
+      - Name: pParam
+        Prompt: "A param"
+        Value: ""
+        Type: String
+"""
+    p.write_text(content)
+
+    provider = YamlProvider(p)
+    process = provider.get_process("TestProcess")
+    provider.save_process(process)
+
+    result = p.read_text()
+    assert "DataProcedure: |" in result or "DataProcedure:" in result
+    assert "EpilogProcedure: |" in result or "EpilogProcedure:" in result
+    assert "HasSecurityAccess: false" in result
+    assert "DataSource:" in result
