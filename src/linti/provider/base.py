@@ -35,6 +35,9 @@ def ensure_text_within_size_limit(size: int, max_bytes: int, label: str) -> None
     The counterpart to :func:`ensure_within_size_limit` for providers whose
     input never touches the filesystem and therefore cannot be ``stat``\\ ed
     ahead of the read. *label* names the process in the error message.
+
+    *size* must be a count of encoded bytes, not of characters, so that a limit
+    means the same thing here as it does for a file on disk.
     """
     if size > max_bytes:
         raise ProviderError(

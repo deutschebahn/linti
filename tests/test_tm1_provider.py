@@ -142,6 +142,20 @@ class TestListProcesses:
 
         assert calls == []
 
+    def test_prefetch_does_not_alias_the_same_process_across_reads(self):
+        # Prefetch is a transport optimisation; it must not change what callers
+        # observe. The server's own get() deserialises a fresh object per call.
+        tm1 = FakeTM1(make_process())
+        provider = TM1Provider(tm1, prefetch=True)
+        first = provider.get_process("MyProcess")
+        second = provider.get_process("MyProcess")
+
+        assert first.provider_data[PROCESS_KEY] is not second.provider_data[PROCESS_KEY]
+
+        first.prolog.code = "nValue = 42;\n"
+        provider.save_process(first)
+        assert "nValue = 42;" not in second.provider_data[PROCESS_KEY].prolog_procedure
+
 
 class TestGetProcess:
     def test_round_trips_a_process(self):
@@ -178,6 +192,14 @@ class TestGetProcess:
     def test_oversized_process_is_rejected(self):
         tm1 = FakeTM1(make_process(prolog_procedure="x" * 5000))
         provider = TM1Provider(tm1, max_process_size=1000)
+        with pytest.raises(ProviderError, match="exceeds size limit"):
+            provider.get_process("MyProcess")
+
+    def test_size_limit_counts_encoded_bytes_not_characters(self):
+        # 400 umlauts are 800 UTF-8 bytes; a byte limit must reject them where a
+        # character count would let them through.
+        tm1 = FakeTM1(make_process(prolog_procedure="ü" * 400))
+        provider = TM1Provider(tm1, max_process_size=500)
         with pytest.raises(ProviderError, match="exceeds size limit"):
             provider.get_process("MyProcess")
 
@@ -252,6 +274,35 @@ class TestSaveProcess:
 
         # Must come from the server, not from the pre-save snapshot.
         assert "nValue = 42;" in provider.get_process("MyProcess").prolog.code
+
+    def test_prefetch_cache_is_invalidated_when_verification_refuses_the_write(self):
+        # save_process mutates the server object before verifying it, so a
+        # refused write must not leave those edits readable from the cache —
+        # they were never accepted by the server.
+        tm1 = FakeTM1(
+            make_process(), compile_errors={"MyProcess": [{"Message": "Syntax error"}]}
+        )
+        provider = TM1Provider(tm1, prefetch=True)
+        ir = provider.get_process("MyProcess")
+        ir.prolog.code = "nBROKEN = ;\n"
+
+        with pytest.raises(TM1ProviderError):
+            provider.save_process(ir)
+
+        assert tm1.processes.updated == []
+        assert provider.get_process("MyProcess").prolog.code != "nBROKEN = ;\n"
+        assert "nValue = 1;" in provider.get_process("MyProcess").prolog.code
+
+    def test_prefetch_cache_is_invalidated_when_the_update_fails(self):
+        tm1 = FakeTM1(make_process(), raise_on_update=TM1pyRestException("timeout"))
+        provider = TM1Provider(tm1, prefetch=True)
+        ir = provider.get_process("MyProcess")
+        ir.prolog.code = "nUnsaved = 2;\n"
+
+        with pytest.raises(TM1ProviderError):
+            provider.save_process(ir)
+
+        assert "nValue = 1;" in provider.get_process("MyProcess").prolog.code
 
     def test_update_failure_names_the_original_error(self):
         tm1 = FakeTM1(make_process(), raise_on_update=TM1pyRestException("403"))

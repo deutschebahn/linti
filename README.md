@@ -90,7 +90,11 @@ flat = [(name, proc, issue, line)
 print("\n".join(render_directory_report("tm1srv01", flat, label_caption="PROCESS")))
 ```
 
-Pass `auto_fix=True` to `lint_all` or `lint_process` to write fixes back.
+Pass `auto_fix=True` to `lint_all` or `lint_process` to write fixes back. Note
+that each process that actually changes costs four requests — fetch, compile,
+update, and a re-fetch for the authoritative re-lint — so a fixing run across a
+whole model is considerably slower than a reporting one. Processes that need no
+fix are never written and cost one request.
 
 ### What the provider does with server-side code
 

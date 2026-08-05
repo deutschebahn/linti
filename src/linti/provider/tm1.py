@@ -16,6 +16,7 @@ both integration directions open: a TM1py-driven script hands in its own
 the same constructor — neither one is baked into this module.
 """
 
+import copy
 import warnings
 from typing import Any, Callable, Optional
 
@@ -64,6 +65,13 @@ def process_ir_from_tm1(process: Any) -> ProcessIR:
     Only the four procedures are interpreted. Parameters and variables are read
     for the context-aware rules but never written back — TM1py exposes them
     without setters, so linti cannot alter them even by accident.
+
+    Note that the returned IR keeps a reference to *process* itself under
+    ``provider_data[PROCESS_KEY]``, which is what lets
+    :func:`apply_to_tm1_process` write fixes back to the object the code came
+    from. The IR is therefore a live handle, not a plain data snapshot: it is
+    not serialisable, and it keeps the process object alive for as long as it
+    is held.
     """
     decoded: dict[str, TM1Code] = {}
     procedures: dict[str, ProcedureInfo] = {}
@@ -232,15 +240,22 @@ class TM1Provider:
         return name.startswith(_CONTROL_PREFIXES)
 
     def _fetch(self, name: str) -> Any:
-        """Return the server's process object for *name*."""
+        """Return a process object for *name*, never one another caller holds."""
         if self._prefetch:
             if self._cache is None:
                 self.list_processes()
-            # A miss is normal after save_process invalidates an entry; fall
-            # through and re-read that one process from the server.
             cached = (self._cache or {}).get(name)
             if cached is not None:
-                return cached
+                # Hand out a copy, because the server's own get() deserialises a
+                # fresh object per call. Sharing the cached instance would make
+                # two ProcessIRs alias one mutable process, so a save through one
+                # would silently show up in the other — prefetch is a transport
+                # optimisation and must not change what callers observe.
+                return self._call(
+                    f"Cannot copy cached process {name!r} from {self._label}",
+                    copy.deepcopy,
+                    cached,
+                )
 
         process = self._call(
             f"Cannot load process {name!r} from {self._label}",
@@ -288,8 +303,12 @@ class TM1Provider:
                 f"returned {actual!r}"
             )
 
+        # Measured in encoded bytes, so max_process_size means the same thing
+        # here as the file providers' max_file_size does.
         size = sum(
-            len(getattr(process, _procedure_attr(section), None) or "")
+            len(
+                (getattr(process, _procedure_attr(section), None) or "").encode("utf-8")
+            )
             for section in _SECTIONS
         )
         ensure_text_within_size_limit(size, self._max_process_size, name)
@@ -313,6 +332,14 @@ class TM1Provider:
         if not apply_to_tm1_process(process, target):
             return
 
+        # Drop the cached copy before touching the server, not after. From here
+        # on the prefetched snapshot is stale whatever happens: the write may
+        # succeed, or it may be refused with *target* already carrying the local
+        # edits. Either way the next read has to come from the server, or it
+        # would report against code the server never accepted.
+        if self._cache is not None:
+            self._cache.pop(process.name, None)
+
         if self._verify_before_save:
             self._verify(process.name, target)
 
@@ -321,8 +348,6 @@ class TM1Provider:
             self._processes.update,
             target,
         )
-        if self._cache is not None:
-            self._cache.pop(process.name, None)
 
     def _verify(self, name: str, target: Any) -> None:
         """Refuse the write if the server rejects the fixed code.
@@ -337,7 +362,8 @@ class TM1Provider:
                 f"{self._label} does not support pre-save compilation; saving "
                 f"{name!r} without server-side verification",
                 RuntimeWarning,
-                stacklevel=2,
+                # _verify <- save_process <- the caller who asked for the write.
+                stacklevel=3,
             )
             return
 
