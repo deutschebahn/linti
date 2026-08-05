@@ -379,7 +379,7 @@ Limits how long a physical line may be.
 
 Flags any physical line longer than `limit` characters (120 by default).
 
-The fix rewraps the statement across several lines, breaking at the commas of an argument list or before the operators of a long condition, and indenting the result in the hanging style F310 enforces.
+The fix rewraps the statement across several lines, breaking at the commas of an argument list or before the operators of a long condition, and indenting the result in the hanging style F310 enforces.  Long comment lines are wrapped at word boundaries, preserving the leading ``#`` prefix on each continuation line.
 
 Some long lines cannot be broken — a single long string literal, or a statement containing a comment that would change meaning if it moved. Those are reported without a fix.
 
