@@ -24,7 +24,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
-from linti.cst.node import TRIVIA_TOKEN_TYPES, CstKind, CstNode, STATEMENT_KINDS
+from linti.cst.node import STATEMENT_KINDS, TRIVIA_TOKEN_TYPES, CstKind, CstNode
 from linti.lexer.token import Token, TokenType
 
 #: Nodes that begin a line the way a statement does, without being one.
@@ -51,6 +51,8 @@ class LineInfo:
         line: 1-based line number.
         first_token: First non-trivia token starting on this line, or None for
             a blank or comment-only line.
+        first_token_index: Raw-token index of ``first_token``, or None when the
+            line has no significant token.
         indent_token: The leading WHITESPACE token, or None when the line
             starts at column 1.
         indent_width: Number of leading whitespace characters.
@@ -74,6 +76,7 @@ class LineInfo:
 
     line: int
     first_token: Optional[Token] = None
+    first_token_index: Optional[int] = None
     indent_token: Optional[Token] = None
     indent_width: int = 0
     is_blank: bool = False
@@ -232,6 +235,7 @@ class LineIndex:
         return LineInfo(
             line=line,
             first_token=sig_token,
+            first_token_index=sig_index,
             indent_token=indent_token,
             indent_width=indent_width,
             statement=statement,
