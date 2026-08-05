@@ -98,7 +98,7 @@ def _find_procedure_end_line(
     """
     content_prefix = " " * content_indent
     start_idx = max(content_start_line - 1, 0)
-    last_content_line = content_start_line
+    last_content_line = content_start_line - 1
 
     for idx in range(start_idx, len(lines)):
         line = lines[idx]
@@ -176,7 +176,7 @@ def _serialize_procedure_lines(code: str, indent_prefix: str) -> list[str]:
             serialized_lines.append("\n")
 
     if not serialized_lines:
-        serialized_lines.append(f"{indent_prefix}\n")
+        return []
 
     return serialized_lines
 
@@ -213,11 +213,11 @@ class YamlProvider:
         )
 
         for _name, proc_info in procedure_infos:
-            if (
-                proc_info.source_line < 1
-                or proc_info.source_end_line < proc_info.source_line
-            ):
+            if proc_info.source_line < 1:
                 raise ValueError("ProcessIR is missing valid YAML source line metadata")
+            # Empty procedure (no content lines in YAML) — nothing to replace.
+            if proc_info.source_end_line < proc_info.source_line:
+                continue
             start_idx = proc_info.source_line - 1
             end_idx = proc_info.source_end_line
             yaml_lines[start_idx:end_idx] = _serialize_procedure_lines(
