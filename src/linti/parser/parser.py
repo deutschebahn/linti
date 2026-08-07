@@ -46,7 +46,16 @@ IGNORED_FOR_PARSING = {TokenType.WHITESPACE, TokenType.NEWLINE, TokenType.COMMEN
 
 #: Cell-address functions whose element arguments (every argument after the
 #: leading cube name) may use the ``hierarchy:element`` reference syntax.
-ELEMENT_REF_FUNCTIONS = frozenset({"cellisupdateable", "cellgets"})
+ELEMENT_REF_FUNCTIONS = frozenset(
+    {
+        "cellgetn",
+        "cellgets",
+        "cellincrementn",
+        "cellisupdateable",
+        "cellputn",
+        "cellputs",
+    }
+)
 
 
 @dataclass(frozen=True)
