@@ -21,10 +21,25 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+
+      # Guards against a release whose tag does not describe the code being
+      # built -- e.g. a release published for a tag that does not exist yet,
+      # which GitHub silently creates on the target branch head.
+      - name: Verify tag matches package version
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          if [ "$tag" != "v$version" ]; then
+            echo "::error::Release tag '$tag' does not match pyproject.toml version '$version' (expected tag 'v$version')"
+            exit 1
+          fi
+          echo "Release tag '$tag' matches package version '$version'."
 
       - name: Build release distributions
         run: |
