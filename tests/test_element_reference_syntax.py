@@ -91,9 +91,26 @@ def test_element_reference_in_cellgets():
     assert ref.operator.type is TokenType.COLON
 
 
+def test_element_reference_in_cellgetn():
+    call = _first("nVal = CellGetN('cube', pTgtHier:vEle, sAttrName);").right
+    assert isinstance(call, FunctionCall) and call.name == "CellGetN"
+    ref = call.args[1]
+    assert isinstance(ref, BinaryExpression)
+    assert ref.operator.type is TokenType.COLON
+
+
+def test_element_reference_in_cellputn():
+    stmt = _first("CellPutN(1, 'cube', pTgtHier:vEle, sAttrName);")
+    call = stmt.expression
+    assert isinstance(call, FunctionCall) and call.name == "CellPutN"
+    ref = call.args[2]
+    assert isinstance(ref, BinaryExpression)
+    assert ref.operator.type is TokenType.COLON
+
+
 def test_colon_not_allowed_in_other_functions():
     # Only functions in ELEMENT_REF_FUNCTIONS accept the syntax.
-    assert isinstance(_first("nOk = CellGetN('cube', pHier:vEle);"), UnknownStatement)
+    assert isinstance(_first("nOk = Trim('cube', pHier:vEle);"), UnknownStatement)
 
 
 def test_plain_cellisupdateable_without_colon_still_parses():
