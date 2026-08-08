@@ -7,6 +7,8 @@ from typing import Literal, Optional
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from linti.linter.lint_issue import Severity
+
 
 class LintiConfigWarning(UserWarning):
     """Warning about a linti config file (removed/moved/deprecated settings).
@@ -43,17 +45,63 @@ _MOVED_TO_TOPLEVEL = {
 }
 
 
-class KeywordCasingConfig(BaseModel):
-    """Configuration for KeywordCasingRule."""
+class RuleConfig(BaseModel):
+    """Settings every rule accepts, whatever else it adds on top.
+
+    ``severity`` left unset (``None``) means the rule keeps whatever its
+    ``METADATA`` declares; naming a value here overrides that for this project.
+    That is the escape hatch for findings a team weighs differently than linti
+    does by default — e.g. promoting E110 back to ``error`` in a codebase where
+    unparseable TI really is always a syntax error.
+    """
 
     enabled: bool = True
+    severity: Optional[Severity] = None
+
+
+def _invalid_severity_message(raw: object, rule_key: str) -> str:
+    valid = ", ".join(s.value for s in Severity)
+    return (
+        f"Invalid severity {raw!r} for rule '{rule_key}'; expected one of "
+        f"{valid}. Falling back to the rule's default."
+    )
+
+
+def rule_severity_override(rules: "RulesConfig", config_key: str) -> Optional[Severity]:
+    """The severity a project set for *config_key*, or ``None`` for the default.
+
+    Reads through both shapes ``RulesConfig`` can hold: a typed config model for
+    a rule with a declared class, and a bare dict for one arriving through the
+    ``extra="allow"`` path. Unusable values are already normalised away by
+    :meth:`RulesConfig._tolerate_unknown_severity` at load time.
+    """
+    rule_cfg = getattr(rules, config_key, None)
+    if rule_cfg is None:
+        return None
+    raw = (
+        rule_cfg.get("severity")
+        if isinstance(rule_cfg, dict)
+        else getattr(rule_cfg, "severity", None)
+    )
+    if raw is None:
+        return None
+    try:
+        return Severity(raw)
+    except ValueError:
+        # Unreachable through the loader, which warns and drops bad values; a
+        # hand-built RulesConfig could still get here, and a typo must not raise.
+        return None
+
+
+class KeywordCasingConfig(RuleConfig):
+    """Configuration for KeywordCasingRule."""
+
     style: Literal["uppercase", "lowercase", "camelcase", "consistent"] = "uppercase"
 
 
-class IndentationConfig(BaseModel):
+class IndentationConfig(RuleConfig):
     """Configuration for IndentationRule."""
 
-    enabled: bool = True
     size: int = 4
     # How a line that continues an earlier statement is indented.
     # "hanging" is the house style; "aligned" lines wrapped content up under
@@ -61,77 +109,55 @@ class IndentationConfig(BaseModel):
     continuation_style: Literal["hanging", "aligned", "ignore"] = "hanging"
 
 
-class VariablePrefixConfig(BaseModel):
+class VariablePrefixConfig(RuleConfig):
     """Configuration for VariablePrefixRule."""
 
-    enabled: bool = True
     allow_constant_prefix: bool = False
 
 
-class ConditionalControlFlowConfig(BaseModel):
+class ConditionalControlFlowConfig(RuleConfig):
     """Configuration for ConditionalControlFlowRule."""
 
-    enabled: bool = True
 
-
-class UnreachableCodeConfig(BaseModel):
+class UnreachableCodeConfig(RuleConfig):
     """Configuration for UnreachableCodeRule."""
 
-    enabled: bool = True
 
-
-class ItemSkipConfig(BaseModel):
+class ItemSkipConfig(RuleConfig):
     """Configuration for ItemSkipRule."""
 
-    enabled: bool = True
 
-
-class EmptyBlockConfig(BaseModel):
+class EmptyBlockConfig(RuleConfig):
     """Configuration for EmptyBlockRule."""
 
-    enabled: bool = True
 
-
-class ParameterNamingConfig(BaseModel):
+class ParameterNamingConfig(RuleConfig):
     """Configuration for ParameterNamingRule."""
 
-    enabled: bool = True
 
-
-class VariableNamingConfig(BaseModel):
+class VariableNamingConfig(RuleConfig):
     """Configuration for VariableNamingRule."""
 
-    enabled: bool = True
 
-
-class ReadOnlyParameterVariableConfig(BaseModel):
+class ReadOnlyParameterVariableConfig(RuleConfig):
     """Configuration for ReadOnlyParameterVariableRule."""
 
-    enabled: bool = True
 
-
-class ProcessCallLiteralConfig(BaseModel):
+class ProcessCallLiteralConfig(RuleConfig):
     """Configuration for ProcessCallLiteralRule."""
 
-    enabled: bool = True
 
-
-class ExecuteCommandConfig(BaseModel):
+class ExecuteCommandConfig(RuleConfig):
     """Configuration for ExecuteCommandRule."""
 
-    enabled: bool = True
 
-
-class ODBCOpenParameterConfig(BaseModel):
+class ODBCOpenParameterConfig(RuleConfig):
     """Configuration for ODBCOpenParameterRule."""
 
-    enabled: bool = True
 
-
-class HardcodedSecretConfig(BaseModel):
+class HardcodedSecretConfig(RuleConfig):
     """Configuration for HardcodedSecretRule (X130)."""
 
-    enabled: bool = True
     # Which preset of secret-looking name fragments to match. `custom` starts
     # from an empty preset, so `secret_names` becomes the whole list.
     mode: Literal["relaxed", "standard", "strict", "custom"] = "standard"
@@ -143,24 +169,22 @@ class HardcodedSecretConfig(BaseModel):
     allow_secrets_in_cubes: bool = False
 
 
-class UseHierarchyAwareFunctionsConfig(BaseModel):
+class UseHierarchyAwareFunctionsConfig(RuleConfig):
     """Configuration for UseHierarchyAwareFunctionsRule (C410)."""
 
-    enabled: bool = True
     mode: Literal["enforce", "consistent"] = "consistent"
     # Generic processes are taken from the top-level `generic_prefixes` setting.
 
 
-class DoNotUseUndocumentedFunctionsConfig(BaseModel):
+class DoNotUseUndocumentedFunctionsConfig(RuleConfig):
     """Configuration for DoNotUseUndocumentedFunctionsRule (C430)."""
 
-    enabled: bool = True
     # Undocumented functions the project knowingly relies on; matched
     # case-insensitively and never reported.
     allowed_functions: list[str] = Field(default_factory=list)
 
 
-class FunctionVersionCompatibilityConfig(BaseModel):
+class FunctionVersionCompatibilityConfig(RuleConfig):
     """Configuration for FunctionVersionCompatibilityRule (C510)."""
 
     # Opt-in: the target version depends on the deployment strategy.
@@ -174,13 +198,11 @@ class FunctionVersionCompatibilityConfig(BaseModel):
     target_version: Optional[Literal["v11", "v12", "both"]] = None
 
 
-class NewLinePerStatementConfig(BaseModel):
+class NewLinePerStatementConfig(RuleConfig):
     """Configuration for NewLinePerStatementRule."""
 
-    enabled: bool = True
 
-
-class DocstringRegionConfig(BaseModel):
+class DocstringRegionConfig(RuleConfig):
     """Configuration for DocstringRegionRule (D110)."""
 
     enabled: bool = False
@@ -192,20 +214,18 @@ class DocstringRegionConfig(BaseModel):
     generic_extra_headers: list[str] = Field(default_factory=lambda: ["# Use Case"])
 
 
-class MaxLineLengthConfig(BaseModel):
+class MaxLineLengthConfig(RuleConfig):
     """Configuration for MaxLineLengthRule."""
 
-    enabled: bool = True
     limit: int = 120
     # Spaces per level in the rewrapped output. Kept in step with
     # `indentation.size` so the fix produces F310-conformant code.
     indent_size: int = 4
 
 
-class WhitespaceConfig(BaseModel):
+class WhitespaceConfig(RuleConfig):
     """Configuration for the whitespace rule group (W101-W106)."""
 
-    enabled: bool = True
     around_operators: bool = True
     after_comma: bool = True
     no_space_before_semicolon: bool = True
@@ -223,6 +243,38 @@ class RulesConfig(BaseModel):
     """
 
     model_config = ConfigDict(extra="allow")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _tolerate_unknown_severity(cls, data: object) -> object:
+        """Drop an unusable ``severity`` instead of failing the whole run.
+
+        A typo in one rule's severity should cost that rule its override, not
+        the run. Done here rather than per rule config class because this is the
+        only place that sees both shapes — typed models and the raw dicts of the
+        ``extra="allow"`` path — and still knows which rule key they belong to.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        cleaned = data
+        for rule_key, rule_cfg in data.items():
+            if not isinstance(rule_cfg, dict):
+                continue
+            raw = rule_cfg.get("severity")
+            if raw is None:
+                continue
+            try:
+                Severity(raw)
+            except ValueError:
+                warnings.warn(
+                    _invalid_severity_message(raw, rule_key),
+                    LintiConfigWarning,
+                    stacklevel=2,
+                )
+                # Copy on first write so the caller's dict is left untouched.
+                cleaned = {**cleaned, rule_key: {**rule_cfg, "severity": None}}
+        return cleaned
 
     keyword_casing: KeywordCasingConfig = Field(default_factory=KeywordCasingConfig)
     indentation: IndentationConfig = Field(default_factory=IndentationConfig)
@@ -269,6 +321,10 @@ class RulesConfig(BaseModel):
     )
     max_line_length: MaxLineLengthConfig = Field(default_factory=MaxLineLengthConfig)
     whitespace: WhitespaceConfig = Field(default_factory=WhitespaceConfig)
+    # S900 is enforced in the parser and surfaced by the API layer rather than
+    # by a registry rule, so it has no rule module to carry METADATA. Declaring
+    # it here gives it the same `enabled` / `severity` knobs as every real rule.
+    nesting_depth: RuleConfig = Field(default_factory=RuleConfig)
 
 
 # Markers that indicate a project root directory.
@@ -277,6 +333,10 @@ _PROJECT_ROOT_MARKERS = (".git", "pyproject.toml", "setup.cfg", "setup.py")
 
 class Config(BaseModel):
     """Configuration for linti."""
+
+    # ``populate_by_name`` so a field carrying a user-facing alias (min_severity)
+    # can still be constructed under its internal name from Python.
+    model_config = ConfigDict(populate_by_name=True)
 
     rules: RulesConfig = Field(default_factory=RulesConfig)
     # Names starting with one of these prefixes mark a *generic* (templated)
@@ -290,6 +350,20 @@ class Config(BaseModel):
     # fact shared by version-aware rules (currently C510); left unset (None) the
     # rules fall back to their own default. `both` == must run on v11 and v12.
     target_version: Optional[Literal["v11", "v12", "both"]] = None
+    # Lowest severity that makes the run fail. Defaults to `error`, so findings
+    # linti weighs as `warning` (the parse diagnostics E110/S900) are reported
+    # but exit 0 — a build should not break because linti's parser fell short.
+    # Set to `warning` (or pass --fail-on warning) to make every finding blocking.
+    fail_on: Severity = Severity.ERROR
+    # Lowest severity that is reported at all. Findings below it are dropped
+    # before the report is built, so they neither show up nor affect the exit
+    # code. Defaults to `warning`, i.e. everything is shown.
+    #
+    # Written `severity:` in linti.yaml, matching the `--severity` flag — the
+    # user-facing name is the same in both places. The internal name keeps the
+    # `min_` prefix because inside the code the "lowest of a scale" reading is
+    # the one that has to be unambiguous.
+    min_severity: Severity = Field(default=Severity.WARNING, alias="severity")
     # Input-hardening limits (defend against pathological / untrusted input).
     # Control-flow nesting beyond this depth yields an S900 diagnostic instead
     # of recursing until a RecursionError.

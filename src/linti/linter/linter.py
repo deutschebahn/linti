@@ -1,10 +1,26 @@
 from linti.lexer.token_window import TokenWindow
 from linti.semantic.constant_evaluation import DEFAULT_MAX_VALUES_PER_VARIABLE
 from linti.linter.lint_context import LintContext
+from linti.linter.lint_issue import Severity
 from linti.linter.noqa import filter_issues, parse_noqa
 from linti.parser.parser import DEFAULT_MAX_NESTING_DEPTH, Parser
 from linti.provider.base import DEFAULT_MAX_FILE_SIZE
 from linti.rules.Rule import BaseTokenRule, BaseStatementRule
+
+
+def _stamped(rule, issues: list) -> list:
+    """Tag each issue with the producing rule's effective severity.
+
+    Rules build plain ``LintIssue``s and stay unaware of severity: the weight of
+    a finding is a project decision (``rules.<key>.severity``), not something a
+    rule should hard-code at every construction site. ``rule.severity`` has
+    already resolved config override → METADATA → default, so it wins
+    unconditionally here.
+    """
+    severity = rule.severity
+    for issue in issues:
+        issue.severity = severity
+    return issues
 
 
 class Linter:
@@ -15,6 +31,8 @@ class Linter:
         max_nesting_depth: int = DEFAULT_MAX_NESTING_DEPTH,
         max_file_size: int = DEFAULT_MAX_FILE_SIZE,
         max_values_per_variable: int = DEFAULT_MAX_VALUES_PER_VARIABLE,
+        nesting_depth_enabled: bool = True,
+        nesting_depth_severity: Severity = Severity.WARNING,
     ):
         """
         Initialize the linter with token-based and statement-based rules.
@@ -28,10 +46,16 @@ class Linter:
             max_values_per_variable: Cap on how many distinct values the constant
                 evaluation index tracks per variable before degrading to
                 UNKNOWN.
+            nesting_depth_enabled: Whether the S900 diagnostic is reported at all.
+            nesting_depth_severity: Weight of the S900 diagnostic. Read by
+                ``linter.api``, which owns that pseudo-rule; it has no rule
+                module to carry METADATA, so it is configured through here.
         """
         self.max_nesting_depth = max_nesting_depth
         self.max_file_size = max_file_size
         self.max_values_per_variable = max_values_per_variable
+        self.nesting_depth_enabled = nesting_depth_enabled
+        self.nesting_depth_severity = nesting_depth_severity
         # Registry for token-based rules
         self.token_registry = {}
         for rule in rules or []:
@@ -95,7 +119,7 @@ class Linter:
         for i, token in enumerate(tokens):
             window.set_index(i)
             for rule in self.token_registry.get(token.type, []):
-                issues.extend(rule.visit(token, window, context))
+                issues.extend(_stamped(rule, rule.visit(token, window, context)))
 
         # Let statement rules pre-scan the full AST (e.g. for lookahead)
         seen_prepare: set[int] = set()
@@ -120,7 +144,7 @@ class Linter:
         issues = []
 
         for rule in self.statement_registry.get(type(node), []):
-            issues.extend(rule.visit(node, context))
+            issues.extend(_stamped(rule, rule.visit(node, context)))
 
         if isinstance(node, Program):
             for child in node.statements:

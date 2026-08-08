@@ -15,6 +15,7 @@ from textwrap import dedent
 # Ensure the package is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from linti.linter.lint_issue import Severity  # noqa: E402
 from linti.rules import _RULE_REGISTRY  # noqa: E402
 from linti.rules.Rule import RuleMetadata  # noqa: E402
 from linti.rules.rule_ids import (  # noqa: E402
@@ -41,8 +42,20 @@ HEADER = dedent("""\
 """)
 
 TABLE_HEADER = dedent("""\
-    | Rule ID | Rule Name | Description | Auto-fix |
-    |---------|-----------|-------------|----------|
+    | Rule ID | Rule Name | Description | Auto-fix | Severity |
+    |---------|-----------|-------------|----------|----------|
+""")
+
+#: Top-level settings that belong in the example but that no rule declares,
+#: because they govern the run rather than any single rule. Rendered ahead of
+#: the settings collected from the rules' own config_example snippets.
+RUN_LEVEL_CONFIG = dedent("""\
+    # Lowest severity that makes the run fail. Findings below it are still
+    # reported, but exit 0 (--fail-on on the CLI).
+    fail_on: error         # error (default) | warning
+    # Lowest severity that is reported at all. Anything below is dropped before
+    # the report is built, so it cannot fail the run either (--severity).
+    severity: warning      # warning (default) | error
 """)
 
 CONFIG_SECTION = dedent("""\
@@ -81,9 +94,9 @@ CONFIG_SECTION = dedent("""\
     {merged_config}
     ```
 
-    ### Disabling Rules
+    ### Disabling and Reweighting Rules
 
-    To disable a specific rule, set `enabled: false`:
+    Every rule accepts `enabled` and `severity`, whatever else it adds on top:
 
     ```yaml
     rules:
@@ -91,7 +104,12 @@ CONFIG_SECTION = dedent("""\
         enabled: false
       variable_prefix:
         enabled: true
+      unknown_statement:
+        severity: error    # promote E110 from warning to blocking
     ```
+
+    `severity` left unset keeps whatever the rule declares (the Severity column
+    above); naming a value here overrides it for this project.
 
     ## CLI Usage
 
@@ -108,15 +126,21 @@ CONFIG_SECTION = dedent("""\
 
     # Lint with custom configuration
     linti process.ti --config my-config.yaml
+
+    # Severity control (overrides fail_on / severity from the config)
+    linti process.ti --fail-on warning   # fail on warnings too
+    linti process.ti --severity error    # only report errors
     ```
 
     ### Exit Codes
 
     The CLI returns different exit codes based on linting results:
-    - `0`: No linting issues found (clean code)
-    - `1`: Linting issues were found
+    - `0`: No linting issues found, or only findings below `fail_on`
+    - `1`: At least one finding at or above `fail_on` (default: `error`)
 
-    This allows integration with CI/CD pipelines and automated workflows.
+    Warnings therefore do not fail a run by default — pass `--fail-on warning`
+    to block on them too. This allows integration with CI/CD pipelines and
+    automated workflows.
 """)
 
 
@@ -164,7 +188,10 @@ def _render_summary_tables(rules: list[tuple[str, RuleMetadata]]) -> str:
             parts.append(f"\n### {heading}\n\n{TABLE_HEADER.rstrip()}")
             current_group = group
         auto_fix = "\u2705" if meta.auto_fix else "\u274c"
-        parts.append(f"| {rule_id} | {meta.name} | {meta.description} | {auto_fix} |")
+        parts.append(
+            f"| {rule_id} | {meta.name} | {meta.description} | {auto_fix} "
+            f"| {meta.severity.value} |"
+        )
 
     return "\n".join(parts).lstrip("\n")
 
@@ -195,6 +222,14 @@ def _render_rule_detail(rule_id: str, meta: RuleMetadata) -> str:
     if meta.auto_fix:
         parts.append(
             "**\u2728 Auto-fix available:** Use `linti --auto-fix` to automatically fix issues."
+        )
+        parts.append("")
+
+    if meta.severity is Severity.WARNING:
+        parts.append(
+            "**\u26a0 Severity: warning** \u2014 reported but does not fail the run. Pass "
+            "`--fail-on warning` to block on it, or set "
+            "`rules.<key>.severity: error` in `linti.yaml`."
         )
         parts.append("")
 
@@ -250,11 +285,12 @@ def _render_merged_config(rules: list[tuple[str, RuleMetadata]]) -> str:
 def _render_top_level_config(rules: list[tuple[str, RuleMetadata]]) -> str:
     """Collect the top-level settings the rules' config examples rely on.
 
-    Returns them as lines ready to precede the merged ``rules:`` block, or an
-    empty string when no rule declares one.  Duplicates are dropped so two rules
-    sharing a setting (as version-aware rules will) emit it once.
+    Starts from the run-level settings, which govern the whole run and belong in
+    the example even though no rule declares them, then appends what the rules
+    ask for.  Duplicates are dropped so two rules sharing a setting (as
+    version-aware rules will) emit it once.
     """
-    lines: list[str] = []
+    lines: list[str] = RUN_LEVEL_CONFIG.rstrip("\n").split("\n")
     for _, meta in rules:
         if not meta.config_example:
             continue
