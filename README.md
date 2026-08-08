@@ -304,8 +304,19 @@ max_values_per_variable: 8           # default
 - A file above `max_file_size` fails with a clear error rather than being read.
 - A procedure nested beyond `max_nesting_depth` produces a single `S900`
   diagnostic (`Maximum nesting depth (N) exceeded`) for that procedure and
-  linting continues. `S900` is a built-in parser diagnostic, not a configurable
-  rule, so it does not appear in `linti explain` / `ALL_RULES.md`.
+  linting continues. `S900` is raised by the parser rather than by a rule
+  module, so it has no entry in `linti explain` / `ALL_RULES.md` — but it takes
+  the same `enabled` and `severity` settings as a real rule:
+
+  ```yaml
+  rules:
+    nesting_depth:
+      severity: error    # default: warning (does not fail the run)
+      enabled: false     # drop the diagnostic entirely
+  ```
+
+  With `enabled: false` an unparseable-because-too-deep procedure is skipped
+  silently — no rule ever sees it, and nothing says so.
 - `max_values_per_variable` bounds cross-section constant evaluation: once a variable
   could hold more than this many distinct literal values, it degrades to
   "unknown" so value-aware rules stay conservative rather than tracking an
@@ -584,8 +595,51 @@ Parse and syntax errors that reduce linting coverage:
 
 - **E1xx - Parsing**: Statements the parser could not understand
   - `E110` - Unparseable Statement
+  - `S900` - Maximum nesting depth exceeded (enforced in the parser, configured
+    under `rules.nesting_depth`)
 
 Use `linti explain` to list all rules or `linti explain <RULE_ID>` for detailed information about a specific rule.
+
+### Severity
+
+Every rule carries a severity. `error` is the default and fails the run;
+`warning` is reported but exits 0.
+
+The parse diagnostics `E110` and `S900` are warnings, because linti cannot tell
+their two possible causes apart from the inside: either the TI really is
+malformed — yours to fix — or linti's parser does not cover a construct TM1
+accepts, which is a linti bug. A build should not break on the second case, so
+by default it does not. The report still names the count prominently, because a
+finding nobody sees is a finding nobody reports back.
+
+Override the weight of any rule in `linti.yaml`:
+
+```yaml
+rules:
+  unknown_statement:
+    severity: error      # promote E110 back to blocking
+  keyword_casing:
+    severity: warning    # report casing, but never fail on it
+```
+
+Two flags control the run as a whole:
+
+```bash
+linti processes/ --fail-on warning    # fail on warnings too (default: error)
+linti processes/ --severity error     # only report errors; warnings are dropped
+```
+
+`--severity` filters before anything is counted, so a finding you asked not to
+see can never fail your build — even together with `--fail-on warning`. Both
+settings exist in `linti.yaml` under the same names:
+
+```yaml
+fail_on: error      # error (default) | warning
+severity: warning   # warning (default) | error
+```
+
+A CI pipeline that wants the information without the breakage needs no flags at
+all; one that treats every finding as blocking adds `--fail-on warning`.
 
 ### Rule ID migration
 

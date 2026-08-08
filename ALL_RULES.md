@@ -19,63 +19,63 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 
 ### Formatting Rules (F)
 
-| Rule ID | Rule Name | Description | Auto-fix |
-|---------|-----------|-------------|----------|
-| F110 | Keyword Casing | Enforces consistent keyword casing (uppercase/lowercase/camelcase/consistent) | ✅ |
-| F220 | Whitespace Around Operators | Enforces exactly one space around binary operators | ✅ |
-| F230 | Whitespace After Comma | Enforces exactly one space after commas | ✅ |
-| F240 | No Space Before Semicolon | Enforces no whitespace immediately before ';' | ✅ |
-| F250 | One Space Inside Parentheses | Enforces exactly one space inside '(' and ')' | ✅ |
-| F260 | No Multiple Spaces | Enforces no multiple consecutive spaces (except indentation) | ✅ |
-| F270 | No Trailing Whitespace | Enforces no trailing whitespace at the end of lines | ✅ |
-| F310 | Block Indentation | Enforces indentation for IF/WHILE blocks and wrapped lines | ✅ |
-| F320 | One Statement Per Line | Enforces that each statement is followed by a newline | ✅ |
-| F330 | Maximum Line Length | Limits how long a physical line may be | ✅ |
+| Rule ID | Rule Name | Description | Auto-fix | Severity |
+|---------|-----------|-------------|----------|----------|
+| F110 | Keyword Casing | Enforces consistent keyword casing (uppercase/lowercase/camelcase/consistent) | ✅ | error |
+| F220 | Whitespace Around Operators | Enforces exactly one space around binary operators | ✅ | error |
+| F230 | Whitespace After Comma | Enforces exactly one space after commas | ✅ | error |
+| F240 | No Space Before Semicolon | Enforces no whitespace immediately before ';' | ✅ | error |
+| F250 | One Space Inside Parentheses | Enforces exactly one space inside '(' and ')' | ✅ | error |
+| F260 | No Multiple Spaces | Enforces no multiple consecutive spaces (except indentation) | ✅ | error |
+| F270 | No Trailing Whitespace | Enforces no trailing whitespace at the end of lines | ✅ | error |
+| F310 | Block Indentation | Enforces indentation for IF/WHILE blocks and wrapped lines | ✅ | error |
+| F320 | One Statement Per Line | Enforces that each statement is followed by a newline | ✅ | error |
+| F330 | Maximum Line Length | Limits how long a physical line may be | ✅ | error |
 
 ### Naming Convention Rules (N)
 
-| Rule ID | Rule Name | Description | Auto-fix |
-|---------|-----------|-------------|----------|
-| N110 | Variable Prefix Naming | Enforces TM1 variable naming conventions (n/s/c prefixes) | ❌ |
-| N120 | Variables Consistent Casing | Enforces consistent casing for variable references within a process | ✅ |
-| N210 | Parameter Naming | Enforces that parameters start with lowercase 'p' | ❌ |
-| N220 | Data Source Variable Naming | Enforces that data source variables start with lowercase 'v' | ❌ |
+| Rule ID | Rule Name | Description | Auto-fix | Severity |
+|---------|-----------|-------------|----------|----------|
+| N110 | Variable Prefix Naming | Enforces TM1 variable naming conventions (n/s/c prefixes) | ❌ | error |
+| N120 | Variables Consistent Casing | Enforces consistent casing for variable references within a process | ✅ | error |
+| N210 | Parameter Naming | Enforces that parameters start with lowercase 'p' | ❌ | error |
+| N220 | Data Source Variable Naming | Enforces that data source variables start with lowercase 'v' | ❌ | error |
 
 ### Documentation Rules (D)
 
-| Rule ID | Rule Name | Description | Auto-fix |
-|---------|-----------|-------------|----------|
-| D110 | Docstring Region | Enforces a docstring region before executable code in the prolog | ❌ |
+| Rule ID | Rule Name | Description | Auto-fix | Severity |
+|---------|-----------|-------------|----------|----------|
+| D110 | Docstring Region | Enforces a docstring region before executable code in the prolog | ❌ | error |
 
 ### Code Quality Rules (C)
 
-| Rule ID | Rule Name | Description | Auto-fix |
-|---------|-----------|-------------|----------|
-| C110 | Empty Block | Flags IF/ELSEIF/ELSE/WHILE blocks that contain no executable code | ✅ |
-| C120 | Conditional Control Flow | Enforces that flow-altering statements are only used inside an IF/ELSE block | ❌ |
-| C130 | ItemSkip Block Usage | Enforces that ItemSkip() is only used in metadata or data sections | ❌ |
-| C140 | Unreachable Code | Flags code after a flow-terminating statement that can never execute | ❌ |
-| C210 | Read-only Parameters and Variables | Enforces that parameters and data source variables are read-only | ❌ |
-| C220 | Single-assignment Constants | Enforces that constants (c-prefixed variables) are assigned only once | ❌ |
-| C310 | Literal Process Calls | Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument | ❌ |
-| C410 | Use Hierarchy-Aware Functions | Enforces hierarchy-aware functions, or at least consistent usage of hierarchy-aware vs. standard hierarchy functions | ❌ |
-| C430 | Do Not Use Undocumented Functions | Reports calls to TurboIntegrator functions that are not officially documented or supported by IBM | ❌ |
-| C510 | Function Version Compatibility | Reports TurboIntegrator functions incompatible with a target Planning Analytics / TM1 version (v11, v12, or both) | ❌ |
+| Rule ID | Rule Name | Description | Auto-fix | Severity |
+|---------|-----------|-------------|----------|----------|
+| C110 | Empty Block | Flags IF/ELSEIF/ELSE/WHILE blocks that contain no executable code | ✅ | error |
+| C120 | Conditional Control Flow | Enforces that flow-altering statements are only used inside an IF/ELSE block | ❌ | error |
+| C130 | ItemSkip Block Usage | Enforces that ItemSkip() is only used in metadata or data sections | ❌ | error |
+| C140 | Unreachable Code | Flags code after a flow-terminating statement that can never execute | ❌ | error |
+| C210 | Read-only Parameters and Variables | Enforces that parameters and data source variables are read-only | ❌ | error |
+| C220 | Single-assignment Constants | Enforces that constants (c-prefixed variables) are assigned only once | ❌ | error |
+| C310 | Literal Process Calls | Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument | ❌ | error |
+| C410 | Use Hierarchy-Aware Functions | Enforces hierarchy-aware functions, or at least consistent usage of hierarchy-aware vs. standard hierarchy functions | ❌ | error |
+| C430 | Do Not Use Undocumented Functions | Reports calls to TurboIntegrator functions that are not officially documented or supported by IBM | ❌ | error |
+| C510 | Function Version Compatibility | Reports TurboIntegrator functions incompatible with a target Planning Analytics / TM1 version (v11, v12, or both) | ❌ | error |
 
 ### External Interactions Rules (X)
 
-| Rule ID | Rule Name | Description | Auto-fix |
-|---------|-----------|-------------|----------|
-| X110 | No ExecuteCommand | Prohibits the use of ExecuteCommand() (disabled for security reasons) | ❌ |
-| X120 | ODBCOpen Password Parameter | Validates that ODBCOpen() password parameter is a defined TI parameter | ❌ |
-| X130 | No Hardcoded Secrets | Reports variables whose name looks like a credential being fed from a hardcoded string literal or read out of a cube | ❌ |
-| X210 | Filter ODBC Rows in SQL | Flags ItemSkip() or exclusively conditional writes in Metadata/Data when the ODBC data source query has no WHERE clause | ❌ |
+| Rule ID | Rule Name | Description | Auto-fix | Severity |
+|---------|-----------|-------------|----------|----------|
+| X110 | No ExecuteCommand | Prohibits the use of ExecuteCommand() (disabled for security reasons) | ❌ | error |
+| X120 | ODBCOpen Password Parameter | Validates that ODBCOpen() password parameter is a defined TI parameter | ❌ | error |
+| X130 | No Hardcoded Secrets | Reports variables whose name looks like a credential being fed from a hardcoded string literal or read out of a cube | ❌ | error |
+| X210 | Filter ODBC Rows in SQL | Flags ItemSkip() or exclusively conditional writes in Metadata/Data when the ODBC data source query has no WHERE clause | ❌ | error |
 
 ### Error Rules (E)
 
-| Rule ID | Rule Name | Description | Auto-fix |
-|---------|-----------|-------------|----------|
-| E110 | Unparseable Statement | Flags statements that could not be parsed, warning that linting quality is reduced for that code | ❌ |
+| Rule ID | Rule Name | Description | Auto-fix | Severity |
+|---------|-----------|-------------|----------|----------|
+| E110 | Unparseable Statement | Flags statements that could not be parsed, warning that linting quality is reduced for that code | ❌ | warning |
 
 ## Rule Details
 
@@ -1170,13 +1170,18 @@ ENDIF;
 
 Flags statements that could not be parsed, warning that linting quality is reduced for that code.
 
+**⚠ Severity: warning** — reported but does not fail the run. Pass `--fail-on warning` to block on it, or set `rules.<key>.severity: error` in `linti.yaml`.
+
 The parser could not understand this statement and kept it in the AST as an unknown statement so the rest of the section could still be linted. AST-based rules skip unknown statements entirely, so any problem inside one is never reported — linting quality is reduced there. Fixing the syntax (a missing semicolon, an unbalanced parenthesis, a stray token) restores full coverage.
+
+This can equally mean linti's parser does not yet cover a construct TM1 accepts. If the process compiles on the server, it is a linti gap worth reporting — that is why this is a warning and does not fail a build by default.
 
 **Configuration:**
 ```yaml
 rules:
   unknown_statement:
     enabled: true
+    severity: warning
 ```
 
 **Valid usage:**
@@ -1224,6 +1229,12 @@ linti process.ti --config custom-config.yaml
 A typical `linti.yaml` file looks like this:
 
 ```yaml
+# Lowest severity that makes the run fail. Findings below it are still
+# reported, but exit 0 (--fail-on on the CLI).
+fail_on: error         # error (default) | warning
+# Lowest severity that is reported at all. Anything below is dropped before
+# the report is built, so it cannot fail the run either (--severity).
+severity: warning      # warning (default) | error
 # Generic processes (top-level setting) are always enforced
 generic_prefixes:
   - '}core.'
@@ -1347,12 +1358,13 @@ rules:
 
   unknown_statement:
     enabled: true
+    severity: warning
 
 ```
 
-### Disabling Rules
+### Disabling and Reweighting Rules
 
-To disable a specific rule, set `enabled: false`:
+Every rule accepts `enabled` and `severity`, whatever else it adds on top:
 
 ```yaml
 rules:
@@ -1360,7 +1372,12 @@ rules:
     enabled: false
   variable_prefix:
     enabled: true
+  unknown_statement:
+    severity: error    # promote E110 from warning to blocking
 ```
+
+`severity` left unset keeps whatever the rule declares (the Severity column
+above); naming a value here overrides it for this project.
 
 ## CLI Usage
 
@@ -1377,12 +1394,18 @@ linti process.ti --tokens --ast
 
 # Lint with custom configuration
 linti process.ti --config my-config.yaml
+
+# Severity control (overrides fail_on / severity from the config)
+linti process.ti --fail-on warning   # fail on warnings too
+linti process.ti --severity error    # only report errors
 ```
 
 ### Exit Codes
 
 The CLI returns different exit codes based on linting results:
-- `0`: No linting issues found (clean code)
-- `1`: Linting issues were found
+- `0`: No linting issues found, or only findings below `fail_on`
+- `1`: At least one finding at or above `fail_on` (default: `error`)
 
-This allows integration with CI/CD pipelines and automated workflows.
+Warnings therefore do not fail a run by default — pass `--fail-on warning`
+to block on them too. This allows integration with CI/CD pipelines and
+automated workflows.

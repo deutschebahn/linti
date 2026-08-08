@@ -17,6 +17,7 @@ from linti.cli.file_discovery import (
 from linti.cli.file_linter import lint_files
 from linti.cli.rule_explainer import explain_rule, list_rules
 from linti.config import LintiConfigWarning
+from linti.linter.lint_issue import Severity
 
 if TYPE_CHECKING:
     from click import Context
@@ -85,6 +86,23 @@ SELECT_OPT = typer.Option(
     "--select",
     help="Select specific rules to run (e.g., F, F1, F110 or comma-separated list)",
 )
+FAIL_ON_OPT = typer.Option(
+    None,
+    "--fail-on",
+    help=(
+        "Lowest severity that makes the run fail (warning, error). Defaults to "
+        "error, so findings linti weighs as warnings (E110, S900 — the parse "
+        "diagnostics) are reported but exit 0."
+    ),
+)
+SEVERITY_OPT = typer.Option(
+    None,
+    "--severity",
+    help=(
+        "Only report findings of this severity or higher (warning, error). "
+        "Anything below is dropped entirely and cannot fail the run."
+    ),
+)
 EXCLUDE_PATH_OPT = typer.Option(
     None,
     "--exclude-path",
@@ -103,6 +121,8 @@ def lint(
     config: Optional[Path] = CONFIG_OPT,
     auto_fix: bool = AUTO_FIX_OPT,
     select: Optional[str] = SELECT_OPT,
+    fail_on: Optional[Severity] = FAIL_ON_OPT,
+    severity: Optional[Severity] = SEVERITY_OPT,
     exclude_path: Optional[list[str]] = EXCLUDE_PATH_OPT,
 ) -> None:
     """
@@ -120,11 +140,19 @@ def lint(
         linti . --exclude-path generated --exclude-path "**/archive/*.ti"
         linti process.ti --auto-fix
         linti process.ti --select F110
+        linti processes/ --fail-on warning
+        linti processes/ --severity error
     """
     cli_excludes = exclude_path or []
 
     base_path = config_base_path(paths)
     cfg = load_config(base_path, config)
+
+    # CLI wins over the config file, matching --exclude-path and --select.
+    if fail_on is not None:
+        cfg.fail_on = fail_on
+    if severity is not None:
+        cfg.min_severity = severity
 
     # Inputs and CLI exclusions resolve against the current directory; config
     # exclusions resolve against the config file's directory (Rule 1). Missing a
@@ -180,18 +208,22 @@ def explain(
     rule_id: Optional[str] = typer.Argument(
         None, help="Rule ID to explain (e.g. F110)"
     ),
+    config: Optional[Path] = CONFIG_OPT,
 ) -> None:
     """
     Explain a linting rule in detail, or list all available rules.
+
+    Severities shown are the effective ones: any `rules.<key>.severity` from the
+    config governing the current directory is applied and marked.
 
     Example:
         linti explain          # list all rules
         linti explain F110     # explain a specific rule
     """
     if rule_id:
-        explain_rule(rule_id)
+        explain_rule(rule_id, config)
     else:
-        list_rules()
+        list_rules(config)
 
 
 def _install_config_warning_handler() -> None:

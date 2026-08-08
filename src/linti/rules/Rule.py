@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, ClassVar
 
 from linti.linter.lint_context import LintContext
+from linti.linter.lint_issue import DEFAULT_SEVERITY, Severity
 
 if TYPE_CHECKING:
     from linti.lexer.token import TokenType
@@ -36,6 +37,9 @@ class RuleMetadata:
     explanation: str = ""
     config_example: str = ""
     examples: list[RuleExample] = field(default_factory=list)
+    # Weight the rule's findings carry by default. A project can override this
+    # per rule in linti.yaml (``rules.<key>.severity``).
+    severity: Severity = DEFAULT_SEVERITY
 
 
 class _RuleBase(ABC):
@@ -50,10 +54,24 @@ class _RuleBase(ABC):
     # by ID — ``--select``, ``# noqa`` comments, and ``linti explain``.
     DEPRECATED_IDS: ClassVar[list[str]] = []
 
+    #: Set by ``rule_factory`` from ``rules.<key>.severity``; ``None`` means
+    #: "use whatever METADATA declares". Kept off METADATA itself because
+    #: METADATA is a frozen class-level constant shared by every instance.
+    _severity_override: Severity | None = None
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         if cls.CONFIG_KEY:
             _RULE_REGISTRY.append(cls)
+
+    @property
+    def severity(self) -> Severity:
+        """Effective severity: config override first, then METADATA."""
+        if self._severity_override is not None:
+            return self._severity_override
+        if self.METADATA is not None:
+            return self.METADATA.severity
+        return DEFAULT_SEVERITY
 
     @property
     @abstractmethod

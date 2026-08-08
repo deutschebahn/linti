@@ -11,11 +11,26 @@ import re
 from pathlib import Path
 from shlex import quote
 
-from linti.linter.lint_issue import LintIssue
+from linti.linter.lint_issue import LintIssue, Severity
 
 # Canonical issue type returned by the API layer.
 ProcedureIssue = tuple[str, LintIssue, int]
 FileProcedureIssue = tuple[Path, str, LintIssue, int]
+
+#: Marker prefixed to a finding that does not block the run.
+WARNING_INDICATOR = " ⚠️"
+
+
+def filter_by_severity(issues: list, floor: Severity) -> list:
+    """Drop findings below *floor*.
+
+    Applied once, before anything is rendered or counted, so what is shown and
+    what decides the exit code never diverge: a finding the user asked not to
+    see cannot silently fail their build. Works for both ``ProcedureIssue`` and
+    ``FileProcedureIssue`` tuples — the ``LintIssue`` is the second-to-last
+    element in each.
+    """
+    return [entry for entry in issues if entry[-2].severity.at_least(floor)]
 
 
 def separator(char: str = "=", width: int = 70) -> str:
@@ -63,7 +78,42 @@ def summary(issues: list[ProcedureIssue]) -> tuple[int, int]:
     return total, fixable
 
 
-def render_file_report(file_path: Path, issues: list[ProcedureIssue]) -> list[str]:
+def count_warnings(issues: list) -> int:
+    """How many findings carry ``Severity.WARNING``."""
+    return sum(1 for entry in issues if entry[-2].severity is Severity.WARNING)
+
+
+def _warning_note(warnings_count: int, fail_on: Severity) -> list[str]:
+    """Summary line naming the non-blocking findings, or nothing when there are none.
+
+    Deliberately prominent. A finding that never fails a build is a finding
+    nobody acts on, so the count has to stay in view — otherwise the honest
+    default (E110/S900 do not break CI) just turns into silence.
+    """
+    if not warnings_count or fail_on is not Severity.ERROR:
+        return []
+    return [
+        f"  Warnings:      {warnings_count} "
+        f"(warnings don't fail the run by default; to fail on them, "
+        f"pass --fail-on warning)"
+    ]
+
+
+def _indicators(issue: LintIssue) -> str:
+    """Trailing markers for one issue line: auto-fixable and/or non-blocking."""
+    marks = ""
+    if issue.fix is not None:
+        marks += " 🔧"
+    if issue.severity is Severity.WARNING:
+        marks += WARNING_INDICATOR
+    return marks
+
+
+def render_file_report(
+    file_path: Path,
+    issues: list[ProcedureIssue],
+    fail_on: Severity = Severity.ERROR,
+) -> list[str]:
     """Build output lines for a single-file report."""
     if not issues:
         return [f"✓ No issues found in {file_path}"]
@@ -71,13 +121,14 @@ def render_file_report(file_path: Path, issues: list[ProcedureIssue]) -> list[st
     total, fixable_count = summary(issues)
     lines = [f"\n{separator()}\nLINTING ISSUES\n{separator()}\n"]
     for proc_name, issue, source_line in issues:
-        indicator = " 🔧" if issue.fix is not None else ""
         lines.append(
-            f"{format_issue(file_path, proc_name, issue, source_line)}{indicator}"
+            f"{format_issue(file_path, proc_name, issue, source_line)}"
+            f"{_indicators(issue)}"
         )
 
     lines.append(f"\n{separator()}")
     lines.append(f"Total Issues: {total} (Auto-fixable: {fixable_count})")
+    lines.extend(_warning_note(count_warnings(issues), fail_on))
     if fixable_count > 0:
         lines.append(f"Run: linti {quote(str(file_path))} --auto-fix")
     lines.append("")
@@ -85,7 +136,9 @@ def render_file_report(file_path: Path, issues: list[ProcedureIssue]) -> list[st
 
 
 def render_directory_report(
-    directory: Path, all_file_issues: list[FileProcedureIssue]
+    directory: Path,
+    all_file_issues: list[FileProcedureIssue],
+    fail_on: Severity = Severity.ERROR,
 ) -> list[str]:
     """Build output lines for a multi-file directory report."""
     if not all_file_issues:
@@ -107,9 +160,9 @@ def render_directory_report(
         lines.append(f"  {separator('-', 50)}")
 
         for proc_name, issue, source_line in file_issues:
-            indicator = " 🔧" if issue.fix is not None else ""
             lines.append(
-                f"{format_issue(file_path, proc_name, issue, source_line)}{indicator}"
+                f"{format_issue(file_path, proc_name, issue, source_line)}"
+                f"{_indicators(issue)}"
             )
 
         lines.append(f"    Issues: {len(file_issues)} (Fixable: {file_fixable})")
@@ -123,6 +176,7 @@ def render_directory_report(
     lines.append(f"  Total Issues:  {total_issues}")
     lines.append(f"    ├─ Auto-fixable: {total_fixable}")
     lines.append(f"    └─ Other:       {total_issues - total_fixable}")
+    lines.extend(_warning_note(count_warnings(all_file_issues), fail_on))
 
     if total_fixable > 0:
         lines.append(f"\n  Run: linti {quote(str(directory))} --auto-fix")
@@ -130,11 +184,20 @@ def render_directory_report(
     return lines
 
 
-def file_report_exit_code(issues: list[ProcedureIssue]) -> int:
+def _exit_code(issues: list, fail_on: Severity) -> int:
+    """1 when any finding reaches *fail_on*, else 0."""
+    return 1 if any(entry[-2].severity.at_least(fail_on) for entry in issues) else 0
+
+
+def file_report_exit_code(
+    issues: list[ProcedureIssue], fail_on: Severity = Severity.ERROR
+) -> int:
     """Return standard exit code for single-file report."""
-    return 1 if issues else 0
+    return _exit_code(issues, fail_on)
 
 
-def directory_report_exit_code(all_file_issues: list[FileProcedureIssue]) -> int:
+def directory_report_exit_code(
+    all_file_issues: list[FileProcedureIssue], fail_on: Severity = Severity.ERROR
+) -> int:
     """Return standard exit code for directory report."""
-    return 1 if all_file_issues else 0
+    return _exit_code(all_file_issues, fail_on)

@@ -1,6 +1,6 @@
 """Factory for creating rule instances based on configuration."""
 
-from linti.config import Config
+from linti.config import Config, rule_severity_override
 from linti.rules import _RULE_REGISTRY  # triggers all rule imports
 from linti.rules.Rule import BaseTokenRule, BaseStatementRule
 from linti.rules.rule_ids import resolve_and_warn
@@ -130,7 +130,13 @@ def create_rules(cfg: Config, select: str | None = None) -> tuple:
 
         instances = rule_cls.from_config(cfg_dict)
 
+        # A project may reweigh any rule. Applied after from_config so it also
+        # reaches rules that fan out into several instances (e.g. whitespace).
+        severity_override = rule_severity_override(cfg.rules, config_key)
+
         for inst in instances:
+            if severity_override is not None:
+                inst._severity_override = severity_override
             if isinstance(inst, BaseTokenRule):
                 token_rules.append(inst)
             else:

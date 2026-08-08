@@ -40,3 +40,77 @@ def test_all_paths_missing_exits_one(project: Path):
     assert "Path does not exist: nope1.ti" in result.stderr
     assert "Path does not exist: nope2.ti" in result.stderr
     assert result.exit_code == 1
+
+
+# --- severity: --fail-on and --severity -------------------------------------
+
+
+@pytest.fixture
+def unparseable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A file whose only finding is E110 (a warning), plus one that is clean."""
+    (tmp_path / "broken.ti").write_text("nValue = 1\n")  # missing semicolon
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
+def test_warning_only_run_reports_but_exits_zero(unparseable: Path):
+    result = runner.invoke(app, ["lint", "broken.ti", "--select", "E110"])
+    assert "E110" in result.stdout
+    assert "Warnings:" in result.stdout
+    assert "--fail-on warning" in result.stdout
+    # The whole point: linti's parser falling short must not break a build.
+    assert result.exit_code == 0
+
+
+def test_fail_on_warning_blocks_on_warnings(unparseable: Path):
+    result = runner.invoke(
+        app, ["lint", "broken.ti", "--select", "E110", "--fail-on", "warning"]
+    )
+    assert "E110" in result.stdout
+    assert result.exit_code == 1
+
+
+def test_severity_error_hides_warnings(unparseable: Path):
+    result = runner.invoke(
+        app, ["lint", "broken.ti", "--select", "E110", "--severity", "error"]
+    )
+    assert "E110" not in result.stdout
+    assert "No issues found" in result.stdout
+    assert result.exit_code == 0
+
+
+def test_severity_filter_wins_over_fail_on(unparseable: Path):
+    """A finding the user asked not to see must not fail their run either."""
+    result = runner.invoke(
+        app,
+        [
+            "lint",
+            "broken.ti",
+            "--select",
+            "E110",
+            "--fail-on",
+            "warning",
+            "--severity",
+            "error",
+        ],
+    )
+    assert result.exit_code == 0
+
+
+def test_severity_rejects_an_unknown_level(unparseable: Path):
+    result = runner.invoke(app, ["lint", "broken.ti", "--severity", "critical"])
+    assert result.exit_code != 0
+
+
+def test_fail_on_rejects_an_unknown_level(unparseable: Path):
+    result = runner.invoke(app, ["lint", "broken.ti", "--fail-on", "critical"])
+    assert result.exit_code != 0
+
+
+def test_config_severity_override_promotes_e110(unparseable: Path):
+    (unparseable / "linti.yaml").write_text(
+        "rules:\n  unknown_statement:\n    severity: error\n"
+    )
+    result = runner.invoke(app, ["lint", "broken.ti", "--select", "E110"])
+    assert "E110" in result.stdout
+    assert result.exit_code == 1

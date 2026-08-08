@@ -1,6 +1,6 @@
 from linti.lexer.token import TokenType
 from linti.linter.lint_context import LintContext
-from linti.linter.lint_issue import LintIssue
+from linti.linter.lint_issue import LintIssue, Severity
 from linti.parser.ast import UnknownStatement
 from linti.rules.Rule import BaseStatementRule, RuleExample, RuleMetadata
 
@@ -29,15 +29,29 @@ class UnknownStatementRule(BaseStatementRule):
             "quality is reduced for that code"
         ),
         auto_fix=False,
+        # A warning, not an error, because this finding has two possible owners
+        # and linti cannot tell them apart from the inside: either the TI really
+        # is malformed (yours to fix), or linti's parser does not cover the
+        # construct (ours to fix). Failing a build on the second case would be
+        # wrong, so by default this reports without blocking. Projects where
+        # unparseable TI is always a genuine syntax error can promote it back
+        # with `rules.unknown_statement.severity: error`.
+        severity=Severity.WARNING,
         explanation=(
             "The parser could not understand this statement and kept it in the "
             "AST as an unknown statement so the rest of the section could still "
             "be linted. AST-based rules skip unknown statements entirely, so any "
             "problem inside one is never reported — linting quality is reduced "
             "there. Fixing the syntax (a missing semicolon, an unbalanced "
-            "parenthesis, a stray token) restores full coverage."
+            "parenthesis, a stray token) restores full coverage.\n\n"
+            "This can equally mean linti's parser does not yet cover a construct "
+            "TM1 accepts. If the process compiles on the server, it is a linti "
+            "gap worth reporting — that is why this is a warning and does not "
+            "fail a build by default."
         ),
-        config_example=("rules:\n  unknown_statement:\n    enabled: true"),
+        config_example=(
+            "rules:\n  unknown_statement:\n    enabled: true\n    severity: warning"
+        ),
         examples=[
             RuleExample(
                 code="nValue = 1;",

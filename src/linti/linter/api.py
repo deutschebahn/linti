@@ -33,14 +33,19 @@ def lint_process_model(process: ProcessIR, linter: Linter) -> list[ProcedureIssu
         lint_ctx = LintContext.for_procedure(process, proc_name, proc_info, constants)
         parsed = parse_cache.get(proc_name)
         if parsed.error is not None:
-            issue = LintIssue(
-                message=str(parsed.error),
-                line=1,
-                column=1,
-                position=0,
-                rule_id=NESTING_DEPTH_RULE_ID,
-            )
-            all_issues.append((proc_name, issue, proc_info.source_line))
+            # The section could not be parsed at all, so no rule ever sees it.
+            # Suppressing the diagnostic therefore drops the procedure silently
+            # — which is the point of `rules.nesting_depth.enabled: false`.
+            if linter.nesting_depth_enabled:
+                issue = LintIssue(
+                    message=str(parsed.error),
+                    line=1,
+                    column=1,
+                    position=0,
+                    rule_id=NESTING_DEPTH_RULE_ID,
+                    severity=linter.nesting_depth_severity,
+                )
+                all_issues.append((proc_name, issue, proc_info.source_line))
             continue
         issues = linter.lint(
             parsed.tokens, lint_ctx, ast=parsed.ast, source=proc_info.code
