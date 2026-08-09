@@ -3,12 +3,25 @@ from pathlib import Path
 from linti.cli.file_linter import report_directory_issues, report_issues
 from linti.linter.lint_issue import Fix, LintIssue
 from linti.linter.reporter import (
+    count_by_rule,
     directory_report_exit_code,
     file_report_exit_code,
     format_issue,
     render_directory_report,
     render_file_report,
 )
+
+
+def _issue(rule_id: str, fixable: bool = False, line: int = 1) -> LintIssue:
+    """A minimal finding for the aggregation tests."""
+    return LintIssue(
+        message="msg",
+        line=line,
+        column=1,
+        position=0,
+        rule_id=rule_id,
+        fix=Fix(position=0, old_value="if", new_value="IF") if fixable else None,
+    )
 
 
 def test_report_issues_prints_auto_fix_summary_and_command(capsys):
@@ -212,3 +225,82 @@ def test_render_directory_report_is_cli_independent_and_contains_summary():
     assert "Run: linti example --auto-fix" in report
     assert directory_report_exit_code(issues) == 1
     assert directory_report_exit_code([]) == 0
+
+
+def test_count_by_rule_orders_ascending_by_count_then_group():
+    issues = [
+        ("prolog", _issue("F110", fixable=True), 1),
+        ("prolog", _issue("F110"), 1),
+        ("prolog", _issue("F110", fixable=True), 1),
+        ("prolog", _issue("F310"), 1),
+        ("prolog", _issue("F310"), 1),
+        ("prolog", _issue("N110"), 1),
+        ("prolog", _issue(""), 1),
+    ]
+
+    # Ascending, so the rule worth acting on first lands closest to the totals.
+    # N110 precedes the unlabelled bucket because "-" has no known group.
+    assert count_by_rule(issues) == [
+        ("N110", 1, 0),
+        ("-", 1, 0),
+        ("F310", 2, 0),
+        ("F110", 3, 2),
+    ]
+
+
+def test_count_by_rule_sums_across_files():
+    issues = [
+        (Path("example/p1.yaml"), "prolog", _issue("F110", fixable=True), 1),
+        (Path("example/p2.yaml"), "prolog", _issue("F110"), 1),
+        (Path("example/p2.yaml"), "epilog", _issue("N110"), 1),
+    ]
+
+    assert count_by_rule(issues) == [("N110", 1, 0), ("F110", 2, 1)]
+
+
+def test_render_file_report_lists_issues_by_rule_before_the_totals():
+    issues = [
+        ("prolog", _issue("F110", fixable=True), 1),
+        ("prolog", _issue("F110", fixable=True), 1),
+        ("prolog", _issue("N110"), 1),
+    ]
+
+    report = "\n".join(render_file_report(Path("process.ti"), issues))
+
+    assert "Issues by rule:" in report
+    assert "F110  2  (2 fixable)  Keyword Casing" in report
+    # Blank fixable column, padded so the name column stays aligned.
+    assert "N110  1               Variable Prefix Naming" in report
+    # The verdict has to be the last thing left on screen.
+    assert report.index("Issues by rule:") < report.index("Total Issues:")
+
+
+def test_render_directory_report_lists_issues_by_rule_before_the_totals():
+    issues = [
+        (Path("example/p1.yaml"), "prolog", _issue("F110", fixable=True), 1),
+        (Path("example/p2.yaml"), "prolog", _issue("F110", fixable=True), 1),
+        (Path("example/p2.yaml"), "prolog", _issue("N110"), 1),
+    ]
+
+    report = "\n".join(render_directory_report(Path("example"), issues))
+
+    assert "Issues by rule:" in report
+    assert "F110  2  (2 fixable)  Keyword Casing" in report
+    assert report.index("Issues by rule:") < report.index("Total Files:")
+    assert report.index("Total Issues:") < report.index("Run: linti")
+
+
+def test_rule_breakdown_drops_the_fixable_column_when_nothing_is_fixable():
+    issues = [("prolog", _issue("N110"), 1), ("prolog", _issue("C110"), 1)]
+
+    report = "\n".join(render_file_report(Path("process.ti"), issues))
+
+    assert "fixable)" not in report
+    assert "N110  1  Variable Prefix Naming" in report
+
+
+def test_rule_breakdown_absent_when_there_are_no_issues():
+    assert render_file_report(Path("process.ti"), []) == [
+        "✓ No issues found in process.ti"
+    ]
+    assert "Issues by rule:" not in "\n".join(render_directory_report(Path("x"), []))

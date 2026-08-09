@@ -462,6 +462,31 @@ linti lint --help  # All linting arguments and options (--auto-fix, --select, ..
 
 `lint` is the default command — `linti process.ti` is a shortcut for `linti lint process.ti`.
 
+### Report Output
+
+Every report closes with a summary that reads bottom-up: the per-rule breakdown
+first, the run's totals last — so in a terminal the verdict is what stays on
+screen. The breakdown is sorted ascending by count, putting the rule worth
+tackling first directly above the totals, and names how many of each rule's
+findings `--auto-fix` can clear.
+
+```
+======================================================================
+Issues by rule:
+  D110  1               Docstring Region
+  C110  1               Empty Block
+  F250  2  (2 fixable)  One Space Inside Parentheses
+  F270  2  (2 fixable)  No Trailing Whitespace
+
+Total Issues: 6 (Auto-fixable: 4)
+Run: linti example/git-format.ti --auto-fix
+```
+
+Directory runs get the same block, counted across all files, inside the
+`SUMMARY` section above `Total Files` / `Total Issues`. Counts always reflect
+what was printed: findings dropped by [`--severity`](#severity) are filtered out
+before anything is counted.
+
 ### Selecting Specific Rules
 
 Use the `--select` option to run only specific rules or groups of rules:

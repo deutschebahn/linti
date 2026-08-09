@@ -9,6 +9,7 @@ import pytest
 
 from linti.config import Config, LintiConfigWarning
 from linti.rules import _RULE_REGISTRY
+from linti.rules.Rule import RuleMetadata
 from linti.rules.rule_factory import create_rules
 from linti.rules.rule_ids import (
     DuplicateRuleIdError,
@@ -17,6 +18,8 @@ from linti.rules.rule_ids import (
     canonical_ids,
     deprecated_ids_for,
     resolve_rule_id,
+    rule_metadata_index,
+    rule_name,
     validate_rule_ids,
 )
 
@@ -192,3 +195,70 @@ class TestSelectBackwardCompatibility:
     def test_canonical_select_does_not_warn(self, recwarn):
         create_rules(Config(), select="C220")
         assert [w for w in recwarn if issubclass(w.category, LintiConfigWarning)] == []
+
+
+class TestRuleNames:
+    """The ID → name lookup the lint summary's per-rule breakdown relies on."""
+
+    def test_every_canonical_id_resolves_to_a_name(self):
+        # A nameless row in the breakdown would be a silent regression.
+        assert all(rule_name(rule_id) for rule_id in canonical_ids())
+
+    def test_synthetic_rule_is_named_too(self):
+        assert rule_name("P900") == "Maximum Nesting Depth Exceeded"
+
+    def test_lookup_is_case_insensitive(self):
+        assert rule_name("f110") == rule_name("F110") != ""
+
+    def test_index_is_keyed_by_upper_case_ids(self):
+        index = rule_metadata_index()
+        assert all(rule_id == rule_id.upper() for rule_id in index)
+
+    def test_a_lower_case_rule_id_still_resolves_to_its_name(self, monkeypatch):
+        """No rule declares one today, but ``rule_name`` upper-cases its
+        argument, so an un-normalised key would render a nameless row."""
+        import linti.rules.rule_ids as rule_ids
+
+        class LowerCased:
+            METADATA = RuleMetadata(name="Lower Cased", description="")
+            RULE_ID = "z999"
+
+            @classmethod
+            def from_config(cls, _cfg):
+                return [cls()]
+
+        monkeypatch.setattr(rule_ids, "_metadata_by_id", None)
+        monkeypatch.setattr(rule_ids, "_RULE_REGISTRY", [*_RULE_REGISTRY, LowerCased])
+        try:
+            assert rule_ids.rule_name("z999") == "Lower Cased"
+            assert rule_ids.rule_name("Z999") == "Lower Cased"
+        finally:
+            rule_ids._metadata_by_id = None
+
+    def test_unknown_id_yields_an_empty_name(self):
+        # Total by contract: reporting must never blow up on a stray ID.
+        assert rule_name("ZZ999") == ""
+        assert rule_name("-") == ""
+
+    def test_index_skips_a_rule_that_cannot_be_instantiated(self, monkeypatch):
+        import linti.rules.rule_ids as rule_ids
+
+        class Unbuildable:
+            METADATA = object()
+            RULE_ID = "Z999"
+
+            @classmethod
+            def from_config(cls, _cfg):
+                raise RuntimeError("boom")
+
+            def __init__(self):
+                raise RuntimeError("boom")
+
+        monkeypatch.setattr(rule_ids, "_metadata_by_id", None)
+        monkeypatch.setattr(rule_ids, "_RULE_REGISTRY", [*_RULE_REGISTRY, Unbuildable])
+        try:
+            # The broken rule is dropped rather than taking every report down.
+            assert rule_ids.rule_name("Z999") == ""
+            assert rule_ids.rule_name("F110") == "Keyword Casing"
+        finally:
+            rule_ids._metadata_by_id = None

@@ -83,6 +83,66 @@ def count_warnings(issues: list) -> int:
     return sum(1 for entry in issues if entry[-2].severity is Severity.WARNING)
 
 
+#: One row of the per-rule breakdown: ``(rule_id, total, fixable)``.
+RuleTally = tuple[str, int, int]
+
+#: Stand-in ID for a finding that carries none, so the row still has a label.
+UNKNOWN_RULE_ID = "-"
+
+
+def count_by_rule(issues: list) -> list[RuleTally]:
+    """Per-rule totals, least frequent first.
+
+    Ascending on purpose: the breakdown is printed above the totals, so the
+    rule worth acting on first ends up closest to the bottom of the terminal.
+    Ties fall back to the canonical group order, keeping the output stable
+    between runs. Works for both ``ProcedureIssue`` and ``FileProcedureIssue``
+    tuples — like the other counters here, the ``LintIssue`` is ``entry[-2]``.
+    """
+    from linti.rules.rule_ids import group_sort_key
+
+    totals: dict[str, int] = {}
+    fixables: dict[str, int] = {}
+    for entry in issues:
+        issue = entry[-2]
+        rule_id = issue.rule_id or UNKNOWN_RULE_ID
+        totals[rule_id] = totals.get(rule_id, 0) + 1
+        fixables[rule_id] = fixables.get(rule_id, 0) + (issue.fix is not None)
+
+    return sorted(
+        ((rule_id, total, fixables[rule_id]) for rule_id, total in totals.items()),
+        key=lambda tally: (tally[1], group_sort_key(tally[0])),
+    )
+
+
+def _rule_breakdown(issues: list, indent: str) -> list[str]:
+    """The ``Issues by rule:`` block, or nothing when there is nothing to show."""
+    from linti.rules.rule_ids import rule_name
+
+    tallies = count_by_rule(issues)
+    if not tallies:
+        return []
+
+    id_width = max(len(rule_id) for rule_id, _, _ in tallies)
+    count_width = max(len(str(total)) for _, total, _ in tallies)
+    fixable_texts = {
+        rule_id: f"({fixable} fixable)" if fixable else ""
+        for rule_id, _, fixable in tallies
+    }
+    # Zero when no rule contributed a fixable issue — the column then collapses
+    # entirely rather than padding every row against an empty header.
+    fixable_width = max(len(text) for text in fixable_texts.values())
+
+    lines = [f"{indent}Issues by rule:"]
+    for rule_id, total, _ in tallies:
+        columns = [f"{rule_id:<{id_width}}", f"{total:>{count_width}}"]
+        if fixable_width:
+            columns.append(f"{fixable_texts[rule_id]:<{fixable_width}}")
+        columns.append(rule_name(rule_id))
+        lines.append(f"{indent}  {'  '.join(columns)}".rstrip())
+    return lines
+
+
 def _warning_note(warnings_count: int, fail_on: Severity) -> list[str]:
     """Summary line naming the non-blocking findings, or nothing when there are none.
 
@@ -127,6 +187,10 @@ def render_file_report(
         )
 
     lines.append(f"\n{separator()}")
+    # Breakdown first, totals last: in a terminal the closing lines are the
+    # ones left on screen, so the run's verdict has to come after the detail.
+    lines.extend(_rule_breakdown(issues, ""))
+    lines.append("")
     lines.append(f"Total Issues: {total} (Auto-fixable: {fixable_count})")
     lines.extend(_warning_note(count_warnings(issues), fail_on))
     if fixable_count > 0:
@@ -172,6 +236,9 @@ def render_directory_report(
     lines.append(f"\n{separator()}")
     lines.append("SUMMARY")
     lines.append(separator())
+    # See render_file_report: detail above, totals below.
+    lines.extend(_rule_breakdown(all_file_issues, "  "))
+    lines.append("")
     lines.append(f"  Total Files:   {len(issues_by_file)}")
     lines.append(f"  Total Issues:  {total_issues}")
     lines.append(f"    ├─ Auto-fixable: {total_fixable}")

@@ -21,6 +21,7 @@ from linti.rules.rule_ids import (
     deprecated_ids_for,
     group_sort_key,
     resolve_and_warn,
+    rule_instances,
     synthetic_rules,
 )
 
@@ -56,11 +57,7 @@ def _build_rule_index(cfg: Config | None = None) -> dict[str, _RuleEntry]:
             severity=override if override is not None else meta.severity,
             overridden=override is not None and override is not meta.severity,
         )
-        try:
-            instances = rule_cls.from_config({})
-        except Exception:
-            instances = [rule_cls()]
-        for inst in instances:
+        for inst in rule_instances(rule_cls):
             index.setdefault(inst.RULE_ID, entry)
 
     # Pseudo-rules with no class in _RULE_REGISTRY (currently only P900) —
