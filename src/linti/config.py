@@ -59,11 +59,11 @@ class RuleConfig(BaseModel):
     severity: Optional[Severity] = None
 
 
-def _invalid_severity_message(raw: object, rule_key: str) -> str:
+def _invalid_severity_message(raw: object, label: str) -> str:
     valid = ", ".join(s.value for s in Severity)
     return (
-        f"Invalid severity {raw!r} for rule '{rule_key}'; expected one of "
-        f"{valid}. Falling back to the rule's default."
+        f"Invalid severity {raw!r} for {label}; expected one of "
+        f"{valid}. Falling back to the default."
     )
 
 
@@ -268,7 +268,7 @@ class RulesConfig(BaseModel):
                 Severity(raw)
             except ValueError:
                 warnings.warn(
-                    _invalid_severity_message(raw, rule_key),
+                    _invalid_severity_message(raw, f"rule '{rule_key}'"),
                     LintiConfigWarning,
                     stacklevel=2,
                 )
@@ -373,6 +373,39 @@ class Config(BaseModel):
     # Cap on how many distinct values the constant evaluation index keeps per
     # variable (e.g. across IF/ELSE branches) before degrading to UNKNOWN.
     max_values_per_variable: int = Field(default=8)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _tolerate_unknown_top_level_severity(cls, data: object) -> object:
+        """Drop an unusable top-level ``fail_on``/``severity`` instead of crashing.
+
+        Mirrors ``RulesConfig._tolerate_unknown_severity``: a typo in a
+        run-level setting should fall back to the field's default with a
+        warning, not abort loading with a raw pydantic ``ValidationError`` —
+        the same tolerance already given to every per-rule ``severity``.
+        Checks both the alias (``severity``, what YAML actually uses) and the
+        field name (``min_severity``, reachable via ``populate_by_name``).
+        """
+        if not isinstance(data, dict):
+            return data
+
+        cleaned = data
+        for key in ("fail_on", "severity", "min_severity"):
+            raw = cleaned.get(key)
+            if raw is None:
+                continue
+            try:
+                Severity(raw)
+            except ValueError:
+                warnings.warn(
+                    _invalid_severity_message(raw, f"'{key}'"),
+                    LintiConfigWarning,
+                    stacklevel=2,
+                )
+                if cleaned is data:
+                    cleaned = dict(data)
+                cleaned.pop(key)
+        return cleaned
 
     @model_validator(mode="after")
     def _check_conflicting_generic_prefixes(self) -> "Config":

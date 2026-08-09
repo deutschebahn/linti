@@ -127,21 +127,33 @@ def lint_process_file(
     auto_fix: bool = False,
     select: Optional[str] = None,
     report_path: Optional[Path] = None,
+    cfg: Optional[Config] = None,
 ) -> Optional[list]:
     """Lint one process file through a provider-backed flow.
 
     *file_path* is used to open the provider (discovery yields absolute paths);
     *report_path*, when given, is the human-readable path shown in output.
+
+    *cfg* supplies the ``fail_on``/``min_severity`` reporting settings used on
+    the exit path below. When *linter* is left unset, *cfg* is loaded here
+    internally (any *cfg* passed in alongside is ignored). When a caller
+    supplies its own *linter* directly, *cfg* must come from that same caller
+    too — unless *return_issues* is ``True``, in which case the caller does
+    its own reporting and neither setting matters.
     """
     report_path = report_path if report_path is not None else file_path
     # Resolve the linter (and thus the input-hardening limits) before opening
     # the provider, so the file-size ceiling is enforced on the initial read.
-    # `cfg` also carries the reporting settings used on the exit path below;
-    # when a linter is passed in, its owner has already applied them.
-    cfg = None
     if linter is None:
         cfg = load_config(file_path, config)
         linter = linter_from_config(cfg, select)
+    elif cfg is None and not return_issues:
+        raise ValueError(
+            "lint_process_file: a custom `linter` needs `cfg` (the Config that "
+            "built it) to report correctly, unless return_issues=True — "
+            "otherwise fail_on/min_severity would silently fall back to "
+            "Config() defaults instead of the linter's actual settings."
+        )
 
     try:
         provider = provider_for_path(file_path, max_file_size=linter.max_file_size)
@@ -164,11 +176,11 @@ def lint_process_file(
     if return_issues:
         return issues
 
-    reporting = cfg if cfg is not None else Config()
+    # Unreachable with cfg=None: either `linter` was None (cfg was just loaded
+    # above) or the guard above already required a real `cfg` alongside it.
+    assert cfg is not None
     raise typer.Exit(
-        code=report_issues(
-            report_path, issues, reporting.fail_on, reporting.min_severity
-        )
+        code=report_issues(report_path, issues, cfg.fail_on, cfg.min_severity)
     )
 
 

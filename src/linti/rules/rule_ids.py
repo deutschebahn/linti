@@ -20,9 +20,11 @@ generation and ``linti explain``.
 from __future__ import annotations
 
 import warnings
+from dataclasses import dataclass, field
 
 from linti.config import LintiConfigWarning
 from linti.rules import _RULE_REGISTRY
+from linti.rules.Rule import RuleMetadata
 
 # Single source of truth for rule-ID groups: display name and canonical
 # ordering. Shared by ALL_RULES.md generation (scripts/generate_all_rules.py)
@@ -52,13 +54,45 @@ _canonical_ids: set[str] | None = None
 _deprecated_to_canonical: dict[str, str] | None = None
 _deprecated_by_canonical: dict[str, list[str]] | None = None
 
-# Deprecated IDs for rules with no rule class to carry ``DEPRECATED_IDS`` on —
-# currently only the parser-enforced nesting-depth diagnostic
-# (``linter/api.py::NESTING_DEPTH_RULE_ID``). Folded into the same lookup
-# tables `_build` produces from the registry, but kept out of
-# ``_canonical_ids``: the new ID still isn't a registry rule, so it must stay
-# outside the registry-consistency invariants `validate_rule_ids` checks.
-_MANUAL_DEPRECATIONS: dict[str, str] = {"S900": "P900"}
+
+@dataclass(frozen=True)
+class SyntheticRule:
+    """A pseudo-rule with no class in ``_RULE_REGISTRY`` to walk.
+
+    Currently only ``P900`` (the nesting-depth diagnostic): it's enforced
+    directly in the parser rather than by a rule module, so it has nowhere to
+    declare ``RULE_ID``/``METADATA``/``DEPRECATED_IDS`` the normal way.
+    ``linti explain`` and ``ALL_RULES.md`` generation — both of which
+    otherwise only walk the registry — merge these in via
+    :func:`synthetic_rules` instead of each hardcoding the same rule-specific
+    knowledge separately.
+    """
+
+    rule_id: str
+    metadata: RuleMetadata
+    config_key: str
+    deprecated_ids: tuple[str, ...] = field(default_factory=tuple)
+
+
+def synthetic_rules() -> list[SyntheticRule]:
+    """Pseudo-rules to merge in alongside the registry, e.g. for ``explain``.
+
+    Imports ``linter.api`` lazily: that module (and what it pulls in — the
+    fixer, parse cache, reporter, providers...) is a much heavier dependency
+    than this ID-bookkeeping module should carry at import time, and
+    ``linter.api`` is the single source of truth for P900's ID/metadata —
+    this function must not duplicate it in a second, driftable literal.
+    """
+    from linti.linter.api import NESTING_DEPTH_METADATA, NESTING_DEPTH_RULE_ID
+
+    return [
+        SyntheticRule(
+            rule_id=NESTING_DEPTH_RULE_ID,
+            metadata=NESTING_DEPTH_METADATA,
+            config_key="nesting_depth",
+            deprecated_ids=("S900",),
+        )
+    ]
 
 
 class DuplicateRuleIdError(ValueError):
@@ -103,9 +137,13 @@ def _build() -> None:
         for dep in deprecated:
             dep_to_canon[dep] = canon
 
-    for dep, canon in _MANUAL_DEPRECATIONS.items():
-        dep_to_canon[dep] = canon
-        dep_by_canon.setdefault(canon, []).append(dep)
+    for synth in synthetic_rules():
+        canon = synth.rule_id.upper()
+        deprecated = [dep.upper() for dep in synth.deprecated_ids]
+        if deprecated:
+            dep_by_canon.setdefault(canon, []).extend(deprecated)
+        for dep in deprecated:
+            dep_to_canon[dep] = canon
 
     _canonical_ids = canonical
     _deprecated_to_canonical = dep_to_canon

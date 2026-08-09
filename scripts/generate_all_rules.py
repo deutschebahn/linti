@@ -15,7 +15,6 @@ from textwrap import dedent
 # Ensure the package is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from linti.linter.api import NESTING_DEPTH_METADATA, NESTING_DEPTH_RULE_ID  # noqa: E402
 from linti.linter.lint_issue import Severity  # noqa: E402
 from linti.rules import _RULE_REGISTRY  # noqa: E402
 from linti.rules.Rule import RuleMetadata  # noqa: E402
@@ -23,6 +22,7 @@ from linti.rules.rule_ids import (  # noqa: E402
     GROUP_NAMES,
     deprecated_ids_for,
     group_sort_key,
+    synthetic_rules,
 )
 
 FILE_BANNER = dedent("""\
@@ -172,9 +172,9 @@ def _collect_rules() -> list[tuple[str, RuleMetadata]]:
             seen_ids.add(rule_id)
             rules.append((rule_id, meta))
 
-    # P900 (nesting-depth) is enforced in the parser, not by a registry rule,
-    # so it has no rule class for the loop above to find.
-    rules.append((NESTING_DEPTH_RULE_ID, NESTING_DEPTH_METADATA))
+    # Pseudo-rules with no class for the loop above to find (currently only
+    # P900) — see rules.rule_ids.synthetic_rules().
+    rules.extend((synth.rule_id, synth.metadata) for synth in synthetic_rules())
 
     rules.sort(key=lambda r: group_sort_key(r[0]))
     return rules
