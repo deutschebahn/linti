@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 
 from linti.cli.file_linter import (
     lint_process_file,
+    linter_from_config,
     report_directory_issues,
     report_issues,
 )
@@ -351,6 +352,33 @@ def test_lint_process_file_honours_its_own_config(tmp_path, monkeypatch):
     assert excinfo.value.exit_code == 0
 
 
+def test_lint_process_file_rejects_a_bare_custom_linter(tmp_path):
+    """A custom `linter` with no `cfg` and no return_issues=True is ambiguous.
+
+    There is no way to recover the fail_on/min_severity it should report
+    with, so this must raise rather than silently reporting against
+    Config() defaults instead of whatever built that linter.
+    """
+    (tmp_path / "p.ti").write_text("nX=1;\n")
+    linter = linter_from_config(Config())
+
+    with pytest.raises(ValueError, match="needs `cfg`"):
+        lint_process_file(tmp_path / "p.ti", linter=linter)
+
+
+def test_lint_process_file_honours_an_explicit_cfg_alongside_a_custom_linter(
+    tmp_path,
+):
+    """Passing `cfg` alongside a custom `linter` reports with that config."""
+    (tmp_path / "p.ti").write_text("nB=1;\n")  # F220 spacing issue
+    cfg = Config.model_validate({"rules": {"whitespace": {"severity": "warning"}}})
+    linter = linter_from_config(cfg)
+
+    with pytest.raises(typer.Exit) as excinfo:
+        lint_process_file(tmp_path / "p.ti", linter=linter, cfg=cfg)
+    assert excinfo.value.exit_code == 0
+
+
 # --- top-level config ------------------------------------------------------
 
 
@@ -372,3 +400,22 @@ def test_yaml_spells_the_filter_severity(tmp_path):
 
 def test_config_is_still_constructible_under_the_internal_name():
     assert Config(min_severity=Severity.ERROR).min_severity is Severity.ERROR
+
+
+def test_invalid_fail_on_warns_and_keeps_the_default():
+    """A typo in the run-level setting must not crash the whole load."""
+    with pytest.warns(LintiConfigWarning, match="Invalid severity 'typo'"):
+        cfg = Config.model_validate({"fail_on": "typo"})
+    assert cfg.fail_on is Severity.ERROR
+
+
+def test_invalid_top_level_severity_warns_and_keeps_the_default():
+    with pytest.warns(LintiConfigWarning, match="Invalid severity 'warn'"):
+        cfg = Config.model_validate({"severity": "warn"})
+    assert cfg.min_severity is Severity.WARNING
+
+
+def test_invalid_top_level_severity_leaves_other_settings_intact():
+    with pytest.warns(LintiConfigWarning):
+        cfg = Config.model_validate({"severity": "warn", "max_nesting_depth": 5})
+    assert cfg.max_nesting_depth == 5
