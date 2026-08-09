@@ -590,11 +590,11 @@ Interactions with systems outside the TI process:
 - **X2xx - Performance**: Cost of external data access
   - `X210` - Filter ODBC Rows in SQL
 
-### Error Rules (E1xx)
-Parse and syntax errors that reduce linting coverage:
+### Parser Rules (P1xx)
+Parse and syntax diagnostics that reduce linting coverage:
 
-- **E1xx - Parsing**: Statements the parser could not understand
-  - `E110` - Unparseable Statement
+- **P1xx - Parsing**: Statements the parser could not understand
+  - `P110` - Unparseable Statement
   - `S900` - Maximum nesting depth exceeded (enforced in the parser, configured
     under `rules.nesting_depth`)
 
@@ -605,7 +605,7 @@ Use `linti explain` to list all rules or `linti explain <RULE_ID>` for detailed 
 Every rule carries a severity. `error` is the default and fails the run;
 `warning` is reported but exits 0.
 
-The parse diagnostics `E110` and `S900` are warnings, because linti cannot tell
+The parse diagnostics `P110` and `S900` are warnings, because linti cannot tell
 their two possible causes apart from the inside: either the TI really is
 malformed — yours to fix — or linti's parser does not cover a construct TM1
 accepts, which is a linti bug. A build should not break on the second case, so
@@ -617,7 +617,7 @@ Override the weight of any rule in `linti.yaml`:
 ```yaml
 rules:
   unknown_statement:
-    severity: error      # promote E110 back to blocking
+    severity: error      # promote P110 back to blocking
   keyword_casing:
     severity: warning    # report casing, but never fail on it
 ```
@@ -645,9 +645,12 @@ all; one that treats every finding as blocking adds `--fail-on warning`.
 
 The former generic **Semantic (S)** category was split into **Code Quality (C)**
 and **External Interactions (X)**, and a few rules were renumbered so each
-subcategory describes its topic. **Old IDs keep working for one deprecation
-cycle** wherever a rule is referenced by ID — `--select`, `# noqa` comments,
-and `linti explain`. Using one resolves to the canonical rule and prints:
+subcategory describes its topic. The **Error (E)** category was also renamed to
+**Parser (P)**, since its one rule reports a parsing diagnostic (default
+severity `warning`), not an `error`-severity finding. **Old IDs keep working
+for one deprecation cycle** wherever a rule is referenced by ID — `--select`,
+`# noqa` comments, and `linti explain`. Using one resolves to the canonical
+rule and prints:
 
 ```
 ⚠  Rule ID S220 is deprecated. Use C220 instead.
@@ -669,9 +672,9 @@ Diagnostics always report the **canonical (new)** ID.
 | `S320` | `X110` | No ExecuteCommand |
 | `S330` | `X120` | ODBCOpen Password Parameter |
 | `S340` | `X210` | Filter ODBC Rows in SQL |
+| `E110` | `P110` | Unparseable Statement |
 
-Every other rule (all Formatting and Naming IDs, plus `E110`) keeps the ID it
-already had.
+Every other rule (all Formatting and Naming IDs) keeps the ID it already had.
 
 > Configuration in `linti.yaml` is keyed by rule *name* (e.g. `keyword_casing`,
 > `constant_assignment`), not by rule ID, so no config changes are needed.

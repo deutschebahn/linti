@@ -196,7 +196,7 @@ def test_default_when_neither_set():
 # -- unparseable statements --------------------------------------------------
 # The parser turns a statement it cannot read into an UnknownStatement with no
 # expression tree, so the rule falls back to matching the token stream by name.
-# E110 reports the statement itself; C510 recovers the version finding in it.
+# P110 reports the statement itself; C510 recovers the version finding in it.
 
 
 def test_reports_call_inside_an_unparseable_statement():

@@ -36,6 +36,7 @@ MIGRATION = {
     "S330": "X120",
     "S340": "X210",
     "S410": "C410",
+    "E110": "P110",
 }
 
 # Every rule that survives the migration, by canonical ID.
@@ -69,7 +70,7 @@ EXPECTED_CANONICAL_IDS = {
     "X120",
     "X130",
     "X210",
-    "E110",
+    "P110",
 }
 
 

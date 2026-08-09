@@ -33,7 +33,7 @@ GROUP_NAMES: dict[str, str] = {
     "D": "Documentation Rules",
     "C": "Code Quality Rules",
     "X": "External Interactions Rules",
-    "E": "Error Rules",
+    "P": "Parser Rules",
 }
 
 # Iteration order of GROUP_NAMES doubles as the canonical group ordering.

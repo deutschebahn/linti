@@ -51,7 +51,7 @@ class RuleConfig(BaseModel):
     ``severity`` left unset (``None``) means the rule keeps whatever its
     ``METADATA`` declares; naming a value here overrides that for this project.
     That is the escape hatch for findings a team weighs differently than linti
-    does by default — e.g. promoting E110 back to ``error`` in a codebase where
+    does by default — e.g. promoting P110 back to ``error`` in a codebase where
     unparseable TI really is always a syntax error.
     """
 
@@ -351,7 +351,7 @@ class Config(BaseModel):
     # rules fall back to their own default. `both` == must run on v11 and v12.
     target_version: Optional[Literal["v11", "v12", "both"]] = None
     # Lowest severity that makes the run fail. Defaults to `error`, so findings
-    # linti weighs as `warning` (the parse diagnostics E110/S900) are reported
+    # linti weighs as `warning` (the parse diagnostics P110/S900) are reported
     # but exit 0 — a build should not break because linti's parser fell short.
     # Set to `warning` (or pass --fail-on warning) to make every finding blocking.
     fail_on: Severity = Severity.ERROR

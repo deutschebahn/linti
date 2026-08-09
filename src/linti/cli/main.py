@@ -91,7 +91,7 @@ FAIL_ON_OPT = typer.Option(
     "--fail-on",
     help=(
         "Lowest severity that makes the run fail (warning, error). Defaults to "
-        "error, so findings linti weighs as warnings (E110, S900 — the parse "
+        "error, so findings linti weighs as warnings (P110, S900 — the parse "
         "diagnostics) are reported but exit 0."
     ),
 )

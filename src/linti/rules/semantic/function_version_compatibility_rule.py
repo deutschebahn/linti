@@ -298,7 +298,7 @@ class FunctionVersionCompatibilityRule(BaseStatementRule):
         No AST exists here, so the token stream is matched by name: an
         identifier is reported when it is directly followed by ``(``, or when it
         stands alone as the statement (TI makes the parentheses optional on a
-        no-argument call). E110 already reports the statement itself as
+        no-argument call). P110 already reports the statement itself as
         unparseable; this only recovers the version finding hiding inside it.
         """
         tokens = [
