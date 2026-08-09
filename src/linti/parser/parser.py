@@ -424,7 +424,7 @@ class Parser:
         # so by the time one fails ``self.pos`` sits at the point of failure —
         # recording the start lets the UnknownStatement carry the *whole*
         # statement (as its docstring promises) instead of only the tail after
-        # the error, which is what positions E110 and lets version-aware rules
+        # the error, which is what positions P110 and lets version-aware rules
         # still see the call hiding inside a broken statement.
         start = self.pos
         children_before = len(self._pending)

@@ -25,7 +25,7 @@ from linti.linter.reporter import (
     filter_by_severity,
 )
 from linti.model.process_ir import ProcedureInfo, ProcessIR
-from linti.rules.errors.unknown_statement_rule import UnknownStatementRule
+from linti.rules.parser.unknown_statement_rule import UnknownStatementRule
 from linti.rules.rule_factory import create_rules
 
 
@@ -167,7 +167,7 @@ def test_rules_are_errors_unless_they_say_otherwise():
 
 def test_config_promotes_a_warning_to_an_error():
     cfg = Config.model_validate({"rules": {"unknown_statement": {"severity": "error"}}})
-    _, statement_rules = create_rules(cfg, select="E110")
+    _, statement_rules = create_rules(cfg, select="P110")
     assert statement_rules
     assert all(rule.severity is Severity.ERROR for rule in statement_rules)
 
@@ -194,7 +194,7 @@ def test_invalid_severity_warns_and_keeps_the_default():
         cfg = Config.model_validate(
             {"rules": {"unknown_statement": {"severity": "loud"}}}
         )
-    _, statement_rules = create_rules(cfg, select="E110")
+    _, statement_rules = create_rules(cfg, select="P110")
     assert all(rule.severity is Severity.WARNING for rule in statement_rules)
 
 
@@ -223,7 +223,7 @@ def _process(code: str) -> ProcessIR:
 
 
 def test_e110_issues_are_stamped_as_warnings():
-    token_rules, statement_rules = create_rules(Config(), select="E110")
+    token_rules, statement_rules = create_rules(Config(), select="P110")
     linter = Linter(rules=token_rules, statement_rules=statement_rules)
     issues = lint_process_model(_process("nValue = 1\n"), linter)
     assert issues
@@ -233,7 +233,7 @@ def test_e110_issues_are_stamped_as_warnings():
 
 def test_e110_promoted_by_config_blocks_the_run():
     cfg = Config.model_validate({"rules": {"unknown_statement": {"severity": "error"}}})
-    token_rules, statement_rules = create_rules(cfg, select="E110")
+    token_rules, statement_rules = create_rules(cfg, select="P110")
     linter = Linter(rules=token_rules, statement_rules=statement_rules)
     issues = lint_process_model(_process("nValue = 1\n"), linter)
     assert issues
@@ -288,9 +288,9 @@ def _explain(tmp_path: Path, monkeypatch, rules: dict, *args: str):
 
 
 def test_explain_reports_the_effective_severity(tmp_path, monkeypatch):
-    """Promoting E110 must not leave explain promising it never fails a run."""
+    """Promoting P110 must not leave explain promising it never fails a run."""
     result = _explain(
-        tmp_path, monkeypatch, {"unknown_statement": {"severity": "error"}}, "E110"
+        tmp_path, monkeypatch, {"unknown_statement": {"severity": "error"}}, "P110"
     )
     assert result.exit_code == 0
     assert "does not fail the run" not in result.stdout
@@ -299,7 +299,7 @@ def test_explain_reports_the_effective_severity(tmp_path, monkeypatch):
 
 
 def test_explain_shows_the_default_severity_without_config(tmp_path, monkeypatch):
-    result = _explain(tmp_path, monkeypatch, {}, "E110")
+    result = _explain(tmp_path, monkeypatch, {}, "P110")
     assert "does not fail the run" in result.stdout
     assert "set by linti.yaml" not in result.stdout
 

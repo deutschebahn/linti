@@ -66,9 +66,11 @@ class UnknownStatementRule(BaseStatementRule):
         ],
     )
 
+    DEPRECATED_IDS = ["E110"]
+
     @property
     def RULE_ID(self) -> str:
-        return "E110"
+        return "P110"
 
     def interested_in(self):
         return [UnknownStatement]

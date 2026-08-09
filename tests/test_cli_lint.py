@@ -47,15 +47,15 @@ def test_all_paths_missing_exits_one(project: Path):
 
 @pytest.fixture
 def unparseable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A file whose only finding is E110 (a warning), plus one that is clean."""
+    """A file whose only finding is P110 (a warning), plus one that is clean."""
     (tmp_path / "broken.ti").write_text("nValue = 1\n")  # missing semicolon
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
 
 def test_warning_only_run_reports_but_exits_zero(unparseable: Path):
-    result = runner.invoke(app, ["lint", "broken.ti", "--select", "E110"])
-    assert "E110" in result.stdout
+    result = runner.invoke(app, ["lint", "broken.ti", "--select", "P110"])
+    assert "P110" in result.stdout
     assert "Warnings:" in result.stdout
     assert "--fail-on warning" in result.stdout
     # The whole point: linti's parser falling short must not break a build.
@@ -64,17 +64,17 @@ def test_warning_only_run_reports_but_exits_zero(unparseable: Path):
 
 def test_fail_on_warning_blocks_on_warnings(unparseable: Path):
     result = runner.invoke(
-        app, ["lint", "broken.ti", "--select", "E110", "--fail-on", "warning"]
+        app, ["lint", "broken.ti", "--select", "P110", "--fail-on", "warning"]
     )
-    assert "E110" in result.stdout
+    assert "P110" in result.stdout
     assert result.exit_code == 1
 
 
 def test_severity_error_hides_warnings(unparseable: Path):
     result = runner.invoke(
-        app, ["lint", "broken.ti", "--select", "E110", "--severity", "error"]
+        app, ["lint", "broken.ti", "--select", "P110", "--severity", "error"]
     )
-    assert "E110" not in result.stdout
+    assert "P110" not in result.stdout
     assert "No issues found" in result.stdout
     assert result.exit_code == 0
 
@@ -87,7 +87,7 @@ def test_severity_filter_wins_over_fail_on(unparseable: Path):
             "lint",
             "broken.ti",
             "--select",
-            "E110",
+            "P110",
             "--fail-on",
             "warning",
             "--severity",
@@ -111,6 +111,6 @@ def test_config_severity_override_promotes_e110(unparseable: Path):
     (unparseable / "linti.yaml").write_text(
         "rules:\n  unknown_statement:\n    severity: error\n"
     )
-    result = runner.invoke(app, ["lint", "broken.ti", "--select", "E110"])
-    assert "E110" in result.stdout
+    result = runner.invoke(app, ["lint", "broken.ti", "--select", "P110"])
+    assert "P110" in result.stdout
     assert result.exit_code == 1

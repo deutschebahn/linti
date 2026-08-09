@@ -13,7 +13,7 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 - **D** - Documentation Rules
 - **C** - Code Quality Rules
 - **X** - External Interactions Rules
-- **E** - Error Rules
+- **P** - Parser Rules
 
 ## Current Rules
 
@@ -71,11 +71,11 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 | X130 | No Hardcoded Secrets | Reports variables whose name looks like a credential being fed from a hardcoded string literal or read out of a cube | ❌ | error |
 | X210 | Filter ODBC Rows in SQL | Flags ItemSkip() or exclusively conditional writes in Metadata/Data when the ODBC data source query has no WHERE clause | ❌ | error |
 
-### Error Rules (E)
+### Parser Rules (P)
 
 | Rule ID | Rule Name | Description | Auto-fix | Severity |
 |---------|-----------|-------------|----------|----------|
-| E110 | Unparseable Statement | Flags statements that could not be parsed, warning that linting quality is reduced for that code | ❌ | warning |
+| P110 | Unparseable Statement | Flags statements that could not be parsed, warning that linting quality is reduced for that code | ❌ | warning |
 
 ## Rule Details
 
@@ -1166,9 +1166,11 @@ ENDIF;
 
 ---
 
-### E110: Unparseable Statement
+### P110: Unparseable Statement
 
 Flags statements that could not be parsed, warning that linting quality is reduced for that code.
+
+> Previous rule ID: E110 (deprecated)
 
 **⚠ Severity: warning** — reported but does not fail the run. Pass `--fail-on warning` to block on it, or set `rules.<key>.severity: error` in `linti.yaml`.
 
