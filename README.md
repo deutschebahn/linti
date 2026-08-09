@@ -486,12 +486,16 @@ linti process.ti --select N,C --tokens
 ```
 
 **Selection patterns:**
-- `F`, `N`, `D`, `C`, `X` – Select all rules in a category
-- `F1`, `F2`, `F3`, `N1`, `N2`, `D1`, `C1`, `C2`, `C3`, `C4`, `X1`, `X2` – Select all rules in a subcategory
+- `F`, `N`, `D`, `C`, `X`, `P` – Select all rules in a category
+- `F1`, `F2`, `F3`, `N1`, `N2`, `D1`, `C1`, `C2`, `C3`, `C4`, `X1`, `X2`, `P1` – Select all rules in a subcategory
 - `F110`, `D110`, `C220` – Select a specific rule
 
 A deprecated rule ID is accepted as a full ID (e.g. `--select S220` runs `C220`)
 and warns; group prefixes are matched against canonical IDs only.
+
+`P900` is the one exception: it's enforced directly in the parser rather than
+by a rule module, so `--select` (and `# noqa`) cannot target it either way —
+only `rules.nesting_depth.enabled`/`severity` in `linti.yaml` control it.
 
 ### Listing Rules
 
@@ -590,13 +594,21 @@ Interactions with systems outside the TI process:
 - **X2xx - Performance**: Cost of external data access
   - `X210` - Filter ODBC Rows in SQL
 
-### Parser Rules (P1xx)
-Parse and syntax diagnostics that reduce linting coverage:
+### Parser Rules (P1xx, P9xx)
+Diagnostics enforced by the parser itself rather than a lint pass over a
+finished AST:
 
 - **P1xx - Parsing**: Statements the parser could not understand
   - `P110` - Unparseable Statement
-  - `S900` - Maximum nesting depth exceeded (enforced in the parser, configured
-    under `rules.nesting_depth`)
+- **P9xx - Safety Limits**: Input-hardening caps that abort parsing instead of
+  crashing
+  - `P900` - Maximum Nesting Depth Exceeded — control-flow nesting beyond
+    `max_nesting_depth` (default 150) aborts that procedure's parse instead of
+    recursing into a `RecursionError`. Configured under `rules.nesting_depth`
+    (`enabled`/`severity`), but **the cap itself is not optional** —
+    `enabled: false` only silences the diagnostic; the procedure is still
+    dropped from linting either way. See `linti explain P900` for the full
+    story.
 
 Use `linti explain` to list all rules or `linti explain <RULE_ID>` for detailed information about a specific rule.
 
@@ -605,7 +617,7 @@ Use `linti explain` to list all rules or `linti explain <RULE_ID>` for detailed 
 Every rule carries a severity. `error` is the default and fails the run;
 `warning` is reported but exits 0.
 
-The parse diagnostics `P110` and `S900` are warnings, because linti cannot tell
+The parse diagnostics `P110` and `P900` are warnings, because linti cannot tell
 their two possible causes apart from the inside: either the TI really is
 malformed — yours to fix — or linti's parser does not cover a construct TM1
 accepts, which is a linti bug. A build should not break on the second case, so
@@ -646,11 +658,12 @@ all; one that treats every finding as blocking adds `--fail-on warning`.
 The former generic **Semantic (S)** category was split into **Code Quality (C)**
 and **External Interactions (X)**, and a few rules were renumbered so each
 subcategory describes its topic. The **Error (E)** category was also renamed to
-**Parser (P)**, since its one rule reports a parsing diagnostic (default
-severity `warning`), not an `error`-severity finding. **Old IDs keep working
-for one deprecation cycle** wherever a rule is referenced by ID — `--select`,
-`# noqa` comments, and `linti explain`. Using one resolves to the canonical
-rule and prints:
+**Parser (P)**, since its rules report parsing diagnostics (default severity
+`warning`), not `error`-severity findings — and the parser-enforced
+nesting-depth diagnostic (formerly `S900`, no rule class of its own) joined
+that same group as `P900`. **Old IDs keep working for one deprecation cycle**
+wherever a rule is referenced by ID — `--select`, `# noqa` comments, and
+`linti explain`. Using one resolves to the canonical rule and prints:
 
 ```
 ⚠  Rule ID S220 is deprecated. Use C220 instead.
@@ -673,6 +686,7 @@ Diagnostics always report the **canonical (new)** ID.
 | `S330` | `X120` | ODBCOpen Password Parameter |
 | `S340` | `X210` | Filter ODBC Rows in SQL |
 | `E110` | `P110` | Unparseable Statement |
+| `S900` | `P900` | Maximum Nesting Depth Exceeded |
 
 Every other rule (all Formatting and Naming IDs) keeps the ID it already had.
 

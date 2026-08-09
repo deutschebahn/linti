@@ -52,6 +52,14 @@ _canonical_ids: set[str] | None = None
 _deprecated_to_canonical: dict[str, str] | None = None
 _deprecated_by_canonical: dict[str, list[str]] | None = None
 
+# Deprecated IDs for rules with no rule class to carry ``DEPRECATED_IDS`` on —
+# currently only the parser-enforced nesting-depth diagnostic
+# (``linter/api.py::NESTING_DEPTH_RULE_ID``). Folded into the same lookup
+# tables `_build` produces from the registry, but kept out of
+# ``_canonical_ids``: the new ID still isn't a registry rule, so it must stay
+# outside the registry-consistency invariants `validate_rule_ids` checks.
+_MANUAL_DEPRECATIONS: dict[str, str] = {"S900": "P900"}
+
 
 class DuplicateRuleIdError(ValueError):
     """Raised when the rule registry has an inconsistent set of IDs.
@@ -94,6 +102,10 @@ def _build() -> None:
             dep_by_canon.setdefault(canon, []).extend(deprecated)
         for dep in deprecated:
             dep_to_canon[dep] = canon
+
+    for dep, canon in _MANUAL_DEPRECATIONS.items():
+        dep_to_canon[dep] = canon
+        dep_by_canon.setdefault(canon, []).append(dep)
 
     _canonical_ids = canonical
     _deprecated_to_canonical = dep_to_canon

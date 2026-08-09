@@ -321,7 +321,7 @@ class RulesConfig(BaseModel):
     )
     max_line_length: MaxLineLengthConfig = Field(default_factory=MaxLineLengthConfig)
     whitespace: WhitespaceConfig = Field(default_factory=WhitespaceConfig)
-    # S900 is enforced in the parser and surfaced by the API layer rather than
+    # P900 is enforced in the parser and surfaced by the API layer rather than
     # by a registry rule, so it has no rule module to carry METADATA. Declaring
     # it here gives it the same `enabled` / `severity` knobs as every real rule.
     nesting_depth: RuleConfig = Field(default_factory=RuleConfig)
@@ -351,7 +351,7 @@ class Config(BaseModel):
     # rules fall back to their own default. `both` == must run on v11 and v12.
     target_version: Optional[Literal["v11", "v12", "both"]] = None
     # Lowest severity that makes the run fail. Defaults to `error`, so findings
-    # linti weighs as `warning` (the parse diagnostics P110/S900) are reported
+    # linti weighs as `warning` (the parse diagnostics P110/P900) are reported
     # but exit 0 — a build should not break because linti's parser fell short.
     # Set to `warning` (or pass --fail-on warning) to make every finding blocking.
     fail_on: Severity = Severity.ERROR
@@ -365,7 +365,7 @@ class Config(BaseModel):
     # the one that has to be unambiguous.
     min_severity: Severity = Field(default=Severity.WARNING, alias="severity")
     # Input-hardening limits (defend against pathological / untrusted input).
-    # Control-flow nesting beyond this depth yields an S900 diagnostic instead
+    # Control-flow nesting beyond this depth yields an P900 diagnostic instead
     # of recursing until a RecursionError.
     max_nesting_depth: int = Field(default=150)
     # Files larger than this (bytes) are rejected before being read into memory.
