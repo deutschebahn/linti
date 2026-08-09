@@ -88,7 +88,7 @@ def _warning_note(warnings_count: int, fail_on: Severity) -> list[str]:
 
     Deliberately prominent. A finding that never fails a build is a finding
     nobody acts on, so the count has to stay in view — otherwise the honest
-    default (P110/S900 do not break CI) just turns into silence.
+    default (P110/P900 do not break CI) just turns into silence.
     """
     if not warnings_count or fail_on is not Severity.ERROR:
         return []

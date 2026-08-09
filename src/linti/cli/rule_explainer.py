@@ -15,6 +15,7 @@ from rich.text import Text
 from linti.cli.config_loader import load_config
 from linti.config import Config, rule_severity_override
 from linti.rules import _RULE_REGISTRY
+from linti.linter.api import NESTING_DEPTH_METADATA, NESTING_DEPTH_RULE_ID
 from linti.linter.lint_issue import Severity
 from linti.rules.Rule import RuleMetadata
 from linti.rules.rule_ids import deprecated_ids_for, group_sort_key, resolve_and_warn
@@ -57,6 +58,19 @@ def _build_rule_index(cfg: Config | None = None) -> dict[str, _RuleEntry]:
             instances = [rule_cls()]
         for inst in instances:
             index.setdefault(inst.RULE_ID, entry)
+
+    # P900 (nesting-depth) is enforced in the parser, not by a registry rule,
+    # so it has no rule class to walk above — merge its synthetic metadata in
+    # by hand, through the same severity-override path every real rule uses.
+    override = (
+        rule_severity_override(cfg.rules, "nesting_depth") if cfg is not None else None
+    )
+    index[NESTING_DEPTH_RULE_ID] = _RuleEntry(
+        meta=NESTING_DEPTH_METADATA,
+        severity=override if override is not None else NESTING_DEPTH_METADATA.severity,
+        overridden=override is not None
+        and override is not NESTING_DEPTH_METADATA.severity,
+    )
     return index
 
 

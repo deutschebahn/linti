@@ -146,6 +146,25 @@ class TestResolution:
         assert deprecated_ids_for("F110") == []
 
 
+class TestManualDeprecations:
+    """P900 (nesting-depth) has no rule class, so its S900->P900 migration is
+    a manual entry in rule_ids.py rather than a DEPRECATED_IDS attribute — it
+    still needs to resolve like every registry-backed one does."""
+
+    def test_s900_resolves_to_p900(self):
+        assert resolve_rule_id("S900") == ("P900", True)
+
+    def test_s900_lookup_is_case_insensitive(self):
+        assert resolve_rule_id("s900") == ("P900", True)
+
+    def test_deprecated_ids_for_reports_s900(self):
+        assert deprecated_ids_for("P900") == ["S900"]
+
+    def test_p900_is_not_a_registry_canonical_id(self):
+        """P900 stays out of canonical_ids() — it isn't a registry rule."""
+        assert "P900" not in canonical_ids()
+
+
 class TestSelectBackwardCompatibility:
     def test_deprecated_select_creates_the_canonical_rule(self):
         cfg = Config()

@@ -46,8 +46,8 @@ class Linter:
             max_values_per_variable: Cap on how many distinct values the constant
                 evaluation index tracks per variable before degrading to
                 UNKNOWN.
-            nesting_depth_enabled: Whether the S900 diagnostic is reported at all.
-            nesting_depth_severity: Weight of the S900 diagnostic. Read by
+            nesting_depth_enabled: Whether the P900 diagnostic is reported at all.
+            nesting_depth_severity: Weight of the P900 diagnostic. Read by
                 ``linter.api``, which owns that pseudo-rule; it has no rule
                 module to carry METADATA, so it is configured through here.
         """

@@ -10,7 +10,7 @@ class Severity(str, Enum):
     a value round-trips through YAML config and CLI options unchanged.
 
     ``WARNING`` marks findings the *user* may not own — most importantly the
-    parse diagnostics (P110, S900), which can equally mean "your TI has a
+    parse diagnostics (P110, P900), which can equally mean "your TI has a
     syntax error" or "linti's parser does not cover this construct".  Such a
     finding is worth reporting but is a poor reason to fail a build, so by
     default it does not affect the exit code.

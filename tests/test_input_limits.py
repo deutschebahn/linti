@@ -12,8 +12,8 @@ from linti.provider.factory import provider_for_path
 from linti.provider.git import GitProvider
 
 
-def test_deep_nesting_surfaces_s900_diagnostic():
-    """An over-nested procedure yields one S900 LintIssue, not a crash."""
+def test_deep_nesting_surfaces_p900_diagnostic():
+    """An over-nested procedure yields one P900 LintIssue, not a crash."""
     code = "IF(1);" * 300 + "nX = 1;\n" + "ENDIF;" * 300
     process = ProcessIR(name="proc", prolog=ProcedureInfo(code=code))
     linter = Linter(max_nesting_depth=150)
@@ -28,7 +28,7 @@ def test_deep_nesting_surfaces_s900_diagnostic():
 
 
 def test_normal_nesting_produces_no_depth_diagnostic():
-    """A shallowly nested procedure lints without an S900 diagnostic."""
+    """A shallowly nested procedure lints without a P900 diagnostic."""
     code = "IF(1);\nnX = 1;\nENDIF;\n"
     process = ProcessIR(name="proc", prolog=ProcedureInfo(code=code))
     linter = Linter(max_nesting_depth=150)

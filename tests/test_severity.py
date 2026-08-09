@@ -240,28 +240,28 @@ def test_e110_promoted_by_config_blocks_the_run():
     assert file_report_exit_code(issues) == 1
 
 
-# --- S900, the parser-level pseudo rule -----------------------------------
+# --- P900, the parser-level pseudo rule -----------------------------------
 
 
 def _deeply_nested(depth: int) -> str:
     return "IF(1=1);\n" * depth + "nX = 1;\n" + "ENDIF;\n" * depth
 
 
-def test_s900_is_a_warning_by_default():
+def test_p900_is_a_warning_by_default():
     linter = Linter(max_nesting_depth=5)
     issues = lint_process_model(_process(_deeply_nested(10)), linter)
-    assert [issue.rule_id for _, issue, _ in issues] == ["S900"]
+    assert [issue.rule_id for _, issue, _ in issues] == ["P900"]
     assert issues[0][1].severity is Severity.WARNING
     assert file_report_exit_code(issues) == 0
 
 
-def test_s900_severity_is_configurable():
+def test_p900_severity_is_configurable():
     linter = Linter(max_nesting_depth=5, nesting_depth_severity=Severity.ERROR)
     issues = lint_process_model(_process(_deeply_nested(10)), linter)
     assert file_report_exit_code(issues) == 1
 
 
-def test_s900_can_be_switched_off():
+def test_p900_can_be_switched_off():
     linter = Linter(max_nesting_depth=5, nesting_depth_enabled=False)
     assert lint_process_model(_process(_deeply_nested(10)), linter) == []
 
@@ -302,6 +302,21 @@ def test_explain_shows_the_default_severity_without_config(tmp_path, monkeypatch
     result = _explain(tmp_path, monkeypatch, {}, "P110")
     assert "does not fail the run" in result.stdout
     assert "set by linti.yaml" not in result.stdout
+
+
+def test_explain_finds_p900_despite_having_no_rule_class(tmp_path, monkeypatch):
+    """P900 has no rule module — explain must still merge it in by hand."""
+    result = _explain(tmp_path, monkeypatch, {}, "P900")
+    assert result.exit_code == 0
+    assert "Maximum Nesting Depth Exceeded" in result.stdout
+    assert "does not fail the run" in result.stdout
+
+
+def test_explain_accepts_the_deprecated_p900_id(tmp_path, monkeypatch):
+    with pytest.warns(LintiConfigWarning, match="S900 is deprecated"):
+        result = _explain(tmp_path, monkeypatch, {}, "S900")
+    assert result.exit_code == 0
+    assert "Maximum Nesting Depth Exceeded" in result.stdout
 
 
 def test_explain_marks_a_demoted_rule(tmp_path, monkeypatch):
