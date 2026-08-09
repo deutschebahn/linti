@@ -53,6 +53,7 @@ def group_sort_key(rule_id: str) -> tuple[int, str]:
 _canonical_ids: set[str] | None = None
 _deprecated_to_canonical: dict[str, str] | None = None
 _deprecated_by_canonical: dict[str, list[str]] | None = None
+_metadata_by_id: dict[str, RuleMetadata] | None = None
 
 
 @dataclass(frozen=True)
@@ -103,13 +104,28 @@ class DuplicateRuleIdError(ValueError):
     """
 
 
+def rule_instances(rule_cls) -> list:
+    """Instantiate *rule_cls* the way the registry walkers need it.
+
+    Rules that fan out into several instances (one per configured option) are
+    built through ``from_config({})``; anything that cannot be built from an
+    empty config falls back to a bare instance, since all callers here only
+    want the declared IDs, not a working rule.
+
+    Not total: a rule that cannot be default-constructed either propagates out
+    of the fallback. That is the right outcome for the ID-bookkeeping callers,
+    where such a rule is an unusable registry entry — callers that only need a
+    display name should guard, as :func:`rule_metadata_index` does.
+    """
+    try:
+        return rule_cls.from_config({})
+    except Exception:
+        return [rule_cls()]
+
+
 def _canonical_id(rule_cls) -> str:
     """Return the canonical ``RULE_ID`` for a registered rule class."""
-    try:
-        instances = rule_cls.from_config({})
-    except Exception:
-        instances = [rule_cls()]
-    return instances[0].RULE_ID
+    return rule_instances(rule_cls)[0].RULE_ID
 
 
 def _deprecated_ids(rule_cls) -> list[str]:
@@ -148,6 +164,51 @@ def _build() -> None:
     _canonical_ids = canonical
     _deprecated_to_canonical = dep_to_canon
     _deprecated_by_canonical = dep_by_canon
+
+
+def rule_metadata_index() -> dict[str, RuleMetadata]:
+    """Map every rule ID — registry and synthetic alike — to its metadata.
+
+    Built once and cached. Lets a caller holding nothing but the ``rule_id`` a
+    :class:`~linti.linter.lint_issue.LintIssue` carries recover the rule's
+    human-readable name.
+    """
+    global _metadata_by_id
+    if _metadata_by_id is not None:
+        return _metadata_by_id
+
+    index: dict[str, RuleMetadata] = {}
+    for rule_cls in _RULE_REGISTRY:
+        meta: RuleMetadata | None = getattr(rule_cls, "METADATA", None)
+        if meta is None:
+            continue
+        try:
+            instances = rule_instances(rule_cls)
+        except Exception:
+            # A rule that cannot be instantiated at all is a registry bug, but
+            # this index only feeds display; let the walkers that actually need
+            # the rule (``_build``, ``create_rules``) be the ones to fail.
+            continue
+        for inst in instances:
+            # Upper-cased like every other table here, so a lowercase RULE_ID
+            # resolves through ``rule_name`` instead of rendering nameless.
+            index.setdefault(inst.RULE_ID.upper(), meta)
+
+    for synth in synthetic_rules():
+        index.setdefault(synth.rule_id.upper(), synth.metadata)
+
+    _metadata_by_id = index
+    return index
+
+
+def rule_name(rule_id: str) -> str:
+    """Human-readable name for *rule_id*, or ``""`` when it is unknown.
+
+    Deliberately total: reporting must never blow up on an ID that has no
+    metadata behind it.
+    """
+    meta = rule_metadata_index().get(rule_id.strip().upper())
+    return meta.name if meta is not None else ""
 
 
 def canonical_ids() -> set[str]:

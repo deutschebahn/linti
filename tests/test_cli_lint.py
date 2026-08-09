@@ -35,6 +35,15 @@ def test_missing_path_reported_alongside_lint_issues(project: Path):
     assert result.exit_code == 1
 
 
+def test_summary_breaks_findings_down_by_rule(project: Path):
+    result = runner.invoke(app, ["lint", "dirty.ti"])
+    # End to end, so the rule name really does resolve against the live registry.
+    assert "Issues by rule:" in result.stdout
+    assert "F220" in result.stdout
+    assert "Whitespace Around Operators" in result.stdout
+    assert result.stdout.index("Issues by rule:") < result.stdout.index("Total Issues:")
+
+
 def test_all_paths_missing_exits_one(project: Path):
     result = runner.invoke(app, ["lint", "nope1.ti", "nope2.ti"])
     assert "Path does not exist: nope1.ti" in result.stderr
