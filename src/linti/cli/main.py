@@ -18,6 +18,7 @@ from linti.cli.file_linter import lint_files
 from linti.cli.rule_explainer import explain_rule, list_rules
 from linti.config import LintiConfigWarning
 from linti.linter.lint_issue import Severity
+from linti.rules.rule_factory import RuleSelection
 
 if TYPE_CHECKING:
     from click import Context
@@ -84,7 +85,28 @@ AUTO_FIX_OPT = typer.Option(
 SELECT_OPT = typer.Option(
     None,
     "--select",
-    help="Select specific rules to run (e.g., F, F1, F110 or comma-separated list)",
+    help=(
+        "Run only these rules, instead of the configured set (e.g., F, F1, "
+        "F110). Repeatable and comma-separated."
+    ),
+)
+EXTEND_SELECT_OPT = typer.Option(
+    None,
+    "--extend-select",
+    help=(
+        "Run these rules in addition to the set already in effect, even when "
+        "the config disables them. Repeatable and comma-separated; same "
+        "patterns as --select."
+    ),
+)
+EXCLUDE_RULE_OPT = typer.Option(
+    None,
+    "--exclude-rule",
+    "--ignore",
+    help=(
+        "Skip these rules for this run. Repeatable and comma-separated; same "
+        "patterns as --select, and wins over --select/--extend-select."
+    ),
 )
 FAIL_ON_OPT = typer.Option(
     None,
@@ -120,7 +142,9 @@ def lint(
     show_ast: bool = SHOW_AST_OPT,
     config: Optional[Path] = CONFIG_OPT,
     auto_fix: bool = AUTO_FIX_OPT,
-    select: Optional[str] = SELECT_OPT,
+    select: Optional[list[str]] = SELECT_OPT,
+    extend_select: Optional[list[str]] = EXTEND_SELECT_OPT,
+    exclude_rule: Optional[list[str]] = EXCLUDE_RULE_OPT,
     fail_on: Optional[Severity] = FAIL_ON_OPT,
     severity: Optional[Severity] = SEVERITY_OPT,
     exclude_path: Optional[list[str]] = EXCLUDE_PATH_OPT,
@@ -140,6 +164,7 @@ def lint(
         linti . --exclude-path generated --exclude-path "**/archive/*.ti"
         linti process.ti --auto-fix
         linti process.ti --select F110
+        linti process.ti --extend-select D --ignore F220
         linti processes/ --fail-on warning
         linti processes/ --severity error
     """
@@ -153,6 +178,10 @@ def lint(
         cfg.fail_on = fail_on
     if severity is not None:
         cfg.min_severity = severity
+
+    # Parsed once here, not per linted file: this is where deprecated IDs and
+    # patterns that cannot match anything are reported.
+    selection = RuleSelection.parse(select, extend_select, exclude_rule)
 
     # Inputs and CLI exclusions resolve against the current directory; config
     # exclusions resolve against the config file's directory (Rule 1). Missing a
@@ -185,7 +214,7 @@ def lint(
         show_ast,
         config,
         auto_fix=auto_fix,
-        select=select,
+        selection=selection,
     )
     if result.missing:
         exit_code = max(exit_code, 1)

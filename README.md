@@ -292,7 +292,7 @@ top-level settings (safe defaults; normal files are unaffected):
 max_file_size: 10485760   # 10 MB (default)
 
 # Cap on control-flow (IF/WHILE) nesting depth. Deeper nesting is reported as
-# an S900 diagnostic instead of being parsed unboundedly.
+# a P900 diagnostic instead of being parsed unboundedly.
 max_nesting_depth: 150    # default
 
 # Cap on how many distinct values the constant evaluation index tracks per
@@ -302,9 +302,9 @@ max_values_per_variable: 8           # default
 ```
 
 - A file above `max_file_size` fails with a clear error rather than being read.
-- A procedure nested beyond `max_nesting_depth` produces a single `S900`
+- A procedure nested beyond `max_nesting_depth` produces a single `P900`
   diagnostic (`Maximum nesting depth (N) exceeded`) for that procedure and
-  linting continues. `S900` is raised by the parser rather than by a rule
+  linting continues. `P900` is raised by the parser rather than by a rule
   module, so it has no entry in `linti explain` / `ALL_RULES.md` — but it takes
   the same `enabled` and `severity` settings as a real rule:
 
@@ -510,6 +510,34 @@ linti process.ti --select F --auto-fix
 linti process.ti --select N,C --tokens
 ```
 
+Two more options adjust the set instead of replacing it. Both take the same
+patterns as `--select`, and both are repeatable as well as comma-separated:
+
+```bash
+# Run the configured set plus one opt-in rule
+linti process.ti --extend-select D110
+
+# Skip a rule for this run (--ignore is an alias of --exclude-rule)
+linti process.ti --ignore F220
+linti process.ti --exclude-rule F2,D110
+
+# Repeatable, and combinable with --select
+linti process.ti --ignore F220 --ignore C110
+linti process.ti --select F --extend-select D110 --ignore F250
+```
+
+**Precedence**, highest first:
+
+1. `--exclude-rule` / `--ignore` — a matching rule never runs, not even when
+   another option asked for it.
+2. `--select` — replaces the configured set entirely.
+3. `--extend-select` / `--extend-select` — adds to whatever is in effect, on
+   top of `--select` or, without it, on top of the configured set.
+4. Otherwise the per-rule `enabled` setting from `linti.yaml` decides.
+
+`--select` and `--extend-select` both run the rules they match even when the
+config sets `enabled: false` for them.
+
 **Selection patterns:**
 - `F`, `N`, `D`, `C`, `X`, `P` – Select all rules in a category
 - `F1`, `F2`, `F3`, `N1`, `N2`, `D1`, `C1`, `C2`, `C3`, `C4`, `X1`, `X2`, `P1` – Select all rules in a subcategory
@@ -521,6 +549,32 @@ and warns; group prefixes are matched against canonical IDs only.
 `P900` is the one exception: it's enforced directly in the parser rather than
 by a rule module, so `--select` (and `# noqa`) cannot target it either way —
 only `rules.nesting_depth.enabled`/`severity` in `linti.yaml` control it.
+Naming `P900` in any of the three options is therefore inert, and linti says so
+instead of doing nothing quietly:
+
+```
+⚠  --exclude-rule P900 has no effect: it is enforced directly in the parser
+   rather than by a rule module, so there is no rule to select or skip. Raise
+   `max_nesting_depth` (top-level config key, default 150) if your code
+   genuinely nests that deep, or set `rules.nesting_depth.enabled: false` to
+   silence the diagnostic.
+```
+
+A group prefix such as `--ignore P` is a normal exclusion — it simply never
+reaches `P900`.
+
+A pattern that matches no rule at all gets the same treatment, because a
+mistyped ID is otherwise invisible: `--select F22O` would quietly lint nothing
+and `--ignore F22O` would quietly keep reporting.
+
+```
+⚠  --exclude-rule F22O matches no rule and has no effect. Run `linti explain`
+   to list the available rule IDs.
+```
+
+The pattern is left in place either way — a typo in `--select` still means
+"run only these rules", never "run everything". Warnings are emitted once per
+run, not once per linted file.
 
 ### Listing Rules
 

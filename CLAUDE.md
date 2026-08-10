@@ -63,9 +63,17 @@ Rules **self-register**: `rules/__init__.py` walks the package with `pkgutil`
 and imports every module, so `__init_subclass__` appends any class with a
 non-empty `CONFIG_KEY` to `_RULE_REGISTRY`. **There is no manual rule list** —
 adding a new rule module under `rules/<category>/` is enough to register it.
-`rule_factory.create_rules(cfg, select)` iterates the registry, applies config
-(`enabled`, per-rule options via `from_config`) and `--select` filtering, and
-returns `(token_rules, statement_rules)`.
+`rule_factory.create_rules(cfg, select, extend_select, exclude)` iterates the
+registry, applies config (`enabled`, per-rule options via `from_config`) and the
+CLI selectors, and returns `(token_rules, statement_rules)`. Precedence:
+`exclude` (`--exclude-rule`/`--ignore`) wins over everything, `select` replaces
+the configured set, `extend_select` adds to whatever is in effect, and both
+selects override `enabled: false`. Each selector accepts one comma-separated
+string or a sequence of them (a repeated CLI option). `RuleSelection.parse`
+normalizes all three and is where the warnings live (deprecated IDs, patterns
+that match no rule, selectors naming a synthetic rule such as P900); the CLI
+parses once per run and passes the result down, because `lint_files` builds a
+fresh `Linter` — and thus a fresh rule set — per file.
 
 Rule IDs encode category + subcategory: `D`=documentation, `F`=format,
 `N`=naming, `S`=semantic; e.g. `F110` (keyword casing), `F310` (indentation),

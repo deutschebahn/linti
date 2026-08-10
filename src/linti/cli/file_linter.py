@@ -27,7 +27,7 @@ from linti.parser.ast import UnknownStatement
 from linti.parser.parser import Parser
 from linti.provider.base import require_single_process_name
 from linti.provider.factory import provider_for_path
-from linti.rules.rule_factory import create_rules
+from linti.rules.rule_factory import RuleSelection, create_rules
 
 
 def auto_fix_file(file_path: Path, linter: Linter) -> dict[str, int]:
@@ -49,9 +49,11 @@ def auto_fix_file(file_path: Path, linter: Linter) -> dict[str, int]:
     return fixes_by_proc
 
 
-def linter_from_config(cfg: Config, select: Optional[str] = None) -> Linter:
+def linter_from_config(
+    cfg: Config, selection: Optional[RuleSelection] = None
+) -> Linter:
     """Build a Linter carrying every config-driven limit and severity."""
-    token_rules, statement_rules = create_rules(cfg, select=select)
+    token_rules, statement_rules = create_rules(cfg, selection=selection)
     nesting = cfg.rules.nesting_depth
     return Linter(
         rules=token_rules,
@@ -125,7 +127,7 @@ def lint_process_file(
     return_issues: bool = False,
     silent_errors: bool = False,
     auto_fix: bool = False,
-    select: Optional[str] = None,
+    selection: Optional[RuleSelection] = None,
     report_path: Optional[Path] = None,
     cfg: Optional[Config] = None,
 ) -> Optional[list]:
@@ -146,7 +148,7 @@ def lint_process_file(
     # the provider, so the file-size ceiling is enforced on the initial read.
     if linter is None:
         cfg = load_config(file_path, config)
-        linter = linter_from_config(cfg, select)
+        linter = linter_from_config(cfg, selection)
     elif cfg is None and not return_issues:
         raise ValueError(
             "lint_process_file: a custom `linter` needs `cfg` (the Config that "
@@ -192,7 +194,7 @@ def lint_files(
     show_ast: bool = False,
     config: Optional[Path] = None,
     auto_fix: bool = False,
-    select: Optional[str] = None,
+    selection: Optional[RuleSelection] = None,
 ) -> int:
     """Lint an explicit list of already-discovered process files.
 
@@ -206,7 +208,9 @@ def lint_files(
     """
 
     def _new_linter() -> Linter:
-        return linter_from_config(cfg, select)
+        # Rules are stateful, so every file gets its own Linter; *selection* is
+        # already parsed, which is what keeps its warnings to one per run.
+        return linter_from_config(cfg, selection)
 
     def _display(file: Path) -> Path:
         # Render relative to the current directory, matching the paths a user
