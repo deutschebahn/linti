@@ -10,12 +10,18 @@ source file format — the provider layer normalises everything.
 import re
 from pathlib import Path
 from shlex import quote
+from typing import Optional, Union
 
 from linti.linter.lint_issue import LintIssue, Severity
 
+#: What a report names as the source of a finding. A ``Path`` for a file on
+#: disk; a plain string for a source that never was one, such as
+#: ``tm1://prod/SalesLoad`` for a process fetched from a server.
+SourceLabel = Union[Path, str]
+
 # Canonical issue type returned by the API layer.
 ProcedureIssue = tuple[str, LintIssue, int]
-FileProcedureIssue = tuple[Path, str, LintIssue, int]
+FileProcedureIssue = tuple[SourceLabel, str, LintIssue, int]
 
 #: Marker prefixed to a finding that does not block the run.
 WARNING_INDICATOR = " ⚠️"
@@ -48,7 +54,7 @@ def adjust_line_numbers_in_message(message: str, source_line: int) -> str:
 
 
 def format_issue(
-    file_path: Path, proc_name: str, issue: LintIssue, source_line: int
+    file_path: SourceLabel, proc_name: str, issue: LintIssue, source_line: int
 ) -> str:
     """Format a single issue with adjusted line numbers and procedure context."""
     adjusted_line = source_line + issue.line - 1
@@ -62,7 +68,7 @@ def format_issue(
 
 def collect_report(
     all_issues: list[ProcedureIssue],
-    file_path: Path,
+    file_path: SourceLabel,
 ) -> list[str]:
     """Format all issues for one file. Returns list of formatted lines."""
     return [
@@ -169,12 +175,30 @@ def _indicators(issue: LintIssue) -> str:
     return marks
 
 
+def _fix_hint(fix_command: Optional[str], target: SourceLabel) -> list[str]:
+    """The closing line about auto-fixing, for a report that has fixable issues.
+
+    *fix_command* left unset means "the standard file workflow applies", which
+    is the only case that existed before sources other than files did. A source
+    that cannot be auto-fixed passes its own line instead, and an empty string
+    suppresses the hint entirely.
+    """
+    if fix_command is None:
+        return [f"Run: linti {quote(str(target))} --auto-fix"]
+    return [fix_command] if fix_command else []
+
+
 def render_file_report(
-    file_path: Path,
+    file_path: SourceLabel,
     issues: list[ProcedureIssue],
     fail_on: Severity = Severity.ERROR,
+    fix_command: Optional[str] = None,
 ) -> list[str]:
-    """Build output lines for a single-file report."""
+    """Build output lines for a single-source report.
+
+    *fix_command* overrides the closing ``Run: linti … --auto-fix`` hint; see
+    :func:`_fix_hint`.
+    """
     if not issues:
         return [f"✓ No issues found in {file_path}"]
 
@@ -194,21 +218,26 @@ def render_file_report(
     lines.append(f"Total Issues: {total} (Auto-fixable: {fixable_count})")
     lines.extend(_warning_note(count_warnings(issues), fail_on))
     if fixable_count > 0:
-        lines.append(f"Run: linti {quote(str(file_path))} --auto-fix")
+        lines.extend(_fix_hint(fix_command, file_path))
     lines.append("")
     return lines
 
 
 def render_directory_report(
-    directory: Path,
+    directory: SourceLabel,
     all_file_issues: list[FileProcedureIssue],
     fail_on: Severity = Severity.ERROR,
+    fix_command: Optional[str] = None,
 ) -> list[str]:
-    """Build output lines for a multi-file directory report."""
+    """Build output lines for a multi-source report.
+
+    *fix_command* overrides the closing ``Run: linti … --auto-fix`` hint; see
+    :func:`_fix_hint`.
+    """
     if not all_file_issues:
         return [f"\n✓ No issues found in {directory}"]
 
-    issues_by_file: dict[Path, list[ProcedureIssue]] = {}
+    issues_by_file: dict[SourceLabel, list[ProcedureIssue]] = {}
     for file_path, proc_name, issue, source_line in all_file_issues:
         issues_by_file.setdefault(file_path, []).append((proc_name, issue, source_line))
 
@@ -246,7 +275,7 @@ def render_directory_report(
     lines.extend(_warning_note(count_warnings(all_file_issues), fail_on))
 
     if total_fixable > 0:
-        lines.append(f"\n  Run: linti {quote(str(directory))} --auto-fix")
+        lines.extend(f"\n  {line}" for line in _fix_hint(fix_command, directory))
     lines.append("")
     return lines
 

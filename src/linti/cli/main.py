@@ -16,6 +16,7 @@ from linti.cli.file_discovery import (
 )
 from linti.cli.file_linter import lint_files
 from linti.cli.rule_explainer import explain_rule, list_rules
+from linti.cli.tm1_cli import tm1_app
 from linti.config import LintiConfigWarning
 from linti.linter.lint_issue import Severity
 from linti.rules.rule_factory import RuleSelection
@@ -52,6 +53,10 @@ app = typer.Typer(
     ),
     cls=_DefaultLintGroup,
 )
+
+# Registered as a sub-command, which means `linti tm1` no longer falls through
+# to `lint` — a directory actually named `tm1` needs `linti lint tm1`.
+app.add_typer(tm1_app, name="tm1")
 
 # Module-level argument/option definitions
 PATHS_ARG = typer.Argument(

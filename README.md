@@ -52,9 +52,111 @@ It is not affiliated with, endorsed by, sponsored by, or maintained by IBM. TM1,
   - Entire file is treated as Prolog.
   - Only Prolog-valid and section-independent rules are meaningful.
 
+## Linting Processes on a TM1 Server
+
+Processes can be linted straight off a TM1 server, without exporting them first.
+This needs the optional `tm1` extra:
+
+```bash
+pip install "linti[tm1]"
+```
+
+Linting a server is **read-only**: linti never writes a process back, and
+`--auto-fix` is not supported for TM1 connections (see
+[Auto-Fix Feature](#auto-fix-feature)).
+
+### Connection Profiles
+
+Servers are described in a per-user `connections.yaml`, kept separate from the
+project's `linti.yaml` so internal host names and service accounts do not end up
+in a checked-in file. Its location is `~/.config/linti/connections.yaml` on
+Linux, `~/Library/Application Support/linti/connections.yaml` on macOS and
+`%APPDATA%\linti\connections.yaml` on Windows; `LINTI_CONNECTIONS` or
+`--connections` override it.
+
+```yaml
+# connections.yaml — connection data only, never passwords
+default_profile: prod
+
+profiles:
+  prod:
+    address: tm1.corp.local
+    port: 8010
+    ssl: true
+    user: admin
+    # namespace: MyCAMNamespace   # for CAM authentication
+    # verify: /path/to/server.cer # true, false, or a certificate path
+    # timeout: 30
+  dev:
+    base_url: https://pa.example.com/api/v1
+    user: svc_lint
+```
+
+**Passwords are never stored in this file.** The profile model has no `password`
+field, and a `password:` (or `api_key:`, `cam_passport:`, …) key is rejected with
+an error pointing at `linti tm1 login` — so a secret pasted in here fails loudly
+on the next run instead of quietly sitting on disk.
+
+### Credentials
+
+Passwords live in the operating system's credential store (Windows Credential
+Manager, macOS Keychain, Linux SecretService/KWallet) via
+[keyring](https://pypi.org/project/keyring/):
+
+```bash
+linti tm1 login prod     # prompts, verifies against the server, then stores
+linti tm1 logout prod    # removes the stored password
+linti tm1 profiles       # lists profiles and whether a password is stored
+```
+
+`login` connects before it stores: a saved credential that does not work is
+worse than none at all.
+
+For CI, where there is no keyring, use an environment variable instead:
+
+```bash
+export LINTI_TM1_PROD_PASSWORD="…"   # per profile
+export LINTI_TM1_PASSWORD="…"        # or one for the whole run
+linti tm1 lint -p prod
+```
+
+The resolution order is: per-profile environment variable → generic environment
+variable → keyring → interactive prompt (only when there is a terminal). There
+is deliberately **no `--password` flag**: a password in the command line is
+visible in the process list and lands in shell history.
+
+### Linting
+
+```bash
+linti tm1 lint -p prod                      # every process on the server
+linti tm1 lint -p prod "Sales.*" "Load_*"   # only matching names
+linti tm1 lint -p prod --select F110
+linti tm1 lint -p prod --fail-on warning
+linti tm1 lint -p prod --include-control    # also TM1's own }/{ processes
+```
+
+Patterns are globs matched case-insensitively against process names (TM1 object
+names are case-insensitive), and must be quoted so the shell does not expand
+them. TM1's own control processes are skipped unless `--include-control` is
+given.
+
+Rules are configured exactly as for files: `linti.yaml` is discovered from the
+current directory, or named with `--config`. Findings are reported against a
+`tm1://<profile>/<process>` label, and line numbers count from the process's
+real first line — the same numbers the TM1 process editor and
+`tm1.processes.compile()` show. TM1's generated-statements block is not linted.
+
+A process that cannot be fetched (locked, no permission) is reported at the end
+and forces a non-zero exit, but does not abort the rest of the run.
+
+> **Note:** `tm1` is a sub-command, so a *directory* named `tm1` needs the
+> explicit form `linti lint tm1`.
+
 ## Install via Pypi
 
 The linter is available on PyPI and can be installed using `pip install linti`.
+Add the optional `tm1` extra (`pip install "linti[tm1]"`) to lint processes
+directly on a TM1 server.
 
 For a quick setup guide, see [GETTING_STARTED.md](GETTING_STARTED.md).
 
@@ -775,6 +877,10 @@ Every other rule (all Formatting and Naming IDs) keeps the ID it already had.
 ### Auto-Fix Feature
 
 The linter offers an automatic fix for many rules whenever the fix is safe to apply. In the linting issue report, every issue that can be fixed automatically is marked with a 🔧 indicator, so you can see at a glance which rules will be resolved. Apply the fixes with the `--auto-fix` flag.
+
+Auto-fix applies to files only. Processes read from a TM1 server
+(`linti tm1 lint`) are still marked with 🔧 where a fix exists, but linti does
+not write them back — see [Linting Processes on a TM1 Server](#linting-processes-on-a-tm1-server).
 
 ### Multi-line Statements
 
