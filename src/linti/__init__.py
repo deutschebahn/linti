@@ -1,6 +1,6 @@
 """linti — minimal public API for TM1py integration."""
 
-from linti.linter.api import lint_all, lint_process
+from linti.linter.api import lint_all, lint_process, lint_process_model
 from linti.linter.lint_issue import Fix, LintIssue, Severity
 from linti.linter.linter import Linter
 from linti.linter.reporter import (
@@ -10,16 +10,23 @@ from linti.linter.reporter import (
     render_directory_report,
     render_file_report,
 )
+from linti.model.process_ir import ProcessIR
+from linti.provider.tm1 import TM1Provider, TM1ProviderError, process_ir_from_tm1
 from linti.rules.rule_factory import create_rules
 
 __all__ = [
-    # TM1 provider
+    # TM1 provider. Importable without the `tm1` extra: the provider is
+    # duck-typed against a connected service and never imports TM1py itself.
     "TM1Provider",
+    "TM1ProviderError",
+    "process_ir_from_tm1",
+    "ProcessIR",
     # Linting core
     "Linter",
     "create_rules",
     "lint_all",
     "lint_process",
+    "lint_process_model",
     "render_file_report",
     "render_directory_report",
     # Issues

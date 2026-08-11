@@ -67,12 +67,18 @@ class SyntheticRule:
     otherwise only walk the registry — merge these in via
     :func:`synthetic_rules` instead of each hardcoding the same rule-specific
     knowledge separately.
+
+    ``selector_hint`` says what to configure instead when a user names this ID
+    in ``--select``, ``--extend-select`` or ``--exclude-rule``: there is no
+    rule instance to add to or drop from a run, so no selector can honour it
+    and the hint has to name the settings that actually govern the diagnostic.
     """
 
     rule_id: str
     metadata: RuleMetadata
     config_key: str
     deprecated_ids: tuple[str, ...] = field(default_factory=tuple)
+    selector_hint: str = ""
 
 
 def synthetic_rules() -> list[SyntheticRule]:
@@ -92,6 +98,11 @@ def synthetic_rules() -> list[SyntheticRule]:
             metadata=NESTING_DEPTH_METADATA,
             config_key="nesting_depth",
             deprecated_ids=("S900",),
+            selector_hint=(
+                "Raise `max_nesting_depth` (top-level config key, default 150) "
+                "if your code genuinely nests that deep, or set "
+                "`rules.nesting_depth.enabled: false` to silence the diagnostic."
+            ),
         )
     ]
 

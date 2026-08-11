@@ -10,12 +10,35 @@ from linti.model.process_ir import ProcessIR
 DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
+class ProviderError(ValueError):
+    """A provider could not load or persist a process.
+
+    Subclasses ``ValueError`` because that is what the providers have always
+    raised and what the CLI's load path already catches; the class only makes
+    provider failures distinguishable from any other ``ValueError``.
+    """
+
+
 def ensure_within_size_limit(path: Path, max_bytes: int) -> None:
     """Raise if *path* exceeds *max_bytes*, checking size without reading it."""
     size = path.stat().st_size
     if size > max_bytes:
         raise ValueError(
             f"File exceeds size limit ({size} > {max_bytes} bytes): {path}"
+        )
+
+
+def ensure_text_within_size_limit(size: int, max_bytes: int, source: str) -> None:
+    """Raise if an already-measured *size* exceeds *max_bytes*.
+
+    The counterpart to :func:`ensure_within_size_limit` for content that never
+    was a file — a process fetched over REST, say — so the same ceiling means
+    the same thing whatever the process came from. *source* names the process
+    or connection in the error.
+    """
+    if size > max_bytes:
+        raise ProviderError(
+            f"Process exceeds size limit ({size} > {max_bytes} bytes): {source}"
         )
 
 

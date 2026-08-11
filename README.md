@@ -52,9 +52,111 @@ It is not affiliated with, endorsed by, sponsored by, or maintained by IBM. TM1,
   - Entire file is treated as Prolog.
   - Only Prolog-valid and section-independent rules are meaningful.
 
+## Linting Processes on a TM1 Server
+
+Processes can be linted straight off a TM1 server, without exporting them first.
+This needs the optional `tm1` extra:
+
+```bash
+pip install "linti[tm1]"
+```
+
+Linting a server is **read-only**: linti never writes a process back, and
+`--auto-fix` is not supported for TM1 connections (see
+[Auto-Fix Feature](#auto-fix-feature)).
+
+### Connection Profiles
+
+Servers are described in a per-user `connections.yaml`, kept separate from the
+project's `linti.yaml` so internal host names and service accounts do not end up
+in a checked-in file. Its location is `~/.config/linti/connections.yaml` on
+Linux, `~/Library/Application Support/linti/connections.yaml` on macOS and
+`%APPDATA%\linti\connections.yaml` on Windows; `LINTI_CONNECTIONS` or
+`--connections` override it.
+
+```yaml
+# connections.yaml — connection data only, never passwords
+default_profile: prod
+
+profiles:
+  prod:
+    address: tm1.corp.local
+    port: 8010
+    ssl: true
+    user: admin
+    # namespace: MyCAMNamespace   # for CAM authentication
+    # verify: /path/to/server.cer # true, false, or a certificate path
+    # timeout: 30
+  dev:
+    base_url: https://pa.example.com/api/v1
+    user: svc_lint
+```
+
+**Passwords are never stored in this file.** The profile model has no `password`
+field, and a `password:` (or `api_key:`, `cam_passport:`, …) key is rejected with
+an error pointing at `linti tm1 login` — so a secret pasted in here fails loudly
+on the next run instead of quietly sitting on disk.
+
+### Credentials
+
+Passwords live in the operating system's credential store (Windows Credential
+Manager, macOS Keychain, Linux SecretService/KWallet) via
+[keyring](https://pypi.org/project/keyring/):
+
+```bash
+linti tm1 login prod     # prompts, verifies against the server, then stores
+linti tm1 logout prod    # removes the stored password
+linti tm1 profiles       # lists profiles and whether a password is stored
+```
+
+`login` connects before it stores: a saved credential that does not work is
+worse than none at all.
+
+For CI, where there is no keyring, use an environment variable instead:
+
+```bash
+export LINTI_TM1_PROD_PASSWORD="…"   # per profile
+export LINTI_TM1_PASSWORD="…"        # or one for the whole run
+linti tm1 lint -p prod
+```
+
+The resolution order is: per-profile environment variable → generic environment
+variable → keyring → interactive prompt (only when there is a terminal). There
+is deliberately **no `--password` flag**: a password in the command line is
+visible in the process list and lands in shell history.
+
+### Linting
+
+```bash
+linti tm1 lint -p prod                      # every process on the server
+linti tm1 lint -p prod "Sales.*" "Load_*"   # only matching names
+linti tm1 lint -p prod --select F110
+linti tm1 lint -p prod --fail-on warning
+linti tm1 lint -p prod --include-control    # also TM1's own }/{ processes
+```
+
+Patterns are globs matched case-insensitively against process names (TM1 object
+names are case-insensitive), and must be quoted so the shell does not expand
+them. TM1's own control processes are skipped unless `--include-control` is
+given.
+
+Rules are configured exactly as for files: `linti.yaml` is discovered from the
+current directory, or named with `--config`. Findings are reported against a
+`tm1://<profile>/<process>` label, and line numbers count from the process's
+real first line — the same numbers the TM1 process editor and
+`tm1.processes.compile()` show. TM1's generated-statements block is not linted.
+
+A process that cannot be fetched (locked, no permission) is reported at the end
+and forces a non-zero exit, but does not abort the rest of the run.
+
+> **Note:** `tm1` is a sub-command, so a *directory* named `tm1` needs the
+> explicit form `linti lint tm1`.
+
 ## Install via Pypi
 
 The linter is available on PyPI and can be installed using `pip install linti`.
+Add the optional `tm1` extra (`pip install "linti[tm1]"`) to lint processes
+directly on a TM1 server.
 
 For a quick setup guide, see [GETTING_STARTED.md](GETTING_STARTED.md).
 
@@ -292,7 +394,7 @@ top-level settings (safe defaults; normal files are unaffected):
 max_file_size: 10485760   # 10 MB (default)
 
 # Cap on control-flow (IF/WHILE) nesting depth. Deeper nesting is reported as
-# an S900 diagnostic instead of being parsed unboundedly.
+# a P900 diagnostic instead of being parsed unboundedly.
 max_nesting_depth: 150    # default
 
 # Cap on how many distinct values the constant evaluation index tracks per
@@ -302,9 +404,9 @@ max_values_per_variable: 8           # default
 ```
 
 - A file above `max_file_size` fails with a clear error rather than being read.
-- A procedure nested beyond `max_nesting_depth` produces a single `S900`
+- A procedure nested beyond `max_nesting_depth` produces a single `P900`
   diagnostic (`Maximum nesting depth (N) exceeded`) for that procedure and
-  linting continues. `S900` is raised by the parser rather than by a rule
+  linting continues. `P900` is raised by the parser rather than by a rule
   module, so it has no entry in `linti explain` / `ALL_RULES.md` — but it takes
   the same `enabled` and `severity` settings as a real rule:
 
@@ -510,6 +612,34 @@ linti process.ti --select F --auto-fix
 linti process.ti --select N,C --tokens
 ```
 
+Two more options adjust the set instead of replacing it. Both take the same
+patterns as `--select`, and both are repeatable as well as comma-separated:
+
+```bash
+# Run the configured set plus one opt-in rule
+linti process.ti --extend-select D110
+
+# Skip a rule for this run (--ignore is an alias of --exclude-rule)
+linti process.ti --ignore F220
+linti process.ti --exclude-rule F2,D110
+
+# Repeatable, and combinable with --select
+linti process.ti --ignore F220 --ignore C110
+linti process.ti --select F --extend-select D110 --ignore F250
+```
+
+**Precedence**, highest first:
+
+1. `--exclude-rule` / `--ignore` — a matching rule never runs, not even when
+   another option asked for it.
+2. `--select` — replaces the configured set entirely.
+3. `--extend-select` / `--extend-select` — adds to whatever is in effect, on
+   top of `--select` or, without it, on top of the configured set.
+4. Otherwise the per-rule `enabled` setting from `linti.yaml` decides.
+
+`--select` and `--extend-select` both run the rules they match even when the
+config sets `enabled: false` for them.
+
 **Selection patterns:**
 - `F`, `N`, `D`, `C`, `X`, `P` – Select all rules in a category
 - `F1`, `F2`, `F3`, `N1`, `N2`, `D1`, `C1`, `C2`, `C3`, `C4`, `X1`, `X2`, `P1` – Select all rules in a subcategory
@@ -521,6 +651,32 @@ and warns; group prefixes are matched against canonical IDs only.
 `P900` is the one exception: it's enforced directly in the parser rather than
 by a rule module, so `--select` (and `# noqa`) cannot target it either way —
 only `rules.nesting_depth.enabled`/`severity` in `linti.yaml` control it.
+Naming `P900` in any of the three options is therefore inert, and linti says so
+instead of doing nothing quietly:
+
+```
+⚠  --exclude-rule P900 has no effect: it is enforced directly in the parser
+   rather than by a rule module, so there is no rule to select or skip. Raise
+   `max_nesting_depth` (top-level config key, default 150) if your code
+   genuinely nests that deep, or set `rules.nesting_depth.enabled: false` to
+   silence the diagnostic.
+```
+
+A group prefix such as `--ignore P` is a normal exclusion — it simply never
+reaches `P900`.
+
+A pattern that matches no rule at all gets the same treatment, because a
+mistyped ID is otherwise invisible: `--select F22O` would quietly lint nothing
+and `--ignore F22O` would quietly keep reporting.
+
+```
+⚠  --exclude-rule F22O matches no rule and has no effect. Run `linti explain`
+   to list the available rule IDs.
+```
+
+The pattern is left in place either way — a typo in `--select` still means
+"run only these rules", never "run everything". Warnings are emitted once per
+run, not once per linted file.
 
 ### Listing Rules
 
@@ -721,6 +877,10 @@ Every other rule (all Formatting and Naming IDs) keeps the ID it already had.
 ### Auto-Fix Feature
 
 The linter offers an automatic fix for many rules whenever the fix is safe to apply. In the linting issue report, every issue that can be fixed automatically is marked with a 🔧 indicator, so you can see at a glance which rules will be resolved. Apply the fixes with the `--auto-fix` flag.
+
+Auto-fix applies to files only. Processes read from a TM1 server
+(`linti tm1 lint`) are still marked with 🔧 where a fix exists, but linti does
+not write them back — see [Linting Processes on a TM1 Server](#linting-processes-on-a-tm1-server).
 
 ### Multi-line Statements
 

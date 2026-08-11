@@ -21,9 +21,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Linting processes straight off a TM1 server. Kept optional because neither
+# dependency is needed to lint files on disk, and TM1py pulls in requests.
+tm1 = [
+    "TM1py>=2.0",
+    "keyring>=24.0"
+]
 dev = [
     "pytest",
-    "pre-commit"
+    "pre-commit",
+    # Installed so the real import paths are exercised; the test suite itself
+    # never needs a server and never needs these to be importable.
+    "TM1py>=2.0",
+    "keyring>=24.0"
 ]
 
 [tool.setuptools]
