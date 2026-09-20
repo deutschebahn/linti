@@ -197,8 +197,9 @@ def _render_summary_tables(rules: list[tuple[str, RuleMetadata]]) -> str:
             parts.append(f"\n### {heading}\n\n{TABLE_HEADER.rstrip()}")
             current_group = group
         auto_fix = "\u2705" if meta.auto_fix else "\u274c"
+        name = meta.name + (" (deprecated)" if meta.deprecated_by else "")
         parts.append(
-            f"| {rule_id} | {meta.name} | {meta.description} | {auto_fix} "
+            f"| {rule_id} | {name} | {meta.description} | {auto_fix} "
             f"| {meta.severity.value} |"
         )
 
@@ -221,6 +222,9 @@ def _render_examples(label: str, lang: str, examples: list) -> str:
 def _render_rule_detail(rule_id: str, meta: RuleMetadata) -> str:
     """Render the detailed section for a single rule."""
     parts = [f"### {rule_id}: {meta.name}", "", f"{meta.description}.", ""]
+
+    if meta.deprecated_by:
+        parts.extend([f"> Deprecated: use {meta.deprecated_by} instead.", ""])
 
     previous = deprecated_ids_for(rule_id)
     if previous:

@@ -614,8 +614,9 @@ Control flow, mutability, and TM1 best practices:
 - **C1xx - Control Flow**: Process execution and control flow patterns
   - `C110` - Empty Block
   - `C120` - Conditional Control Flow
-  - `C130` - ItemSkip Block Usage
+  - `C130` - ItemSkip Block Usage (deprecated; use `C150`)
   - `C140` - Unreachable Code
+  - `C150` - Misplaced Function
 
 - **C2xx - Variables**: Variable mutability and assignment constraints
   - `C210` - Read-only Parameters and Variables
@@ -725,7 +726,7 @@ Diagnostics always report the **canonical (new)** ID.
 | `D410` | `D110` | Docstring Region |
 | `S130` | `C110` | Empty Block |
 | `S110` | `C120` | Conditional Control Flow |
-| `S120` | `C130` | ItemSkip Block Usage |
+| `S120` | `C130` | ItemSkip Block Usage (deprecated; use `C150`) |
 | `S210` | `C210` | Read-only Parameters and Variables |
 | `S220` | `C220` | Single-assignment Constants |
 | `S310` | `C310` | Literal Process Calls |
@@ -789,8 +790,80 @@ The linter understands TM1's four execution blocks when procedure sections are a
 - **Epilog**: Finalization and cleanup code
 
 Rules can use block context to enforce block-specific requirements. For example:
-- The ItemSkip rule (`C130`) only allows `ItemSkip()` in the Metadata or Data blocks
+- Misplaced Function (`C150`) checks function placement using the table below
 - Rules could require certain variable naming patterns based on the block
+
+| Function | Prolog | Metadata | Data | Epilog |
+| --- | --- | --- | --- | --- |
+| `DimensionElementInsert`, `HierarchyElementInsert` | Valid | Valid | Error | Error |
+| `DimensionElementComponentAdd`, `HierarchyElementComponentAdd` | Valid | Valid | Valid | Error |
+| `DisableBulkLoadMode` | Error | Error | Error | Valid |
+| `AttrPutS`, `AttrPutN`, `ElementAttrPutS`, `ElementAttrPutN` | Valid | Not recommended | Valid | Valid |
+| `AddClient`, `DeleteClient`, `AddGroup`, `DeleteGroup` | Valid | Valid | Not recommended | Not recommended |
+| `CellSecurityCubeCreate`, `CellSecurityCubeDestroy` | Valid | Valid | Not recommended | Not recommended |
+| Dimension/Hierarchy Direct functions listed below | Valid | Valid | Valid | Valid |
+| `ItemSkip` | Error | Valid | Valid | Error |
+
+The Direct functions covered are `Dimension`/`Hierarchy` combined with
+`ElementInsertDirect`, `ElementDeleteDirect`, `ElementComponentAddDirect`,
+`ElementComponentDeleteDirect`, `TopElementInsertDirect` and `UpdateDirect`.
+IBM describes using direct edits during Data loads; these functions do not
+inherit the non-Direct functions' restrictions.
+
+`DisableBulkLoadMode` belongs in the Epilog because bulk load mode dedicates
+the server to the running process. IBM asks for it in the Epilog's last line;
+C150 checks the section only, so a call with further statements after it is
+accepted.
+
+Both reported placements carry the rule's severity and fail the run; they
+differ only in wording and in `report_not_recommended`, which drops the
+recommendations while keeping the documented restrictions.
+
+The attribute-write recommendation asks for Data after elements created in
+Metadata have been committed. The client, group and cell-security
+recommendations ask for administrative changes in the setup passes rather than
+once per record or after the load. Both are LinTi recommendations, not IBM
+prohibitions: writes to existing elements in Metadata may be intentional, and
+no reference restricts the security functions to a section.
+Function matching is case-insensitive. Each diagnostic names the function,
+its section, and valid or recommended alternatives. Unlisted functions are
+not restricted, including the reviewed non-Direct ElementDelete,
+ElementComponentDelete and TopElementInsert functions.
+
+See [the IBM sources and classification rationale](docs/function-placement.md)
+for the individual references and the distinction between documented
+restrictions and LinTi recommendations.
+
+Configure this rule with `rules.misplaced_function`. Two settings narrow it
+instead of switching it off wholesale, because `severity` can only reweigh both
+levels at once:
+
+```yaml
+rules:
+  misplaced_function:
+    enabled: true
+    # Set to false to report only the documented restrictions.
+    report_not_recommended: true
+    # Functions to exempt from the check in every section.
+    allowed_functions: []
+```
+
+Use `report_not_recommended: false` when the recommendations do not match how the
+project loads its data, and `allowed_functions` for a single placement you
+disagree with — both keep the remaining checks in place.
+
+The old ItemSkip rule (`C130`) remains registered with its original behavior and
+its own `rules.item_skip` settings. It is deprecated in favor of `C150` and
+disabled by default. Because both rules would otherwise report the same
+`ItemSkip()` twice, `C150` takes precedence: whenever it is active, `C130` is
+skipped with a deprecation warning — including when it is explicitly enabled in
+`linti.yaml` or reached through a group pattern like `--select C1`. Selecting
+the legacy rule on its own (`--select C130`, or its alias `--select S120`)
+leaves `C150` out of the run and still executes the ItemSkip-only checks.
+
+Existing `noqa: C130` comments suppress only the legacy rule; migrate them to
+`noqa: C150` when using Misplaced Function. `linti explain C130` and the rule
+reference retain the old rule and name its replacement.
 
 Metadata-dependent rules (for example checks based on declared Parameters/Variables)
 require formats that provide metadata (`.yaml`, Git JSON+TI, PA-code).

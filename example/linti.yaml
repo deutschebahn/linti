@@ -52,3 +52,8 @@ rules:
     generic_extra_headers:
       - '# Use Case'
 
+  misplaced_function:
+    enabled: true
+    # Set to false to report only the documented restrictions,
+    # keeping the recommendations out of the report.
+    report_not_recommended: true

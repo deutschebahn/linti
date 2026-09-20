@@ -258,7 +258,31 @@ def resolve_and_warn(rule_id: str) -> str:
     """Resolve *rule_id* and warn if a deprecated ID was used. Return canonical."""
     canonical, was_deprecated = resolve_rule_id(rule_id)
     warn_if_deprecated(rule_id, canonical, was_deprecated)
+    warn_if_rule_deprecated(canonical)
     return canonical
+
+
+def warn_if_rule_deprecated(rule_id: str, *, skipped: bool = False) -> None:
+    """Warn about a retained deprecated rule without redirecting its ID.
+
+    ``skipped`` reports the successor as having taken over this run, so a
+    project that still enables the old rule learns why its findings stopped
+    arriving under the old ID instead of silently losing them.
+    """
+    meta = rule_metadata_index().get(rule_id.upper())
+    if meta is None or not meta.deprecated_by:
+        return
+    advice = (
+        f"{meta.deprecated_by} is active and covers it, so it is skipped to "
+        "avoid duplicate findings."
+        if skipped
+        else f"Use {meta.deprecated_by} instead."
+    )
+    warnings.warn(
+        f"Rule {rule_id.upper()} ({meta.name}) is deprecated. {advice}",
+        LintiConfigWarning,
+        stacklevel=2,
+    )
 
 
 def validate_rule_ids() -> None:

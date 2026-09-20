@@ -18,12 +18,20 @@ class ItemSkipRule(BaseStatementRule):
     """
 
     CONFIG_KEY = "item_skip"
+    DEFAULT_ENABLED = False
     DEPRECATED_IDS = ["S120"]
     METADATA = RuleMetadata(
         name="ItemSkip Block Usage",
         description="Enforces that ItemSkip() is only used in metadata or data sections",
         auto_fix=False,
+        deprecated_by="C150",
         explanation=(
+            "Deprecated: use Misplaced Function (C150), configured via "
+            "rules.misplaced_function. This rule remains available with its "
+            "original ItemSkip-only behavior, but is disabled by default and "
+            "is skipped with a warning whenever C150 is active, so the same "
+            "ItemSkip is never reported twice. Selecting C130 (or its alias "
+            "S120) explicitly still runs it.\n\n"
             "Enforces that ItemSkip() is only used in metadata or data sections "
             "of TM1 TI processes.\n\n"
             "TM1 TI processes have four execution blocks:\n"
@@ -34,7 +42,13 @@ class ItemSkipRule(BaseStatementRule):
             "ItemSkip() skips the current record, which only makes sense in Metadata "
             "and Data sections. Using it in Prolog or Epilog is a logic error."
         ),
-        config_example=("rules:\n  item_skip:\n    enabled: true"),
+        config_example=(
+            "rules:\n"
+            "  item_skip:\n"
+            "    # Deprecated: prefer rules.misplaced_function (C150), which\n"
+            "    # takes precedence whenever both rules are active.\n"
+            "    enabled: true"
+        ),
         examples=[
             RuleExample(
                 code="# In Metadata/Data section\nIF (nValue = 0);\n    ItemSkip();\nENDIF;",

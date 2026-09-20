@@ -63,6 +63,7 @@ EXPECTED_CANONICAL_IDS = {
     "C120",
     "C130",
     "C140",
+    "C150",
     "C210",
     "C220",
     "C310",

@@ -19,6 +19,19 @@ def test_linti_config_warning_is_rendered_cleanly(capsys):
     assert ".py:" not in err
 
 
+def test_repeated_config_warning_is_printed_once_per_run(capsys):
+    """A directory scan rebuilds the rules per file; the warning is not per file."""
+    with warnings.catch_warnings():
+        _install_config_warning_handler()
+        for _ in range(3):
+            warnings.warn("deprecated rule", LintiConfigWarning)
+        warnings.warn("other setting", LintiConfigWarning)
+
+    err = capsys.readouterr().err
+    assert err.count("deprecated rule") == 1
+    assert err.count("other setting") == 1
+
+
 def test_non_linti_warning_is_delegated_to_default_handler(capsys):
     # Own the recorder so the delegated warning is consumed here and never
     # leaks into pytest's warnings summary.
