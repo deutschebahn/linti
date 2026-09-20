@@ -32,8 +32,11 @@ jobs:
       # built -- e.g. a release published for a tag that does not exist yet,
       # which GitHub silently creates on the target branch head.
       - name: Verify tag matches package version
+        id: verify_release_tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          tag="${{ github.event.release.tag_name }}"
+          tag="$RELEASE_TAG"
           version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           if [ "$tag" != "v$version" ]; then
             echo "::error::Release tag '$tag' does not match pyproject.toml version '$version' (expected tag 'v$version')"
