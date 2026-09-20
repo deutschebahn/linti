@@ -138,3 +138,9 @@ def test_item_skip_allowed_when_no_block_context():
     ENDIF;
     """
     assert len(_lint(code, block=None)) == 0
+
+
+def test_item_skip_keeps_its_original_scope():
+    """The legacy rule must not acquire the replacement's additional checks."""
+    assert _lint("AttrPutS('x', 'd', 'e', 'a');", block="metadata") == []
+    assert _lint("DimensionElementInsert('d', '', 'e', 'N');", block="data") == []

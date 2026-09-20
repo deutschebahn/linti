@@ -123,8 +123,21 @@ class UnreachableCodeConfig(RuleConfig):
     """Configuration for UnreachableCodeRule."""
 
 
+class MisplacedFunctionConfig(RuleConfig):
+    """Configuration for MisplacedFunctionRule (C150)."""
+
+    # The rule weighs its findings per placement: an invalid section is an
+    # error, a merely discouraged one a warning. These two narrow the check
+    # without switching it off, since `severity` can only reweigh both levels
+    # at once.
+    report_not_recommended: bool = True
+    allowed_functions: list[str] = Field(default_factory=list)
+
+
 class ItemSkipConfig(RuleConfig):
-    """Configuration for ItemSkipRule."""
+    """Configuration for the deprecated, opt-in ItemSkipRule."""
+
+    enabled: bool = False
 
 
 class EmptyBlockConfig(RuleConfig):
@@ -284,6 +297,9 @@ class RulesConfig(BaseModel):
     )
     unreachable_code: UnreachableCodeConfig = Field(
         default_factory=UnreachableCodeConfig
+    )
+    misplaced_function: MisplacedFunctionConfig = Field(
+        default_factory=MisplacedFunctionConfig
     )
     item_skip: ItemSkipConfig = Field(default_factory=ItemSkipConfig)
     empty_block: EmptyBlockConfig = Field(default_factory=EmptyBlockConfig)

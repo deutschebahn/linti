@@ -40,6 +40,8 @@ class RuleMetadata:
     # Weight the rule's findings carry by default. A project can override this
     # per rule in linti.yaml (``rules.<key>.severity``).
     severity: Severity = DEFAULT_SEVERITY
+    # A retained rule can be deprecated without becoming an ID alias.
+    deprecated_by: str | None = None
 
 
 class _RuleBase(ABC):

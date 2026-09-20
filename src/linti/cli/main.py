@@ -262,12 +262,24 @@ def _install_config_warning_handler() -> None:
 
     Only ``LintiConfigWarning`` is intercepted; every other warning keeps the
     default formatting via the original handler.
+
+    Each distinct warning is printed once per run. The ``always`` filter below
+    is what makes a warning reach this handler at all — Python would otherwise
+    drop repeats by call site, which is the wrong granularity here: a directory
+    scan rebuilds the rules for every file, so one deprecated setting would
+    print once per linted file. Deduplicating on the rendered text instead keeps
+    warnings that differ only in their payload (two configs, two paths) apart.
     """
     default_showwarning = warnings.showwarning
+    seen: set[str] = set()
 
     def showwarning(message, category, filename, lineno, file=None, line=None):
         if issubclass(category, LintiConfigWarning):
-            typer.secho(f"⚠  {message}", fg=typer.colors.YELLOW, err=True)
+            text = str(message)
+            if text in seen:
+                return
+            seen.add(text)
+            typer.secho(f"⚠  {text}", fg=typer.colors.YELLOW, err=True)
         else:
             default_showwarning(message, category, filename, lineno, file, line)
 

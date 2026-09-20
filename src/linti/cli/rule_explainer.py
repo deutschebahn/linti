@@ -131,7 +131,8 @@ def list_rules(config_path: Optional[Path] = None) -> None:
             current_group = group
         fix = "✅" if meta.auto_fix else "❌"
         severity = entry.severity.value + (" *" if entry.overridden else "")
-        table.add_row(rule_id, meta.name, meta.description, fix, severity)
+        name = meta.name + (" (deprecated)" if meta.deprecated_by else "")
+        table.add_row(rule_id, name, meta.description, fix, severity)
 
     console.print(table)
     if any(entry.overridden for entry in index.values()):
@@ -157,6 +158,9 @@ def explain_rule(rule_id: str, config_path: Optional[Path] = None) -> None:
 
     rule_id = canonical
     meta = entry.meta
+
+    if meta.deprecated_by:
+        console.print(f"[yellow]Deprecated: use {meta.deprecated_by} instead.[/yellow]")
 
     # Header
     title = f"{rule_id}: {meta.name}"

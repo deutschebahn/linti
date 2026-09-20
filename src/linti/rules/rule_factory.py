@@ -3,7 +3,7 @@
 from linti.config import Config, rule_severity_override
 from linti.rules import _RULE_REGISTRY  # triggers all rule imports
 from linti.rules.Rule import BaseTokenRule, BaseStatementRule
-from linti.rules.rule_ids import resolve_and_warn
+from linti.rules.rule_ids import resolve_and_warn, warn_if_rule_deprecated
 
 
 #: Top-level ``Config`` settings forwarded into every rule's ``from_config``
@@ -42,6 +42,36 @@ def _matches_select_pattern(rule_id: str, patterns: list[str]) -> bool:
     return False
 
 
+def _configured_enabled(rule_cls, rule_cfg) -> bool:
+    """Whether config — or, unset, the rule's own default — turns the rule on."""
+    if rule_cfg is None:
+        return rule_cls.DEFAULT_ENABLED
+    if isinstance(rule_cfg, dict):
+        return rule_cfg.get("enabled", rule_cls.DEFAULT_ENABLED)
+    return getattr(rule_cfg, "enabled", rule_cls.DEFAULT_ENABLED)
+
+
+def _active_rule_ids(cfg: Config, registry: list, select_patterns: list | None) -> set:
+    """The rule IDs this run would report under, decided before any rule is built.
+
+    A deprecated rule needs to know whether its successor is already covering
+    the same code, and that answer has to exist before the first rule is
+    instantiated. ``--select`` decides membership on its own here, mirroring how
+    it overrides ``enabled`` in ``create_rules``.
+    """
+    if select_patterns:
+        return {
+            rule_id
+            for _, rule_id in registry
+            if _matches_select_pattern(rule_id, select_patterns)
+        }
+    return {
+        rule_id
+        for rule_cls, rule_id in registry
+        if _configured_enabled(rule_cls, getattr(cfg.rules, rule_cls.CONFIG_KEY, None))
+    }
+
+
 def create_rules(cfg: Config, select: str | None = None) -> tuple:
     """
     Create rule instances based on configuration.
@@ -70,42 +100,37 @@ def create_rules(cfg: Config, select: str | None = None) -> tuple:
     token_rules: list[BaseTokenRule] = []
     statement_rules: list[BaseStatementRule] = []
 
-    for rule_cls in _RULE_REGISTRY:
+    # RULE_ID is a property, so the ID costs an instance. Pay for it once.
+    registry = [(rule_cls, rule_cls().RULE_ID) for rule_cls in _RULE_REGISTRY]
+    active_ids = _active_rule_ids(cfg, registry, select_patterns)
+
+    for rule_cls, rule_id in registry:
         config_key = rule_cls.CONFIG_KEY
 
         # Look up per-rule config from RulesConfig.
         rule_cfg = getattr(cfg.rules, config_key, None)
 
-        # Create a temporary instance to check the rule ID
-        temp_inst = rule_cls()
-        rule_id = temp_inst.RULE_ID
-
-        # Check if rule matches select pattern (if provided)
-        # If select is provided, --select overrides the enabled setting
-        matches_select = False
+        # --select overrides the enabled setting for the rules it matches, and
+        # excludes every rule it does not.
         if select_patterns:
-            matches_select = _matches_select_pattern(rule_id, select_patterns)
-
-        # Determine whether the rule is enabled.
-        if rule_cfg is not None:
-            enabled = (
-                rule_cfg.get("enabled", rule_cls.DEFAULT_ENABLED)
-                if isinstance(rule_cfg, dict)
-                else getattr(rule_cfg, "enabled", rule_cls.DEFAULT_ENABLED)
-            )
-        else:
-            enabled = rule_cls.DEFAULT_ENABLED
-
-        # Use select patterns to override enabled setting if provided
-        if select_patterns:
-            # If select patterns are provided, only use rules that match
-            if not matches_select:
+            if not _matches_select_pattern(rule_id, select_patterns):
                 continue
-            # Matched rule should be included regardless of enabled setting
-            enabled = True
-        elif not enabled:
-            # Only skip if no select patterns and rule is disabled
+        elif not _configured_enabled(rule_cls, rule_cfg):
             continue
+
+        # A deprecated rule that is still switched on would report the same code
+        # a second time next to its successor, so the successor wins whenever it
+        # is active too. Selecting the old ID explicitly is the escape hatch:
+        # it leaves the successor out of `active_ids` and the legacy rule runs.
+        successor = rule_cls.METADATA.deprecated_by if rule_cls.METADATA else None
+        if successor and successor in active_ids:
+            warn_if_rule_deprecated(rule_id, skipped=True)
+            continue
+
+        # Exact --select IDs already warn during resolution. Config activation
+        # and group selection reach retained deprecated rules here instead.
+        if rule_id not in (select_patterns or ()):
+            warn_if_rule_deprecated(rule_id)
 
         # Build a dict view of the config for from_config().
         if rule_cfg is None:

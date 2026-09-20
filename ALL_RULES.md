@@ -53,8 +53,9 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 |---------|-----------|-------------|----------|----------|
 | C110 | Empty Block | Flags IF/ELSEIF/ELSE/WHILE blocks that contain no executable code | ✅ | error |
 | C120 | Conditional Control Flow | Enforces that flow-altering statements are only used inside an IF/ELSE block | ❌ | error |
-| C130 | ItemSkip Block Usage | Enforces that ItemSkip() is only used in metadata or data sections | ❌ | error |
+| C130 | ItemSkip Block Usage (deprecated) | Enforces that ItemSkip() is only used in metadata or data sections | ❌ | error |
 | C140 | Unreachable Code | Flags code after a flow-terminating statement that can never execute | ❌ | error |
+| C150 | Misplaced Function | Detects TI functions used in invalid or not recommended procedure sections | ❌ | error |
 | C210 | Read-only Parameters and Variables | Enforces that parameters and data source variables are read-only | ❌ | error |
 | C220 | Single-assignment Constants | Enforces that constants (c-prefixed variables) are assigned only once | ❌ | error |
 | C310 | Literal Process Calls | Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument | ❌ | error |
@@ -696,7 +697,11 @@ END;
 
 Enforces that ItemSkip() is only used in metadata or data sections.
 
+> Deprecated: use C150 instead.
+
 > Previous rule ID: S120 (deprecated)
+
+Deprecated: use Misplaced Function (C150), configured via rules.misplaced_function. This rule remains available with its original ItemSkip-only behavior, but is disabled by default and is skipped with a warning whenever C150 is active, so the same ItemSkip is never reported twice. Selecting C130 (or its alias S120) explicitly still runs it.
 
 Enforces that ItemSkip() is only used in metadata or data sections of TM1 TI processes.
 
@@ -712,6 +717,8 @@ ItemSkip() skips the current record, which only makes sense in Metadata and Data
 ```yaml
 rules:
   item_skip:
+    # Deprecated: prefer rules.misplaced_function (C150), which
+    # takes precedence whenever both rules are active.
     enabled: true
 ```
 
@@ -764,6 +771,66 @@ IF (nValue = 1);
     ProcessQuit();
     nResult = 10;
 ENDIF;
+```
+
+---
+
+### C150: Misplaced Function
+
+Detects TI functions used in invalid or not recommended procedure sections.
+
+Checks function calls against the Prolog, Metadata, Data and Epilog sections. Both a placement IBM documents as invalid and one this project does not recommend are reported; valid placement produces no diagnostic.
+
+- DimensionElementInsert / HierarchyElementInsert: valid in Prolog/Metadata; invalid in Data/Epilog.
+- DimensionElementComponentAdd / HierarchyElementComponentAdd: valid in Prolog/Metadata/Data; invalid in Epilog.
+- DisableBulkLoadMode: valid in the Epilog; invalid in Prolog/Metadata/Data, because bulk load mode has to stay on for the whole process. IBM asks for it in the Epilog's last line; that position is not checked.
+- AttrPutS / AttrPutN / ElementAttrPutS / ElementAttrPutN: valid in Prolog/Data/Epilog; not recommended in Metadata. This is an advisory recommendation, not an IBM prohibition: write attributes after newly created elements have been committed.
+- AddClient / DeleteClient / AddGroup / DeleteGroup / CellSecurityCubeCreate / CellSecurityCubeDestroy: valid in Prolog/Metadata; not recommended in Data/Epilog, where administrative changes run per record or after the load.
+- Dimension and Hierarchy Direct functions: ElementInsertDirect, ElementDeleteDirect, ElementComponentAddDirect, ElementComponentDeleteDirect, TopElementInsertDirect and UpdateDirect are unrestricted in all four sections. IBM describes direct edits during Data loads; they do not inherit the non-Direct functions' restrictions.
+- ItemSkip: valid in Metadata/Data; invalid in Prolog/Epilog.
+
+Restrictions are function-specific. ElementDelete, ElementComponentDelete and TopElementInsert are not automatically restricted like ElementInsert. See docs/function-placement.md for the IBM sources and the distinction between documented restrictions and LinTi recommendations.
+
+Function matching is case-insensitive. Unknown functions and code without a known procedure section are not reported. Calls inside expressions and nested control flow are checked too. Statements the parser could not read are skipped.
+
+Findings fail the run like any other error. Two settings narrow the rule instead of switching it off wholesale:
+- report_not_recommended: false reports only the documented restrictions. Use it when the recommendations do not match how the project loads its data.
+- allowed_functions lists functions to exempt from the check in every section, for a placement this project disagrees with.
+
+rules.misplaced_function.severity reweighs the whole rule, as everywhere else.
+
+Supersedes ItemSkip Block Usage (C130), which is disabled by default and skipped with a warning whenever this rule is active, so the same ItemSkip is never reported twice. Selecting C130 (or its alias S120) explicitly still runs the legacy ItemSkip-only rule with its own rules.item_skip settings.
+
+**Configuration:**
+```yaml
+rules:
+  misplaced_function:
+    enabled: true
+    # Set to false to report only the documented restrictions,
+    # keeping the recommendations out of the report.
+    report_not_recommended: true
+    # Functions to exempt from the placement check entirely.
+    allowed_functions: []
+```
+
+**Valid usage:**
+```ti
+# Metadata: create the element
+DimensionElementInsert('Product', '', vProduct, 'N');
+# Data: write the attribute after Metadata completes
+AttrPutS(vDescription, 'Product', vProduct, 'Description');
+# Epilog: leave bulk load mode when the process ends
+DisableBulkLoadMode();
+```
+
+**Invalid usage:**
+```ti
+# Prolog: invalid placement
+ItemSkip();
+# Data: invalid placement
+DisableBulkLoadMode();
+# Metadata: not recommended placement
+AttrPutS(vDescription, 'Product', vProduct, 'Description');
 ```
 
 ---
@@ -1337,10 +1404,20 @@ rules:
     enabled: true
 
   item_skip:
+    # Deprecated: prefer rules.misplaced_function (C150), which
+    # takes precedence whenever both rules are active.
     enabled: true
 
   unreachable_code:
     enabled: true
+
+  misplaced_function:
+    enabled: true
+    # Set to false to report only the documented restrictions,
+    # keeping the recommendations out of the report.
+    report_not_recommended: true
+    # Functions to exempt from the placement check entirely.
+    allowed_functions: []
 
   readonly_parameter_variable:
     enabled: true
