@@ -282,6 +282,28 @@ exclude_paths:
   the effective exclusions are the configured ones plus the CLI ones (duplicates
   removed).
 
+### Symlinked Processes
+
+A directory or glob scan stays inside the tree it was pointed at: a discovered
+file resolving outside it — a symlink leaving the tree — is skipped with a
+warning on stderr, so `--auto-fix` never writes outside that tree. The warning
+does not change the exit code, because you never asked for that file by name.
+
+Projects that deliberately link processes in from elsewhere (a shared library, a
+monorepo checkout) can turn the boundary off:
+
+```yaml
+follow_external_symlinks: true   # default: false
+```
+
+- It governs *discovered* files only. A path you name yourself
+  (`linti ../shared/process.ti`) is always linted, with or without the setting.
+- Symlinks staying inside the scanned tree are followed either way: they
+  collapse onto their target during de-duplication, so a process reached both
+  through a link and through its real path is linted once.
+- Enabled, such files are linted and auto-fixed **in place at their real
+  location** — that is, outside the tree you pointed linti at.
+
 ### Input Limits
 
 To stay robust on large or untrusted process files, linti bounds two things via
@@ -434,7 +456,8 @@ linti processes/ "*.yaml" other/process.ti
 ```
 
 A file reached through more than one input (overlapping paths or globs) is
-**linted only once**.
+**linted only once**. Directory and glob scans stay inside the tree they were
+pointed at — see [Symlinked Processes](#symlinked-processes).
 
 ### Excluding Paths
 
@@ -773,6 +796,14 @@ Metadata-dependent rules (for example checks based on declared Parameters/Variab
 require formats that provide metadata (`.yaml`, Git JSON+TI, PA-code).
 
 For plain `.ti` files without `#region` sections, the full file is treated as **Prolog**.
+
+### Input safety
+
+Directory and glob scans do not follow symlinks out of the scanned tree, so
+`--auto-fix` only ever writes inside the tree you pointed linti at. Internal
+links are deduplicated as before, and a path you name explicitly is always
+linted. See [Symlinked Processes](#symlinked-processes) for the details and the
+opt-in `follow_external_symlinks` setting.
 
 ## License
 

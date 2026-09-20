@@ -346,6 +346,13 @@ class Config(BaseModel):
     # Files, directories, or glob patterns to skip during discovery. CLI
     # ``--exclude-path`` values extend (never replace) this list.
     exclude_paths: list[str] = Field(default_factory=list)
+    # Whether a directory or glob scan may leave the tree it was pointed at by
+    # following a symlink out of it. Off by default, so `--auto-fix` only ever
+    # writes inside the scanned tree; such links are skipped with a warning.
+    # Symlinks staying inside the tree are followed either way (they collapse
+    # onto their target during de-duplication), and an explicitly named path is
+    # always honored — this only governs *discovered* files.
+    follow_external_symlinks: bool = False
     # Target Planning Analytics / TM1 version the code must run on. A project-wide
     # fact shared by version-aware rules (currently C510); left unset (None) the
     # rules fall back to their own default. `both` == must run on v11 and v12.

@@ -1262,6 +1262,10 @@ fail_on: error         # error (default) | warning
 # Lowest severity that is reported at all. Anything below is dropped before
 # the report is built, so it cannot fail the run either (--severity).
 severity: warning      # warning (default) | error
+# Whether a directory or glob scan may follow a symlink out of the tree it
+# was pointed at. Off by default, so --auto-fix only ever writes inside
+# that tree; such links are skipped with a warning instead.
+follow_external_symlinks: false   # false (default) | true
 # Generic processes (top-level setting) are always enforced
 generic_prefixes:
   - '}core.'
