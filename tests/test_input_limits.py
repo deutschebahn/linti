@@ -84,3 +84,43 @@ def test_expression_nesting_yields_diagnostic(expression):
     process = ProcessIR(name="proc", prolog=ProcedureInfo(f"nX = {expression};"))
     issues = lint_process_model(process, Linter())
     assert [issue.rule_id for _, issue, _ in issues] == [NESTING_DEPTH_RULE_ID]
+
+
+def test_exponential_string_folding_degrades_to_unknown():
+    from linti.semantic.constant_evaluation import ConstantEvaluationIndex
+
+    code = "sData = 'x';\n" + "sData = sData | sData;\n" * 40
+    process = ProcessIR(name="proc", prolog=ProcedureInfo(code))
+    values = ConstantEvaluationIndex(process).possible_values_at("sData", "prolog", 41)
+    assert values.exact is None
+    assert not values.complete
+
+
+def test_partial_string_segment_expansion_is_bounded():
+    from linti.semantic.constant_evaluation import ConstantEvaluationIndex
+
+    code = "sData = 'x' | pDynamic;\n" + "sData = sData | sData;\n" * 40
+    process = ProcessIR(name="proc", prolog=ProcedureInfo(code))
+    values = ConstantEvaluationIndex(process).possible_values_at("sData", "prolog", 41)
+    assert not values.values
+
+
+def test_total_constant_storage_is_bounded(monkeypatch):
+    from linti.semantic import constant_evaluation as ce
+
+    monkeypatch.setattr(ce, "MAX_TRACKED_STRING_CHARS", 10)
+    code = "sA = '123456';\nsB = sA | '7';\nsC = '8';\n"
+    process = ProcessIR(name="proc", prolog=ProcedureInfo(code))
+    index = ce.ConstantEvaluationIndex(process)
+    assert index.possible_values_at("sA", "prolog", 1).exact == "123456"
+    assert not index.possible_values_at("sB", "prolog", 2).complete
+    assert not index.possible_values_at("sC", "prolog", 3).complete
+
+
+def test_constant_evaluation_work_is_bounded(monkeypatch):
+    from linti.semantic import constant_evaluation as ce
+
+    monkeypatch.setattr(ce, "MAX_EVALUATION_STEPS", 4)
+    process = ProcessIR(name="proc", prolog=ProcedureInfo("nA = 1 + 2 + 3 + 4;"))
+    values = ce.ConstantEvaluationIndex(process).possible_values_at("nA", "prolog", 1)
+    assert not values.complete

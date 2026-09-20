@@ -810,6 +810,12 @@ reported and make the run fail, even when other files have no lint findings.
 Valid unrelated YAML documents are still skipped. Parser depth limits also cover
 expressions; excessively nested sections produce P900 and are not auto-fixed.
 
+Constant evaluation falls back to unknown when a folded string exceeds 65,536
+characters or 128 segments, or when the per-process budget of 1,048,576 retained
+string characters or 100,000 evaluation steps is exhausted. These conservative
+limits prevent small inputs from causing unbounded expansion; rules cannot prove
+properties of values that have become unknown.
+
 ## License
 
 This project is licensed under the **Apache License 2.0**. See the [LICENSE](LICENSE) file for details.

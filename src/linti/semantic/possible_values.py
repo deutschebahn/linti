@@ -47,6 +47,10 @@ class _Unknown:
 
 UNKNOWN = _Unknown()
 
+# Bound folded values before allocating concatenated strings or segment lists.
+MAX_STRING_LENGTH = 64 * 1024
+MAX_STRING_SEGMENTS = 128
+
 
 @dataclass(frozen=True)
 class PartialString:
@@ -81,6 +85,10 @@ def normalize_string_segments(
     :class:`PartialString` when a mix, or :data:`UNKNOWN` when nothing
     survived.
     """
+    if len(segments) > MAX_STRING_SEGMENTS:
+        return UNKNOWN
+    if sum(len(seg) for seg in segments if isinstance(seg, str)) > MAX_STRING_LENGTH:
+        return UNKNOWN
     merged: list[Union[str, _Unknown]] = []
     for seg in segments:
         if isinstance(seg, str):

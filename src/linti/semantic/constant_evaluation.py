@@ -59,6 +59,8 @@ from linti.lexer.token import TokenType
 from linti.linter.parse_cache import SectionParseCache
 from linti.semantic.possible_values import (
     TOP,
+    MAX_STRING_LENGTH,
+    PartialString,
     UNASSIGNED,
     UNKNOWN,
     PossibleValues,
@@ -87,6 +89,10 @@ from linti.parser.ast import (
 #: Default cap on how many distinct values are tracked per variable before the
 #: index degrades to "unknown" (see :class:`~linti.linter.possible_values.PossibleValues`).
 DEFAULT_MAX_VALUES_PER_VARIABLE = 8
+# Per-process budgets bound retained strings and folding work, including inputs
+# that create many individually small values. Exhaustion degrades to unknown.
+MAX_TRACKED_STRING_CHARS = 1024 * 1024
+MAX_EVALUATION_STEPS = 100_000
 
 #: TI execution order of the four sections.
 SECTION_ORDER = ("prolog", "metadata", "data", "epilog")
@@ -117,6 +123,8 @@ class ConstantEvaluationIndex:
         # in tests) so the index still parses each section only once.
         self._cache = cache if cache is not None else SectionParseCache(process)
         self._max_values_per_variable = max_values_per_variable
+        self._remaining_string_chars = MAX_TRACKED_STRING_CHARS
+        self._remaining_steps = MAX_EVALUATION_STEPS
         # name (lower-cased) -> events sorted by (section index, line)
         self._events: Optional[dict[str, list[_Event]]] = None
         # Build-scoped memo tables keyed by node identity, so the per-node
@@ -266,6 +274,19 @@ class ConstantEvaluationIndex:
         line: int,
         value: PossibleValues,
     ) -> None:
+        cost = sum(
+            len(atom)
+            if isinstance(atom, str)
+            else sum(len(seg) for seg in atom.known_fragments)
+            if isinstance(atom, PartialString)
+            else 0
+            for atom in value.values
+        )
+        if cost > self._remaining_string_chars:
+            self._remaining_string_chars = 0
+            value = TOP
+        else:
+            self._remaining_string_chars -= cost
         key = name.lower()
         self._events.setdefault(key, []).append((section_idx, line, value))
         env[key] = value
@@ -354,13 +375,16 @@ class ConstantEvaluationIndex:
         self, expr: Expression, env: dict[str, PossibleValues]
     ) -> PossibleValues:
         """Evaluate *expr* to the set of values it may produce."""
+        if self._remaining_steps <= 0 or self._remaining_string_chars <= 0:
+            return TOP
+        self._remaining_steps -= 1
         if isinstance(expr, Number):
             try:
                 return single(float(expr.value))
             except (TypeError, ValueError):
                 return TOP
         if isinstance(expr, String):
-            return single(expr.value)
+            return single(expr.value) if len(expr.value) <= MAX_STRING_LENGTH else TOP
         if isinstance(expr, Identifier):
             return env.get(expr.name.lower(), TOP)
         if isinstance(expr, UnaryExpression):
@@ -403,6 +427,9 @@ class ConstantEvaluationIndex:
         saw_unknown = False
         for a in _atoms(left):
             for b in _atoms(right):
+                if self._remaining_steps <= 0:
+                    return TOP
+                self._remaining_steps -= 1
                 value = _apply_binary_operator(op, a, b)
                 if value is UNKNOWN:
                     saw_unknown = True
