@@ -19,6 +19,10 @@ def ensure_within_size_limit(path: Path, max_bytes: int) -> None:
         )
 
 
+class UnsupportedProcessFile(ValueError):
+    """A valid document that is not a supported process file."""
+
+
 class ProcessProvider(Protocol):
     def list_processes(self) -> list[str]: ...
 
