@@ -280,3 +280,27 @@ def test_display_path_defaults_to_cwd(tree: Path):
 def test_display_path_outside_root_is_absolute(tree: Path):
     outside = tree.parent / "somewhere_else.ti"
     assert display_path(outside, tree) == outside.resolve().as_posix()
+
+
+# --- external symlinks ----------------------------------------------------
+
+
+@pytest.fixture
+def escaping_link(tree: Path) -> Path:
+    """A symlink inside the scanned tree pointing at a file outside it."""
+    outside = tree.parent / "outside.ti"
+    outside.write_text("nO = 1;\n")
+    (tree / "processes" / "link.ti").symlink_to(outside)
+    return outside
+
+
+def test_external_symlink_is_skipped_by_default(tree: Path, escaping_link: Path):
+    result = discover_process_files(_inputs("processes"))
+    assert "link.ti" not in _names(result)
+    assert [target for _, target in result.rejected] == [escaping_link.resolve()]
+
+
+def test_external_symlink_is_followed_when_configured(tree: Path, escaping_link: Path):
+    result = discover_process_files(_inputs("processes"), follow_external_symlinks=True)
+    assert result.rejected == []
+    assert escaping_link.resolve() in result.files

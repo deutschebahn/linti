@@ -164,17 +164,41 @@ def lint(
         PathGroup.cli(cli_excludes),
     )
 
-    result = discover_process_files([PathGroup.cli(paths)], exclusions)
+    result = discover_process_files(
+        [PathGroup.cli(paths)],
+        exclusions,
+        follow_external_symlinks=cfg.follow_external_symlinks,
+    )
 
     # A missing path is reported but does not abort the run: any files that were
     # found are still linted, and the missing path forces a non-zero exit.
     for missing in result.missing:
         typer.echo(f"Error: Path does not exist: {missing}", err=True)
 
+    # A discovered file leaving the scanned tree is skipped, not an error: the
+    # user never named it, and one symlink they may not control should not fail
+    # an otherwise clean run. Skipping it is what keeps --auto-fix from writing
+    # outside the tree; the exit code adds nothing to that.
+    # Deliberately not display_path(): it canonicalizes, which would resolve
+    # the symlink away and print the target on both sides of the arrow.
+    display_root = report_root(paths).resolve()
+    for found, target in result.rejected:
+        shown = (
+            found.relative_to(display_root)
+            if found.is_relative_to(display_root)
+            else found
+        )
+        typer.echo(
+            f"Warning: skipped symlink outside scan root: {shown} -> {target}",
+            err=True,
+        )
+
     if not result.files:
         if result.missing:
             raise typer.Exit(code=1)
-        typer.echo(_no_files_message(paths, result.excluded_count))
+        typer.echo(
+            _no_files_message(paths, result.excluded_count, len(result.rejected))
+        )
         raise typer.Exit(code=0)
 
     exit_code = lint_files(
@@ -192,13 +216,20 @@ def lint(
     raise typer.Exit(code=exit_code)
 
 
-def _no_files_message(paths: list[str], excluded_count: int) -> str:
+def _no_files_message(
+    paths: list[str], excluded_count: int, skipped_count: int = 0
+) -> str:
     """Message when discovery yields nothing to lint."""
     joined = ", ".join(str(p) for p in paths)
+    reasons = []
     if excluded_count:
+        reasons.append(f"{excluded_count} excluded")
+    if skipped_count:
+        reasons.append(f"{skipped_count} skipped as outside the scan root")
+    if reasons:
         return (
             f"No process files to lint in {joined} "
-            f"(all {excluded_count} matched file(s) were excluded)"
+            f"(all matched file(s) were {', '.join(reasons)})"
         )
     return f"No process files found in {joined}"
 

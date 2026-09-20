@@ -123,3 +123,53 @@ def test_config_severity_override_promotes_e110(unparseable: Path):
     result = runner.invoke(app, ["lint", "broken.ti", "--select", "P110"])
     assert "P110" in result.stdout
     assert result.exit_code == 1
+
+
+@pytest.mark.parametrize("glob_input", [False, True])
+def test_auto_fix_skips_discovered_external_symlink(tmp_path, glob_input):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    outside = tmp_path / "outside.ti"
+    outside.write_text("nA=1;\n")
+    (repo / "link.ti").symlink_to(outside)
+    target = str(repo / "**" / "*.ti") if glob_input else str(repo)
+    result = runner.invoke(app, [target, "--auto-fix"])
+    # Skipping is what protects the file; nothing was linted, so exit 0.
+    assert result.exit_code == 0
+    assert "skipped symlink outside scan root" in result.stderr
+    assert outside.read_text() == "nA=1;\n"
+
+
+def test_external_symlink_does_not_fail_an_otherwise_clean_run(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "clean.ti").write_text("nA = 1;\n")
+    outside = tmp_path / "outside.ti"
+    outside.write_text("nA=1;\n")
+    (repo / "link.ti").symlink_to(outside)
+    result = runner.invoke(app, [str(repo), "--auto-fix", "--select", "F"])
+    assert result.exit_code == 0
+    assert "link.ti -> " in result.stderr
+    assert outside.read_text() == "nA=1;\n"
+
+
+def test_config_can_opt_into_following_external_symlinks(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "linti.yaml").write_text("follow_external_symlinks: true\n")
+    outside = tmp_path / "outside.ti"
+    outside.write_text("nA=1;\n")  # F220 spacing issue
+    (repo / "link.ti").symlink_to(outside)
+    result = runner.invoke(app, [str(repo), "--auto-fix", "--select", "F"])
+    assert result.exit_code == 0
+    assert "skipped symlink" not in result.stderr
+    assert outside.read_text() == "nA = 1;\n"  # followed, and fixed in place
+
+
+def test_internal_symlink_still_supports_auto_fix(tmp_path):
+    target = tmp_path / "process.ti"
+    target.write_text("nA=1;\n")
+    (tmp_path / "link.ti").symlink_to(target)
+    result = runner.invoke(app, [str(tmp_path), "--auto-fix", "--select", "F"])
+    assert result.exit_code == 0
+    assert target.read_text() == "nA = 1;\n"
