@@ -807,7 +807,8 @@ opt-in `follow_external_symlinks` setting.
 
 In multi-file runs, unreadable, oversized, or malformed process files are
 reported and make the run fail, even when other files have no lint findings.
-Valid unrelated YAML documents are still skipped.
+Valid unrelated YAML documents are still skipped. Parser depth limits also cover
+expressions; excessively nested sections produce P900 and are not auto-fixed.
 
 ## License
 

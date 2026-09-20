@@ -187,6 +187,7 @@ class Parser:
         self.pos = 0
         self._max_nesting_depth = max_nesting_depth
         self._depth = 0
+        self._expression_depth = 0
 
         #: CST nodes closed but not yet claimed by an enclosing span, in source
         #: order.  A closing span takes everything from its checkpoint onward.
@@ -360,6 +361,15 @@ class Parser:
     # entry points
     # -----------------------------
     def parse(self) -> Program:
+        """Parse with a controlled diagnostic even if Python's stack fills first."""
+        try:
+            return self._parse_program()
+        except RecursionError as exc:
+            raise NestingDepthExceeded(
+                "Maximum nesting depth exceeded (Python recursion limit)"
+            ) from exc
+
+    def _parse_program(self) -> Program:
         """
         Parse the entire token stream into a Program AST.
 
@@ -701,6 +711,17 @@ class Parser:
     # Pratt parser core
     # -----------------------------
     def _parse_pratt(self, min_precedence: int) -> Expression:
+        self._expression_depth += 1
+        try:
+            if self._expression_depth > self._max_nesting_depth:
+                raise NestingDepthExceeded(
+                    f"Maximum nesting depth ({self._max_nesting_depth}) exceeded"
+                )
+            return self._parse_pratt_body(min_precedence)
+        finally:
+            self._expression_depth -= 1
+
+    def _parse_pratt_body(self, min_precedence: int) -> Expression:
         """
         Core Pratt parsing algorithm for expressions.
 

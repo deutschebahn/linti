@@ -146,6 +146,9 @@ def auto_fix_process(process: ProcessIR, linter: Linter) -> dict[str, int]:
     )
 
     for proc_name, proc_info in extract_procedures(process).items():
+        if parse_cache.get(proc_name).error is not None:
+            # Leave unparseable sections untouched; the final lint reports P900.
+            continue
         lint_ctx = LintContext.for_procedure(
             process, proc_name, proc_info, constants, track_block_end=False
         )

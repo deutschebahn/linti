@@ -212,3 +212,15 @@ def test_internal_symlink_still_supports_auto_fix(tmp_path):
     result = runner.invoke(app, [str(tmp_path), "--auto-fix", "--select", "F"])
     assert result.exit_code == 0
     assert target.read_text() == "nA = 1;\n"
+
+
+@pytest.mark.parametrize("options", [[], ["--auto-fix"], ["--ast"]])
+def test_deep_expression_is_reported_without_crash(tmp_path, options):
+    path = tmp_path / "deep.ti"
+    original = "nA = " + "(" * 1500 + "1" + ")" * 1500 + ";\n"
+    path.write_text(original)
+    result = runner.invoke(app, [str(path), "--fail-on", "warning", *options])
+    assert result.exit_code == 1
+    assert "P900" in result.stdout
+    assert path.read_text() == original
+    assert isinstance(result.exception, SystemExit)

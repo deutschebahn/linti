@@ -76,7 +76,7 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 | Rule ID | Rule Name | Description | Auto-fix | Severity |
 |---------|-----------|-------------|----------|----------|
 | P110 | Unparseable Statement | Flags statements that could not be parsed, warning that linting quality is reduced for that code | ❌ | warning |
-| P900 | Maximum Nesting Depth Exceeded | Flags a procedure whose control-flow nesting exceeded the configured limit, stopping the parser before it could build a full AST for that section | ❌ | warning |
+| P900 | Maximum Nesting Depth Exceeded | Flags a procedure whose statement or expression nesting exceeded the configured limit, stopping the parser before it could build a full AST for that section | ❌ | warning |
 
 ## Rule Details
 
@@ -1203,15 +1203,15 @@ nValue = 1
 
 ### P900: Maximum Nesting Depth Exceeded
 
-Flags a procedure whose control-flow nesting exceeded the configured limit, stopping the parser before it could build a full AST for that section.
+Flags a procedure whose statement or expression nesting exceeded the configured limit, stopping the parser before it could build a full AST for that section.
 
 > Previous rule ID: S900 (deprecated)
 
 **⚠ Severity: warning** — reported but does not fail the run. Pass `--fail-on warning` to block on it, or set `rules.<key>.severity: error` in `linti.yaml`.
 
-TI's IF/WHILE nesting is parsed recursively; without a cap, pathologically deep nesting would recurse until Python's own RecursionError, crashing the run instead of reporting a clean diagnostic. `max_nesting_depth` (top-level config key, default 150) caps that recursion; once a procedure's nesting exceeds it, the parser aborts the section and this diagnostic reports the drop.
+TI statements and expressions are parsed recursively; without a cap, pathologically deep nesting would recurse until Python's own RecursionError, crashing the run instead of reporting a clean diagnostic. `max_nesting_depth` (top-level config key, default 150) caps that recursion; once a procedure's nesting exceeds it, the parser aborts the section and this diagnostic reports the drop.
 
-This safety cap itself cannot be turned off — only how loud linti is about hitting it. `rules.nesting_depth.enabled: false` silences the diagnostic, but the procedure is still dropped from linting exactly the same; the cap keeps applying either way. Raise `max_nesting_depth` if your codebase genuinely nests deeper than the default.
+This safety cap itself cannot be turned off — only how loud linti is about hitting it. `rules.nesting_depth.enabled: false` silences the diagnostic, but the procedure is still dropped from linting exactly the same; the cap keeps applying either way. Raise `max_nesting_depth` if your codebase genuinely nests deeper than the default. Python stack exhaustion is also reported as P900.
 
 Unlike every other rule, this diagnostic is enforced directly in the parser rather than by a rule module — there is nothing to `--select` or scan for in the AST, since the AST for the affected procedure was never built. Only `rules.nesting_depth.enabled` and `rules.nesting_depth.severity` control it.
 

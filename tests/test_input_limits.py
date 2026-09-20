@@ -70,3 +70,17 @@ def test_oversized_linked_ti_rejected_in_git_get_process(tmp_path: Path):
     provider = GitProvider(json_path, max_file_size=200)
     with pytest.raises(ValueError, match="size limit"):
         provider.get_process("proc")
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "(" * 1500 + "1" + ")" * 1500,
+        "-" * 1500 + "1",
+        "Abs(" * 1500 + "1" + ")" * 1500,
+    ],
+)
+def test_expression_nesting_yields_diagnostic(expression):
+    process = ProcessIR(name="proc", prolog=ProcedureInfo(f"nX = {expression};"))
+    issues = lint_process_model(process, Linter())
+    assert [issue.rule_id for _, issue, _ in issues] == [NESTING_DEPTH_RULE_ID]
