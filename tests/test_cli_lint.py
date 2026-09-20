@@ -125,6 +125,45 @@ def test_config_severity_override_promotes_e110(unparseable: Path):
     assert result.exit_code == 1
 
 
+@pytest.mark.parametrize("failure", ["json", "yaml", "size"])
+def test_batch_load_errors_fail_without_hiding_other_findings(tmp_path, failure):
+    (tmp_path / "clean.ti").write_text("")
+    (tmp_path / "dirty.ti").write_text("nA=1;\n")
+    if failure == "json":
+        (tmp_path / "broken.ti").write_text("sPassword = 'audit';\n")
+        (tmp_path / "broken.json").write_text("{ invalid")
+    elif failure == "yaml":
+        (tmp_path / "broken.yaml").write_text("PrologProcedure: [")
+    else:
+        (tmp_path / "linti.yaml").write_text("max_file_size: 100\n")
+        (tmp_path / "broken.ti").write_text("#" * 101)
+    result = runner.invoke(
+        app, [str(tmp_path), "--select", "F", "--fail-on", "warning"]
+    )
+    assert result.exit_code == 1
+    assert "Error loading" in result.stderr
+    assert "Linting incomplete" in result.stderr
+    assert "F220" in result.stdout
+    assert "No issues found" not in result.stdout
+
+
+def test_batch_load_error_without_findings_does_not_report_success(tmp_path):
+    (tmp_path / "clean.ti").write_text("")
+    (tmp_path / "broken.ti").write_text("")
+    (tmp_path / "broken.json").write_text("{ invalid")
+    result = runner.invoke(app, [str(tmp_path)])
+    assert result.exit_code == 1
+    assert "No issues found" not in result.stdout
+
+
+def test_batch_ignores_valid_unrelated_yaml(tmp_path):
+    (tmp_path / "clean.ti").write_text("")
+    (tmp_path / "settings.yaml").write_text("settings: true\n")
+    result = runner.invoke(app, [str(tmp_path)])
+    assert result.exit_code == 0
+    assert not result.stderr
+
+
 @pytest.mark.parametrize("glob_input", [False, True])
 def test_auto_fix_skips_discovered_external_symlink(tmp_path, glob_input):
     repo = tmp_path / "repo"

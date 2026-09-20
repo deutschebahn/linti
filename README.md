@@ -805,6 +805,10 @@ links are deduplicated as before, and a path you name explicitly is always
 linted. See [Symlinked Processes](#symlinked-processes) for the details and the
 opt-in `follow_external_symlinks` setting.
 
+In multi-file runs, unreadable, oversized, or malformed process files are
+reported and make the run fail, even when other files have no lint findings.
+Valid unrelated YAML documents are still skipped.
+
 ## License
 
 This project is licensed under the **Apache License 2.0**. See the [LICENSE](LICENSE) file for details.

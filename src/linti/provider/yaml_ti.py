@@ -16,7 +16,7 @@ from linti.model.process_ir import (
     ProcessIR,
     extract_procedures,  # noqa: F401 – re-export
 )
-from linti.provider.base import extract_datasource
+from linti.provider.base import UnsupportedProcessFile, extract_datasource
 
 
 # Custom YAML constructor to handle !TM1py.ProcessObject tags
@@ -269,10 +269,10 @@ class YamlProvider:
         data = yaml.safe_load(content)
 
         if not data:
-            raise ValueError(f"Empty or invalid YAML file: {self.file_path}")
+            raise UnsupportedProcessFile(f"Empty YAML file: {self.file_path}")
 
         if not _is_tm1_process_yaml(content, data):
-            raise ValueError(
+            raise UnsupportedProcessFile(
                 f"Not a TM1 process YAML file (missing !TM1py.ProcessObject "
                 f'tag or kind: "process_definition"): {self.file_path}'
             )

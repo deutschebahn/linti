@@ -24,8 +24,8 @@ from linti.linter.reporter import (
 )
 from linti.model.process_ir import ProcessIR, extract_procedures
 from linti.parser.ast import UnknownStatement
-from linti.parser.parser import Parser
-from linti.provider.base import require_single_process_name
+from linti.parser.parser import NestingDepthExceeded, Parser
+from linti.provider.base import UnsupportedProcessFile, require_single_process_name
 from linti.provider.factory import provider_for_path
 from linti.rules.rule_factory import create_rules
 
@@ -105,7 +105,11 @@ def _print_debug(process: ProcessIR, show_tokens: bool, show_ast: bool) -> None:
                     typer.echo(f"{token.type.name:15} {token.value!r}")
 
         if show_ast:
-            ast = Parser(tokens).parse()
+            try:
+                ast = Parser(tokens).parse()
+            except NestingDepthExceeded as exc:
+                typer.echo(f"AST unavailable ({proc_name}): {exc}", err=True)
+                continue
             typer.echo(f"\nAST ({proc_name}):")
             typer.echo(f"Program with {len(ast.statements)} statements:")
             for i, stmt in enumerate(ast.statements, 1):
@@ -134,6 +138,9 @@ def lint_process_file(
     *file_path* is used to open the provider (discovery yields absolute paths);
     *report_path*, when given, is the human-readable path shown in output.
 
+    *silent_errors* skips only valid non-process documents in batch runs;
+    malformed or unreadable process files always raise an error.
+
     *cfg* supplies the ``fail_on``/``min_severity`` reporting settings used on
     the exit path below. When *linter* is left unset, *cfg* is loaded here
     internally (any *cfg* passed in alongside is ignored). When a caller
@@ -160,9 +167,9 @@ def lint_process_file(
         process_name = require_single_process_name(provider)
         process = provider.get_process(process_name)
     except Exception as e:
-        if silent_errors:
+        if silent_errors and isinstance(e, UnsupportedProcessFile):
             return None
-        typer.echo(f"Error loading file: {e}", err=True)
+        typer.echo(f"Error loading {report_path}: {e}", err=True)
         raise typer.Exit(code=1) from e
 
     if auto_fix:
@@ -229,23 +236,39 @@ def lint_files(
         )
 
     all_file_issues: list[FileProcedureIssue] = []
+    failed_files = 0
     for proc_file in files:
-        file_issues = lint_process_file(
-            proc_file,
-            show_tokens,
-            show_ast,
-            config,
-            _new_linter(),
-            return_issues=True,
-            silent_errors=True,
-            auto_fix=auto_fix,
-            report_path=_display(proc_file),
-        )
+        try:
+            file_issues = lint_process_file(
+                proc_file,
+                show_tokens,
+                show_ast,
+                config,
+                _new_linter(),
+                return_issues=True,
+                silent_errors=True,
+                auto_fix=auto_fix,
+                report_path=_display(proc_file),
+            )
+        except typer.Exit as exc:
+            if exc.exit_code != 1:
+                raise
+            failed_files += 1
+            continue
         if file_issues:
             display = _display(proc_file)
             for proc_name, issue, source_line in file_issues:
                 all_file_issues.append((display, proc_name, issue, source_line))
 
+    if failed_files:
+        typer.echo(
+            f"Linting incomplete: {failed_files} file(s) could not be loaded.", err=True
+        )
+        if all_file_issues:
+            report_directory_issues(
+                report_root, all_file_issues, cfg.fail_on, cfg.min_severity
+            )
+        return 1
     return report_directory_issues(
         report_root, all_file_issues, cfg.fail_on, cfg.min_severity
     )
