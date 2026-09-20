@@ -23,14 +23,14 @@ NESTING_DEPTH_RULE_ID = "P900"
 NESTING_DEPTH_METADATA = RuleMetadata(
     name="Maximum Nesting Depth Exceeded",
     description=(
-        "Flags a procedure whose control-flow nesting exceeded the "
+        "Flags a procedure whose statement or expression nesting exceeded the "
         "configured limit, stopping the parser before it could build a full "
         "AST for that section"
     ),
     auto_fix=False,
     severity=Severity.WARNING,
     explanation=(
-        "TI's IF/WHILE nesting is parsed recursively; without a cap, "
+        "TI statements and expressions are parsed recursively; without a cap, "
         "pathologically deep nesting would recurse until Python's own "
         "RecursionError, crashing the run instead of reporting a clean "
         "diagnostic. `max_nesting_depth` (top-level config key, default 150) "
@@ -41,7 +41,7 @@ NESTING_DEPTH_METADATA = RuleMetadata(
         "diagnostic, but the procedure is still dropped from linting exactly "
         "the same; the cap keeps applying either way. Raise "
         "`max_nesting_depth` if your codebase genuinely nests deeper than the "
-        "default.\n\n"
+        "default. Python stack exhaustion is also reported as P900.\n\n"
         "Unlike every other rule, this diagnostic is enforced directly in "
         "the parser rather than by a rule module — there is nothing to "
         "`--select` or scan for in the AST, since the AST for the affected "
