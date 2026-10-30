@@ -9,7 +9,7 @@ from linti.cli.config_loader import load_config
 from linti.cli.file_discovery import display_path
 from linti.config import Config
 from linti.lexer.lexer import Lexer
-from linti.linter.api import lint_process
+from linti.linter.api import lint_process, linter_from_config
 from linti.linter.fixer import auto_fix_process
 from linti.linter.linter import Linter
 from linti.linter.lint_issue import Severity
@@ -27,7 +27,6 @@ from linti.parser.ast import UnknownStatement
 from linti.parser.parser import NestingDepthExceeded, Parser
 from linti.provider.base import UnsupportedProcessFile, require_single_process_name
 from linti.provider.factory import provider_for_path
-from linti.rules.rule_factory import create_rules
 
 
 def auto_fix_file(file_path: Path, linter: Linter) -> dict[str, int]:
@@ -47,21 +46,6 @@ def auto_fix_file(file_path: Path, linter: Linter) -> dict[str, int]:
         provider.save_process(process)
 
     return fixes_by_proc
-
-
-def linter_from_config(cfg: Config, select: Optional[str] = None) -> Linter:
-    """Build a Linter carrying every config-driven limit and severity."""
-    token_rules, statement_rules = create_rules(cfg, select=select)
-    nesting = cfg.rules.nesting_depth
-    return Linter(
-        rules=token_rules,
-        statement_rules=statement_rules,
-        max_nesting_depth=cfg.max_nesting_depth,
-        max_file_size=cfg.max_file_size,
-        max_values_per_variable=cfg.max_values_per_variable,
-        nesting_depth_enabled=nesting.enabled,
-        nesting_depth_severity=nesting.severity or Severity.WARNING,
-    )
 
 
 def report_issues(

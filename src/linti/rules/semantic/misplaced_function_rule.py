@@ -199,14 +199,17 @@ class MisplacedFunctionRule(BaseStatementRule):
             RuleExample(
                 code="DimensionElementInsert('Product', '', vProduct, 'N');",
                 description="Metadata: create the element",
+                procedure="metadata",
             ),
             RuleExample(
                 code="AttrPutS(vDescription, 'Product', vProduct, 'Description');",
                 description="Data: write the attribute after Metadata completes",
+                procedure="data",
             ),
             RuleExample(
                 code="DisableBulkLoadMode();",
                 description="Epilog: leave bulk load mode when the process ends",
+                procedure="epilog",
             ),
             RuleExample(
                 code="ItemSkip();",
@@ -217,11 +220,13 @@ class MisplacedFunctionRule(BaseStatementRule):
                 code="DisableBulkLoadMode();",
                 description="Data: invalid placement",
                 valid=False,
+                procedure="data",
             ),
             RuleExample(
                 code="AttrPutS(vDescription, 'Product', vProduct, 'Description');",
                 description="Metadata: not recommended placement",
                 valid=False,
+                procedure="metadata",
             ),
         ],
     )

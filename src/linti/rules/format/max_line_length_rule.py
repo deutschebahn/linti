@@ -50,6 +50,7 @@ class MaxLineLengthRule(BaseStatementRule):
                 code="sValue = CellGetS( 'Cube', 'AAAA', 'BBBB', 'CCCC', 'DDDD' );",
                 description="Single line over the limit",
                 valid=False,
+                config={"rules": {"max_line_length": {"limit": 40}}},
             ),
         ],
     )

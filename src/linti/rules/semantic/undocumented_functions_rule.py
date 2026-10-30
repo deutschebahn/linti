@@ -145,6 +145,13 @@ class DoNotUseUndocumentedFunctionsRule(BaseStatementRule):
                     "Allowed once the function is listed under `allowed_functions`"
                 ),
                 valid=True,
+                config={
+                    "rules": {
+                        "do_not_use_undocumented_functions": {
+                            "allowed_functions": ["DataSpread"]
+                        }
+                    }
+                },
             ),
         ],
     )

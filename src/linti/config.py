@@ -55,8 +55,11 @@ class RuleConfig(BaseModel):
     unparseable TI really is always a syntax error.
     """
 
-    enabled: bool = True
-    severity: Optional[Severity] = None
+    enabled: bool = Field(default=True, description="Whether the rule runs at all.")
+    severity: Optional[Severity] = Field(
+        default=None,
+        description="Overrides the severity the rule declares; unset keeps the rule's own.",
+    )
 
 
 def _invalid_severity_message(raw: object, label: str) -> str:
@@ -96,23 +99,44 @@ def rule_severity_override(rules: "RulesConfig", config_key: str) -> Optional[Se
 class KeywordCasingConfig(RuleConfig):
     """Configuration for KeywordCasingRule."""
 
-    style: Literal["uppercase", "lowercase", "camelcase", "consistent"] = "uppercase"
+    style: Literal["uppercase", "lowercase", "camelcase", "consistent"] = Field(
+        default="uppercase",
+        description=(
+            "Casing required for TI keywords; `consistent` accepts any casing "
+            "used the same way throughout a process."
+        ),
+    )
 
 
 class IndentationConfig(RuleConfig):
     """Configuration for IndentationRule."""
 
-    size: int = 4
-    # How a line that continues an earlier statement is indented.
+    size: int = Field(default=4, description="Spaces per indentation level.")
     # "hanging" is the house style; "aligned" lines wrapped content up under
     # the opening parenthesis; "ignore" leaves such lines alone entirely.
-    continuation_style: Literal["hanging", "aligned", "ignore"] = "hanging"
+    continuation_style: Literal["hanging", "aligned", "ignore"] = Field(
+        default="hanging",
+        description="How a line that continues an earlier statement is indented.",
+    )
 
 
 class VariablePrefixConfig(RuleConfig):
     """Configuration for VariablePrefixRule."""
 
-    allow_constant_prefix: bool = False
+    allow_constant_prefix: bool = Field(
+        default=False,
+        description=(
+            "Accept variables starting with `c` as constants; each may then be "
+            "assigned only once (see C220)."
+        ),
+    )
+    allow_loop_counter_variables: bool = Field(
+        default=False,
+        description=(
+            "Exempt single-character numeric loop counters (e.g. `i`) assigned "
+            "right before a WHILE loop."
+        ),
+    )
 
 
 class ConditionalControlFlowConfig(RuleConfig):
@@ -130,14 +154,23 @@ class MisplacedFunctionConfig(RuleConfig):
     # error, a merely discouraged one a warning. These two narrow the check
     # without switching it off, since `severity` can only reweigh both levels
     # at once.
-    report_not_recommended: bool = True
-    allowed_functions: list[str] = Field(default_factory=list)
+    report_not_recommended: bool = Field(
+        default=True,
+        description=(
+            "Also report functions in a section where they are allowed but "
+            "discouraged (reported as warnings)."
+        ),
+    )
+    allowed_functions: list[str] = Field(
+        default_factory=list,
+        description="Functions never reported, whatever section they are in.",
+    )
 
 
 class ItemSkipConfig(RuleConfig):
     """Configuration for the deprecated, opt-in ItemSkipRule."""
 
-    enabled: bool = False
+    enabled: bool = Field(default=False, description="Whether the rule runs at all.")
 
 
 class EmptyBlockConfig(RuleConfig):
@@ -171,44 +204,73 @@ class ODBCOpenParameterConfig(RuleConfig):
 class HardcodedSecretConfig(RuleConfig):
     """Configuration for HardcodedSecretRule (X130)."""
 
-    # Which preset of secret-looking name fragments to match. `custom` starts
-    # from an empty preset, so `secret_names` becomes the whole list.
-    mode: Literal["relaxed", "standard", "strict", "custom"] = "standard"
-    # Extra name fragments, matched case-insensitively as substrings. Added on
-    # top of the preset selected by `mode`.
-    secret_names: list[str] = Field(default_factory=list)
-    # Whether reading a secret out of a cube (CellGetS, AttrS, …) is accepted.
+    mode: Literal["relaxed", "standard", "strict", "custom"] = Field(
+        default="standard",
+        description=(
+            "Preset of secret-looking name fragments to match. `custom` starts "
+            "from an empty preset, so `secret_names` becomes the whole list."
+        ),
+    )
+    secret_names: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Extra name fragments, matched case-insensitively as substrings, "
+            "on top of the preset selected by `mode`."
+        ),
+    )
     # Off by default: the TM1 data directory can be encrypted but rarely is.
-    allow_secrets_in_cubes: bool = False
+    allow_secrets_in_cubes: bool = Field(
+        default=False,
+        description="Accept secrets read from a cube (CellGetS, AttrS, …).",
+    )
 
 
 class UseHierarchyAwareFunctionsConfig(RuleConfig):
     """Configuration for UseHierarchyAwareFunctionsRule (C410)."""
 
-    mode: Literal["enforce", "consistent"] = "consistent"
+    mode: Literal["enforce", "consistent"] = Field(
+        default="consistent",
+        description=(
+            "`enforce` allows only hierarchy-aware functions; `consistent` allows "
+            "either style but not both in one process."
+        ),
+    )
     # Generic processes are taken from the top-level `generic_prefixes` setting.
 
 
 class DoNotUseUndocumentedFunctionsConfig(RuleConfig):
     """Configuration for DoNotUseUndocumentedFunctionsRule (C430)."""
 
-    # Undocumented functions the project knowingly relies on; matched
-    # case-insensitively and never reported.
-    allowed_functions: list[str] = Field(default_factory=list)
+    allowed_functions: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Undocumented functions the project knowingly relies on; matched "
+            "case-insensitively and never reported."
+        ),
+    )
 
 
 class FunctionVersionCompatibilityConfig(RuleConfig):
     """Configuration for FunctionVersionCompatibilityRule (C510)."""
 
     # Opt-in: the target version depends on the deployment strategy.
-    enabled: bool = False
-    # Per-rule override of the top-level `target_version`. Left unset (None), the
-    # rule inherits the top-level value; an explicit value here wins.
-    mode: Optional[Literal["CompatibleWithV11AndV12", "V11", "V12"]] = None
-    # The same override in the top-level vocabulary. Declared so that writing it
-    # here — the natural mistake, given the key exists at top level — is honoured
-    # rather than silently dropped by pydantic. `mode` wins if both are set.
-    target_version: Optional[Literal["v11", "v12", "both"]] = None
+    enabled: bool = Field(default=False, description="Whether the rule runs at all.")
+    mode: Optional[Literal["CompatibleWithV11AndV12", "V11", "V12"]] = Field(
+        default=None,
+        description=(
+            "Per-rule override of the top-level `target_version`; unset inherits it."
+        ),
+    )
+    # Declared so that writing it here — the natural mistake, given the key
+    # exists at top level — is honoured rather than silently dropped by pydantic.
+    target_version: Optional[Literal["v11", "v12", "both"]] = Field(
+        default=None,
+        description=(
+            "The same override in the top-level vocabulary; `mode` wins if both are set."
+        ),
+        # Accepted, but forms offer `mode` (or the top-level key) instead.
+        json_schema_extra={"x-hidden": True},
+    )
 
 
 class NewLinePerStatementConfig(RuleConfig):
@@ -218,33 +280,57 @@ class NewLinePerStatementConfig(RuleConfig):
 class DocstringRegionConfig(RuleConfig):
     """Configuration for DocstringRegionRule (D110)."""
 
-    enabled: bool = False
-    region_name: str = "Docstring"
-    required_headers: list[str] = Field(default_factory=lambda: ["# Description"])
-    # Deprecated: use the top-level `generic_prefixes` instead. Still honoured
-    # (and overrides the top-level value) while present.
-    generic_prefixes: list[str] = Field(default_factory=list)
-    generic_extra_headers: list[str] = Field(default_factory=lambda: ["# Use Case"])
+    enabled: bool = Field(default=False, description="Whether the rule runs at all.")
+    region_name: str = Field(
+        default="Docstring", description="Name of the `#region` holding the docstring."
+    )
+    required_headers: list[str] = Field(
+        default_factory=lambda: ["# Description"],
+        description="Headers every docstring must contain.",
+    )
+    # Still honoured (and overrides the top-level value) while present.
+    generic_prefixes: list[str] = Field(
+        default_factory=list,
+        description="Deprecated: use the top-level `generic_prefixes` instead.",
+        json_schema_extra={"x-hidden": True},
+    )
+    generic_extra_headers: list[str] = Field(
+        default_factory=lambda: ["# Use Case"],
+        description="Additional headers required in generic processes.",
+    )
 
 
 class MaxLineLengthConfig(RuleConfig):
     """Configuration for MaxLineLengthRule."""
 
-    limit: int = 120
-    # Spaces per level in the rewrapped output. Kept in step with
-    # `indentation.size` so the fix produces F310-conformant code.
-    indent_size: int = 4
+    limit: int = Field(default=120, description="Maximum characters per line.")
+    # Kept in step with `indentation.size` so the fix produces F310-conformant code.
+    indent_size: int = Field(
+        default=4, description="Spaces per indentation level in rewrapped lines."
+    )
 
 
 class WhitespaceConfig(RuleConfig):
     """Configuration for the whitespace rule group (W101-W106)."""
 
-    around_operators: bool = True
-    after_comma: bool = True
-    no_space_before_semicolon: bool = True
-    one_space_inside_parentheses: bool = True
-    no_multiple_spaces: bool = True
-    no_trailing_whitespace: bool = True
+    around_operators: bool = Field(
+        default=True, description="F220: one space around operators."
+    )
+    after_comma: bool = Field(
+        default=True, description="F230: one space after a comma."
+    )
+    no_space_before_semicolon: bool = Field(
+        default=True, description="F240: no space before a semicolon."
+    )
+    one_space_inside_parentheses: bool = Field(
+        default=True, description="F250: one space inside parentheses."
+    )
+    no_multiple_spaces: bool = Field(
+        default=True, description="F260: no runs of multiple spaces."
+    )
+    no_trailing_whitespace: bool = Field(
+        default=True, description="F270: no whitespace at the end of a line."
+    )
 
 
 class RulesConfig(BaseModel):
@@ -355,29 +441,42 @@ class Config(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     rules: RulesConfig = Field(default_factory=RulesConfig)
-    # Names starting with one of these prefixes mark a *generic* (templated)
-    # process. Rules that treat generic processes specially (D110, C410) share
-    # this single definition.
-    generic_prefixes: list[str] = Field(default_factory=list)
-    # Files, directories, or glob patterns to skip during discovery. CLI
-    # ``--exclude-path`` values extend (never replace) this list.
-    exclude_paths: list[str] = Field(default_factory=list)
+    # Rules that treat generic processes specially (D110, C410) share this
+    # single definition.
+    generic_prefixes: list[str] = Field(
+        default_factory=list,
+        description="Process names starting with one of these mark a generic (templated) process.",
+    )
+    # CLI ``--exclude-path`` values extend (never replace) this list.
+    exclude_paths: list[str] = Field(
+        default_factory=list,
+        description="Files, directories or glob patterns to skip during discovery.",
+    )
     # Whether a directory or glob scan may leave the tree it was pointed at by
     # following a symlink out of it. Off by default, so `--auto-fix` only ever
     # writes inside the scanned tree; such links are skipped with a warning.
     # Symlinks staying inside the tree are followed either way (they collapse
     # onto their target during de-duplication), and an explicitly named path is
     # always honored — this only governs *discovered* files.
-    follow_external_symlinks: bool = False
+    follow_external_symlinks: bool = Field(
+        default=False,
+        description="Let a directory or glob scan follow symlinks out of the scanned tree.",
+    )
     # Target Planning Analytics / TM1 version the code must run on. A project-wide
     # fact shared by version-aware rules (currently C510); left unset (None) the
     # rules fall back to their own default. `both` == must run on v11 and v12.
-    target_version: Optional[Literal["v11", "v12", "both"]] = None
+    target_version: Optional[Literal["v11", "v12", "both"]] = Field(
+        default=None,
+        description="Planning Analytics / TM1 version the code must run on (`both`: v11 and v12).",
+    )
     # Lowest severity that makes the run fail. Defaults to `error`, so findings
     # linti weighs as `warning` (the parse diagnostics P110/P900) are reported
     # but exit 0 — a build should not break because linti's parser fell short.
     # Set to `warning` (or pass --fail-on warning) to make every finding blocking.
-    fail_on: Severity = Severity.ERROR
+    fail_on: Severity = Field(
+        default=Severity.ERROR,
+        description="Lowest severity that makes the run fail (--fail-on).",
+    )
     # Lowest severity that is reported at all. Findings below it are dropped
     # before the report is built, so they neither show up nor affect the exit
     # code. Defaults to `warning`, i.e. everything is shown.
@@ -386,16 +485,29 @@ class Config(BaseModel):
     # user-facing name is the same in both places. The internal name keeps the
     # `min_` prefix because inside the code the "lowest of a scale" reading is
     # the one that has to be unambiguous.
-    min_severity: Severity = Field(default=Severity.WARNING, alias="severity")
+    min_severity: Severity = Field(
+        default=Severity.WARNING,
+        alias="severity",
+        description="Lowest severity that is reported at all (--severity).",
+    )
     # Input-hardening limits (defend against pathological / untrusted input).
     # Control-flow nesting beyond this depth yields an P900 diagnostic instead
     # of recursing until a RecursionError.
-    max_nesting_depth: int = Field(default=150)
+    max_nesting_depth: int = Field(
+        default=150,
+        description="Control-flow nesting beyond this depth is reported as P900.",
+    )
     # Files larger than this (bytes) are rejected before being read into memory.
-    max_file_size: int = Field(default=10 * 1024 * 1024)  # 10 MB
+    max_file_size: int = Field(
+        default=10 * 1024 * 1024,  # 10 MB
+        description="Files larger than this many bytes are rejected.",
+    )
     # Cap on how many distinct values the constant evaluation index keeps per
     # variable (e.g. across IF/ELSE branches) before degrading to UNKNOWN.
-    max_values_per_variable: int = Field(default=8)
+    max_values_per_variable: int = Field(
+        default=8,
+        description="Distinct values tracked per variable before it counts as unknown.",
+    )
 
     @model_validator(mode="before")
     @classmethod

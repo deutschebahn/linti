@@ -1,0 +1,18 @@
+!TM1py.ProcessObject
+Name: Playground-Example
+PrologProcedure: |-
+  cCube='Sales';
+  count=0;
+  if (DimensionExists('Year')=0);
+      LogOutput('WARN','Year dimension missing');
+  endif;
+  count=count+1;
+  cCube='Archive';
+  LogOutput('INFO','Rows: '|NumberToString(count));
+MetadataProcedure: ''
+DataProcedure: ''
+EpilogProcedure: ''
+Parameters: []
+Variables: []
+DataSource:
+  Type: None

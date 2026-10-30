@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
@@ -17,6 +18,7 @@ from linti.config import Config, rule_severity_override
 from linti.rules import _RULE_REGISTRY
 from linti.linter.lint_issue import Severity
 from linti.rules.Rule import RuleMetadata
+from linti.rules.examples import describe_context
 from linti.rules.rule_ids import (
     deprecated_ids_for,
     group_sort_key,
@@ -199,6 +201,8 @@ def explain_rule(rule_id: str, config_path: Optional[Path] = None) -> None:
         for ex in valid:
             if ex.description:
                 console.print(f"  [dim]# {ex.description}[/dim]")
+            if context := describe_context(ex):
+                console.print(f"  [dim]# Context: {escape(context)}[/dim]")
             console.print(Syntax(ex.code, "sql", theme="monokai", padding=(0, 2)))
         console.print()
 
@@ -207,5 +211,7 @@ def explain_rule(rule_id: str, config_path: Optional[Path] = None) -> None:
         for ex in invalid:
             if ex.description:
                 console.print(f"  [dim]# {ex.description}[/dim]")
+            if context := describe_context(ex):
+                console.print(f"  [dim]# Context: {escape(context)}[/dim]")
             console.print(Syntax(ex.code, "sql", theme="monokai", padding=(0, 2)))
         console.print()

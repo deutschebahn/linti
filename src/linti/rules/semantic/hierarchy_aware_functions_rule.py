@@ -136,6 +136,9 @@ class UseHierarchyAwareFunctionsRule(BaseTokenRule):
                 code="nExists = DimensionElementExists('Region', 'EMEA');",
                 description="enforce mode: standard function (use HierarchyElementExists)",
                 valid=False,
+                config={
+                    "rules": {"use_hierarchy_aware_functions": {"mode": "enforce"}}
+                },
             ),
             RuleExample(
                 code=(

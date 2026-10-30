@@ -86,11 +86,10 @@ class LintContext:
         *track_block_end* stays ``True`` for a normal lint so
         :meth:`is_end_of_procedure` knows the procedure's last line.  The
         auto-fix loop passes ``False``: while fixing, a whole procedure may
-        still be squashed onto one line, and a set ``block_end_line`` would make
-        every statement on that line look final and suppress
-        ``NewLinePerStatementRule`` (F320) — the very fix that splits them apart
-        across passes.  The end-of-file check in that rule still stops a newline
-        being demanded after the true final statement.
+        still be squashed onto one line, and a line-based end check would make
+        every statement on that line look final.  (``NewLinePerStatementRule``
+        (F320) no longer consults it for that reason; its own end-of-file check
+        exempts only the true final statement.)
         """
         return cls(
             block=proc_name,

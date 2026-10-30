@@ -4,5 +4,13 @@ __pycache__
 .vscode/
 dist
 build
+.output/
+site/.nuxt/
+site/.data/
+site/node_modules/
+site/public/pyodide/
+site/public/wheels/
+site/public/linti-wheel.json
+site/app/data/rules.json
 .trunk
 tmp/

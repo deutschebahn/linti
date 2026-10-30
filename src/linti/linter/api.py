@@ -1,5 +1,8 @@
 """High-level linting operations on ProcessIR and providers."""
 
+from typing import Optional
+
+from linti.config import Config
 from linti.semantic.constant_evaluation import ConstantEvaluationIndex
 from linti.linter.fixer import auto_fix_process
 from linti.linter.lint_context import LintContext
@@ -10,6 +13,7 @@ from linti.linter.reporter import ProcedureIssue
 from linti.model.process_ir import ProcessIR, extract_procedures
 from linti.provider.base import ProcessProvider
 from linti.rules.Rule import RuleMetadata
+from linti.rules.rule_factory import create_rules
 
 # Pseudo rule id for the parser-level "nesting too deep" diagnostic. Not a
 # registry rule — enforced in the parser, surfaced here as a LintIssue.
@@ -55,6 +59,21 @@ NESTING_DEPTH_METADATA = RuleMetadata(
         "    severity: warning"
     ),
 )
+
+
+def linter_from_config(cfg: Config, select: Optional[str] = None) -> Linter:
+    """Build a Linter carrying every config-driven limit and severity."""
+    token_rules, statement_rules = create_rules(cfg, select=select)
+    nesting = cfg.rules.nesting_depth
+    return Linter(
+        rules=token_rules,
+        statement_rules=statement_rules,
+        max_nesting_depth=cfg.max_nesting_depth,
+        max_file_size=cfg.max_file_size,
+        max_values_per_variable=cfg.max_values_per_variable,
+        nesting_depth_enabled=nesting.enabled,
+        nesting_depth_severity=nesting.severity or Severity.WARNING,
+    )
 
 
 def lint_process_model(process: ProcessIR, linter: Linter) -> list[ProcedureIssue]:

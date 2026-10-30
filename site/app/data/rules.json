@@ -1,0 +1,1671 @@
+[
+  {
+    "id": "F110",
+    "name": "Keyword Casing",
+    "description": "Enforces consistent keyword casing (uppercase/lowercase/camelcase/consistent)",
+    "group": "F",
+    "group_name": "Formatting Rules",
+    "severity": "error",
+    "auto_fix": true,
+    "enabled_by_default": true,
+    "config_key": "keyword_casing",
+    "explanation": "Enforces consistent casing for TM1 keywords (IF, ENDIF, ELSE, ELSEIF, WHILE, END).\n\nSupported styles:\n- uppercase: IF, ENDIF, ELSE, WHILE, END\n- lowercase: if, endif, else, while, end\n- camelcase: If, Endif, Else, While, End\n- consistent: Auto-detect from first keyword and enforce consistency",
+    "config_example": "rules:\n  keyword_casing:\n    enabled: true\n    style: uppercase  # or lowercase, camelcase, consistent",
+    "default_config": "rules:\n  keyword_casing:\n    enabled: true\n    severity: error\n    style: uppercase\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "IF (x = 1);\n    nResult = 10;\nENDIF;",
+        "description": "uppercase style",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "if (x = 1);\n    nResult = 10;\nendif;",
+        "description": "lowercase style",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "rules:\n  keyword_casing:\n    style: lowercase\n",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "IF (x = 1);\n    nResult = 10;\nendif;",
+        "description": "Mixed casing",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "F220",
+    "name": "Whitespace Around Operators",
+    "description": "Enforces exactly one space around binary operators",
+    "group": "F",
+    "group_name": "Formatting Rules",
+    "severity": "error",
+    "auto_fix": true,
+    "enabled_by_default": true,
+    "config_key": "whitespace",
+    "explanation": "Every binary operator (`+`, `-`, `*`, `/`, `=`, `<`, `>`, `<=`, `>=`, `<>`, `@=`, `@<>`, `&`, `|`) must have exactly one space on each side.  Unary operators (e.g. a leading `-1`) are exempt.  Operators at the start or end of a physical line are also exempt.",
+    "config_example": "rules:\n  whitespace:\n    around_operators: true",
+    "default_config": "rules:\n  whitespace:\n    enabled: true\n    severity: error\n    around_operators: true\n    after_comma: true\n    no_space_before_semicolon: true\n    one_space_inside_parentheses: true\n    no_multiple_spaces: true\n    no_trailing_whitespace: true\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "nVar = nA + nB;",
+        "description": "",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "nVar=nA+nB;",
+        "description": "Missing spaces around operators",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "F230",
+    "name": "Whitespace After Comma",
+    "description": "Enforces exactly one space after commas",
+    "group": "F",
+    "group_name": "Formatting Rules",
+    "severity": "error",
+    "auto_fix": true,
+    "enabled_by_default": true,
+    "config_key": "whitespace",
+    "explanation": "Every comma must be followed by exactly one space.  Commas at the end of a physical line (multi-line argument lists) are exempt.",
+    "config_example": "rules:\n  whitespace:\n    after_comma: true",
+    "default_config": "rules:\n  whitespace:\n    enabled: true\n    severity: error\n    around_operators: true\n    after_comma: true\n    no_space_before_semicolon: true\n    one_space_inside_parentheses: true\n    no_multiple_spaces: true\n    no_trailing_whitespace: true\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "func(a, b, c);",
+        "description": "",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "func(a,b,c);",
+        "description": "Missing spaces after commas",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "F240",
+    "name": "No Space Before Semicolon",
+    "description": "Enforces no whitespace immediately before ';'",
+    "group": "F",
+    "group_name": "Formatting Rules",
+    "severity": "error",
+    "auto_fix": true,
+    "enabled_by_default": true,
+    "config_key": "whitespace",
+    "explanation": "A semicolon that terminates a statement must not be preceded by any whitespace.  Only a semicolon at the start of a physical line (after a newline) is exempt.",
+    "config_example": "rules:\n  whitespace:\n    no_space_before_semicolon: true",
+    "default_config": "rules:\n  whitespace:\n    enabled: true\n    severity: error\n    around_operators: true\n    after_comma: true\n    no_space_before_semicolon: true\n    one_space_inside_parentheses: true\n    no_multiple_spaces: true\n    no_trailing_whitespace: true\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "nVar = 1;",
+        "description": "",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "nVar = 1 ;",
+        "description": "Space before semicolon",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "F250",
+    "name": "One Space Inside Parentheses",
+    "description": "Enforces exactly one space inside '(' and ')'",
+    "group": "F",
+    "group_name": "Formatting Rules",
+    "severity": "error",
+    "auto_fix": true,
+    "enabled_by_default": true,
+    "config_key": "whitespace",
+    "explanation": "There must be exactly one space after an opening parenthesis and before a closing parenthesis.  Empty parentheses and multi-line parenthesised expressions (where the content starts on a new line) are exempt.",
+    "config_example": "rules:\n  whitespace:\n    one_space_inside_parentheses: true",
+    "default_config": "rules:\n  whitespace:\n    enabled: true\n    severity: error\n    around_operators: true\n    after_comma: true\n    no_space_before_semicolon: true\n    one_space_inside_parentheses: true\n    no_multiple_spaces: true\n    no_trailing_whitespace: true\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "func( a, b );",
+        "description": "",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "func(a, b);",
+        "description": "Missing spaces inside parentheses",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "F260",
+    "name": "No Multiple Spaces",
+    "description": "Enforces no multiple consecutive spaces (except indentation)",
+    "group": "F",
+    "group_name": "Formatting Rules",
+    "severity": "error",
+    "auto_fix": true,
+    "enabled_by_default": true,
+    "config_key": "whitespace",
+    "explanation": "Two or more consecutive spaces are not allowed, except at the start of a line (indentation).  Use exactly one space between tokens.",
+    "config_example": "rules:\n  whitespace:\n    no_multiple_spaces: true",
+    "default_config": "rules:\n  whitespace:\n    enabled: true\n    severity: error\n    around_operators: true\n    after_comma: true\n    no_space_before_semicolon: true\n    one_space_inside_parentheses: true\n    no_multiple_spaces: true\n    no_trailing_whitespace: true\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "nVar = 1;",
+        "description": "",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "nVar  =  1;",
+        "description": "Multiple consecutive spaces",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "F270",
+    "name": "No Trailing Whitespace",
+    "description": "Enforces no trailing whitespace at the end of lines",
+    "group": "F",
+    "group_name": "Formatting Rules",
+    "severity": "error",
+    "auto_fix": true,
+    "enabled_by_default": true,
+    "config_key": "whitespace",
+    "explanation": "Lines must not end with whitespace characters.  Trailing spaces or tabs before a newline (or at end of file) will be removed.",
+    "config_example": "rules:\n  whitespace:\n    no_trailing_whitespace: true",
+    "default_config": "rules:\n  whitespace:\n    enabled: true\n    severity: error\n    around_operators: true\n    after_comma: true\n    no_space_before_semicolon: true\n    one_space_inside_parentheses: true\n    no_multiple_spaces: true\n    no_trailing_whitespace: true\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "nVar = 1;",
+        "description": "",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "nVar = 1;   ",
+        "description": "Trailing spaces at end of line",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "F310",
+    "name": "Block Indentation",
+    "description": "Enforces indentation for IF/WHILE blocks and wrapped lines",
+    "group": "F",
+    "group_name": "Formatting Rules",
+    "severity": "error",
+    "auto_fix": true,
+    "enabled_by_default": true,
+    "config_key": "indentation",
+    "explanation": "Enforces consistent indentation for IF and WHILE blocks.\nThe default indentation size is 4 spaces per nesting level. This can be configured via the `size` parameter.\n\nA line that continues a statement started earlier — a wrapped argument list, a multi-line condition — is indented in the *hanging* style: one level deeper per open parenthesis, and the line that closes a parenthesis returns to the level of the line that opened it. Set `continuation_style` to `aligned` to line wrapped content up under the opening parenthesis instead, or to `ignore` to leave hand-formatted continuation lines alone.\n\nLines inside a multi-line string literal are never touched: their indentation is part of the string's value.",
+    "config_example": "rules:\n  indentation:\n    enabled: true\n    size: 4  # number of spaces per indentation level\n    continuation_style: hanging  # hanging | aligned | ignore",
+    "default_config": "rules:\n  indentation:\n    enabled: true\n    severity: error\n    size: 4\n    continuation_style: hanging\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "IF (nValue > 0);\n    nResult = 10;\nENDIF;",
+        "description": "4-space indent",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "sValue = CellGetS(\n    'Cube',\n    'Element'\n);",
+        "description": "Wrapped argument list (hanging indent)",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "IF (nValue > 0);\nnResult = 10;\nENDIF;",
+        "description": "Missing indentation",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "sValue = CellGetS( 'Cube',\n           'Element' );",
+        "description": "Wrapped line not at the hanging indent",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "F320",
+    "name": "One Statement Per Line",
+    "description": "Enforces that each statement is followed by a newline",
+    "group": "F",
+    "group_name": "Formatting Rules",
+    "severity": "error",
+    "auto_fix": true,
+    "enabled_by_default": true,
+    "config_key": "newline_per_statement",
+    "explanation": "Enforces that after a completed statement (marked by a semicolon), code continues on a new line.\n\nException: no newline is required when the statement is immediately before the procedure end (EOF).",
+    "config_example": "rules:\n  newline_per_statement:\n    enabled: true",
+    "default_config": "rules:\n  newline_per_statement:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "nValue = 5;\nsMessage = 'test';",
+        "description": "Each statement on its own line",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "nValue = 5; sMessage = 'test';",
+        "description": "Multiple statements on same line",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "F330",
+    "name": "Maximum Line Length",
+    "description": "Limits how long a physical line may be",
+    "group": "F",
+    "group_name": "Formatting Rules",
+    "severity": "error",
+    "auto_fix": true,
+    "enabled_by_default": true,
+    "config_key": "max_line_length",
+    "explanation": "Flags any physical line longer than `limit` characters (120 by default).\n\nThe fix rewraps the statement across several lines, breaking at the commas of an argument list or before the operators of a long condition, and indenting the result in the hanging style F310 enforces.  Long comment lines are wrapped at word boundaries, preserving the leading ``#`` prefix on each continuation line.\n\nSome long lines cannot be broken — a single long string literal, or a statement containing a comment that would change meaning if it moved. Those are reported without a fix.",
+    "config_example": "rules:\n  max_line_length:\n    enabled: true\n    limit: 120",
+    "default_config": "rules:\n  max_line_length:\n    enabled: true\n    severity: error\n    limit: 120\n    indent_size: 4\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "sValue = CellGetS(\n    'Cube',\n    'Element'\n);",
+        "description": "Wrapped at the argument boundaries",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "IF(\n    nA = 1\n    & nB = 2\n);",
+        "description": "Wrapped before each operator",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "sValue = CellGetS( 'Cube', 'AAAA', 'BBBB', 'CCCC', 'DDDD' );",
+        "description": "Single line over the limit",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "rules:\n  max_line_length:\n    limit: 40\n",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "N110",
+    "name": "Variable Prefix Naming",
+    "description": "Enforces TM1 variable naming conventions (n/s/c prefixes)",
+    "group": "N",
+    "group_name": "Naming Convention Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "variable_prefix",
+    "explanation": "Enforces TM1 variable naming conventions:\n- Numeric variables must start with 'n': nCount, nValue, nSum\n- String variables must start with 's': sMessage, sName, sPath\n- Optional constants may start with 'c': cRate, cMessage\n\nIf `allow_constant_prefix` is enabled, any variable starting with 'c' may only be assigned once in the process (see C220).\n\nIf `allow_loop_counter_variables` is enabled, single-character numeric variables (e.g. i, j) that are assigned directly before a WHILE loop are exempt from naming conventions.\n\nTM1 predefined system variables (e.g. DatasourceASCIIDecimalSeparator, NValue, SValue) are automatically excluded from naming convention checks.",
+    "config_example": "rules:\n  variable_prefix:\n    enabled: true\n    allow_constant_prefix: false\n    allow_loop_counter_variables: true",
+    "default_config": "rules:\n  variable_prefix:\n    enabled: true\n    severity: error\n    allow_constant_prefix: false\n    allow_loop_counter_variables: false\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "nCount = 5;",
+        "description": "Numeric variable",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "sMessage = 'test';",
+        "description": "String variable",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "count = 5;",
+        "description": "Missing 'n' prefix",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "name = 'test';",
+        "description": "Missing 's' prefix",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "i = 0;\nWHILE(i < 10);\n  i = i + 1;\nEND;",
+        "description": "Loop counter before WHILE (exempt when allow_loop_counter_variables: true)",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "rules:\n  variable_prefix:\n    allow_loop_counter_variables: true\n",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "DatasourceASCIIDecimalSeparator = ',';",
+        "description": "Predefined variable (excluded)",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "N120",
+    "name": "Variables Consistent Casing",
+    "description": "Enforces consistent casing for variable references within a process",
+    "group": "N",
+    "group_name": "Naming Convention Rules",
+    "severity": "error",
+    "auto_fix": true,
+    "enabled_by_default": true,
+    "config_key": "variable_consistent_casing",
+    "explanation": "TM1 variables are case-insensitive, meaning `vYear`, `vyear`, and `VYEAR` all refer to the same variable. While technically valid, inconsistent casing reduces readability and breaks PAW variable highlighting when navigating code.\n\nFor parameters and data source variables, the casing from the metadata declaration is used as the canonical form. For script variables, the first occurrence in code defines the canonical casing.\n\nThe autofix replaces all inconsistent references with the canonical form.",
+    "config_example": "rules:\n  variable_consistent_casing:\n    enabled: true",
+    "default_config": "rules:\n  variable_consistent_casing:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [
+      "N230"
+    ],
+    "examples": [
+      {
+        "code": "sName = 'hello';\nIF(sName @= 'hello');",
+        "description": "Consistent casing throughout",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "sName = 'hello';\nIF(sname @= 'hello');",
+        "description": "Inconsistent casing for the same variable",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "N210",
+    "name": "Parameter Naming",
+    "description": "Enforces that parameters start with lowercase 'p'",
+    "group": "N",
+    "group_name": "Naming Convention Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "parameter_naming",
+    "explanation": "Enforces that TM1 process parameters start with lowercase 'p'.\n\nParameters are the input values defined in the YAML Parameters section of a TM1 TI process. Following a consistent naming convention makes it easy to identify parameters throughout the code.",
+    "config_example": "rules:\n  parameter_naming:\n    enabled: true",
+    "default_config": "rules:\n  parameter_naming:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "pLogOutput",
+        "description": "Valid parameter name",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [
+          "pLogOutput"
+        ],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "pFactor",
+        "description": "",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [
+          "pFactor"
+        ],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "LogOutput",
+        "description": "Missing 'p' prefix",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [
+          "LogOutput"
+        ],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "N220",
+    "name": "Data Source Variable Naming",
+    "description": "Enforces that data source variables start with lowercase 'v'",
+    "group": "N",
+    "group_name": "Naming Convention Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "variable_naming",
+    "explanation": "Enforces that TM1 data source variables start with lowercase 'v'.\n\nData source variables are the columns from the data source, defined in the YAML Variables section. These variables are automatically populated by TM1 during Metadata and Data processing.",
+    "config_example": "rules:\n  variable_naming:\n    enabled: true",
+    "default_config": "rules:\n  variable_naming:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "vDimension",
+        "description": "Valid variable name",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [
+          "vDimension"
+        ],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "vHierarchy",
+        "description": "",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [
+          "vHierarchy"
+        ],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "Dimension",
+        "description": "Missing 'v' prefix",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [
+          "Dimension"
+        ],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "D110",
+    "name": "Docstring Region",
+    "description": "Enforces a docstring region before executable code in the prolog",
+    "group": "D",
+    "group_name": "Documentation Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": false,
+    "config_key": "docstring_region",
+    "explanation": "Every process prolog must begin with a ``#Region - Docstring`` section (name is configurable) that appears before any executable statement (i.e. before the first ``;``). The region must contain at least a ``# Description`` header. Processes whose names start with a configured *generic prefix* (e.g. ``}core.``) must also contain the extra headers defined in ``generic_extra_headers``.",
+    "config_example": "rules:\n  docstring_region:\n    enabled: true\n    region_name: Docstring\n    required_headers:\n      - '# Description'\n    generic_prefixes:\n      - '}core.'\n    generic_extra_headers:\n      - '# Use Case'",
+    "default_config": "rules:\n  docstring_region:\n    enabled: false\n    severity: error\n    region_name: Docstring\n    required_headers:\n    - '# Description'\n    generic_prefixes: []\n    generic_extra_headers:\n    - '# Use Case'\n",
+    "deprecated_by": null,
+    "previous_ids": [
+      "D410"
+    ],
+    "examples": [
+      {
+        "code": "#Region - Docstring\n# Description:\n# Does something useful\n#EndRegion - Docstring\nnVar = 1;",
+        "description": "",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "nVar = 1;",
+        "description": "No docstring region before code",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C110",
+    "name": "Empty Block",
+    "description": "Flags IF/ELSEIF/ELSE/WHILE blocks that contain no executable code",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "error",
+    "auto_fix": true,
+    "enabled_by_default": true,
+    "config_key": "empty_block",
+    "explanation": "Flags control-flow blocks (IF/ELSEIF/ELSE/WHILE) that contain no executable code, either because they are completely empty or because they hold only comments.\n\nAuto-fix removes a block only when it is completely empty (no comments) and deletion is safe: an empty ELSE, an empty WHILE (including its END;), or an empty ELSEIF that is the last branch. An empty ELSEIF followed by another ELSEIF/ELSE is reported only — removing it would change behaviour — as is any empty IF or any block that still holds a comment.",
+    "config_example": "rules:\n  empty_block:\n    enabled: true",
+    "default_config": "rules:\n  empty_block:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [
+      "S130"
+    ],
+    "examples": [
+      {
+        "code": "IF (nValue = 1);\n    nResult = 10;\nENDIF;",
+        "description": "IF block with executable code",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "IF (nValue = 1);\n    nResult = 10;\nELSE;\nENDIF;",
+        "description": "Empty ELSE block (auto-fixable: branch removed)",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "IF (nValue = 1);\nENDIF;",
+        "description": "Empty IF block",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "WHILE (nValue < 10);\n    # todo\nEND;",
+        "description": "WHILE block with only a comment",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C120",
+    "name": "Conditional Control Flow",
+    "description": "Enforces that flow-altering statements are only used inside an IF/ELSE block",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "conditional_control_flow",
+    "explanation": "Enforces that flow-altering control statements are only used inside an IF/ELSE block.\n\nThe following functions and keywords abruptly change process flow and must be guarded by an explicit IF condition:\n- ProcessQuit\n- ItemReject\n- ProcessBreak\n- ProcessError\n- ProcessExitByChoreRollback\n- ProcessExitByProcessRollback\n- ProcessRollback\n- Break\n\nUsing any of them in the main program body — or in a bare WHILE loop with no enclosing IF — is almost always a logic error.",
+    "config_example": "rules:\n  conditional_control_flow:\n    enabled: true",
+    "default_config": "rules:\n  conditional_control_flow:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [
+      "S110"
+    ],
+    "examples": [
+      {
+        "code": "IF (nValue = 1);\n    ProcessBreak();\nENDIF;",
+        "description": "ProcessBreak guarded by an IF condition",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "nValue = 5;\nProcessQuit();",
+        "description": "ProcessQuit in the main program body",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "WHILE (nValue = 1);\n    Break;\nEND;",
+        "description": "Break in a bare WHILE loop (no enclosing IF)",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C130",
+    "name": "ItemSkip Block Usage",
+    "description": "Enforces that ItemSkip() is only used in metadata or data sections",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": false,
+    "config_key": "item_skip",
+    "explanation": "Deprecated: use Misplaced Function (C150), configured via rules.misplaced_function. This rule remains available with its original ItemSkip-only behavior, but is disabled by default and is skipped with a warning whenever C150 is active, so the same ItemSkip is never reported twice. Selecting C130 (or its alias S120) explicitly still runs it.\n\nEnforces that ItemSkip() is only used in metadata or data sections of TM1 TI processes.\n\nTM1 TI processes have four execution blocks:\n- Prolog: Executes once before processing records\n- Metadata: Processes dimension metadata records\n- Data: Processes cube data records\n- Epilog: Executes once after all records\n\nItemSkip() skips the current record, which only makes sense in Metadata and Data sections. Using it in Prolog or Epilog is a logic error.",
+    "config_example": "rules:\n  item_skip:\n    # Deprecated: prefer rules.misplaced_function (C150), which\n    # takes precedence whenever both rules are active.\n    enabled: true",
+    "default_config": "rules:\n  item_skip:\n    enabled: false\n    severity: error\n",
+    "deprecated_by": "C150",
+    "previous_ids": [
+      "S120"
+    ],
+    "examples": [
+      {
+        "code": "# In Metadata/Data section\nIF (nValue = 0);\n    ItemSkip();\nENDIF;",
+        "description": "ItemSkip in Metadata/Data",
+        "valid": true,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "# In Prolog section\nItemSkip();",
+        "description": "ItemSkip in Prolog",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C140",
+    "name": "Unreachable Code",
+    "description": "Flags code after a flow-terminating statement that can never execute",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "unreachable_code",
+    "explanation": "Flags unreachable code that follows a flow-terminating statement within a block.\n\nStatements such as ProcessQuit, ProcessBreak, ProcessError, ItemReject, the ProcessRollback family and the Break loop keyword end the current flow. A flow-terminating statement must therefore be the last statement in its block; anything after it can never execute.",
+    "config_example": "rules:\n  unreachable_code:\n    enabled: true",
+    "default_config": "rules:\n  unreachable_code:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "IF (nValue = 1);\n    nResult = 10;\n    ProcessQuit();\nENDIF;",
+        "description": "ProcessQuit at the end of the block",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "IF (nValue = 1);\n    ProcessQuit();\n    nResult = 10;\nENDIF;",
+        "description": "Unreachable code after ProcessQuit",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C150",
+    "name": "Misplaced Function",
+    "description": "Detects TI functions used in invalid or not recommended procedure sections",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "misplaced_function",
+    "explanation": "Checks function calls against the Prolog, Metadata, Data and Epilog sections. Both a placement IBM documents as invalid and one this project does not recommend are reported; valid placement produces no diagnostic.\n\n- DimensionElementInsert / HierarchyElementInsert: valid in Prolog/Metadata; invalid in Data/Epilog.\n- DimensionElementComponentAdd / HierarchyElementComponentAdd: valid in Prolog/Metadata/Data; invalid in Epilog.\n- DisableBulkLoadMode: valid in the Epilog; invalid in Prolog/Metadata/Data, because bulk load mode has to stay on for the whole process. IBM asks for it in the Epilog's last line; that position is not checked.\n- AttrPutS / AttrPutN / ElementAttrPutS / ElementAttrPutN: valid in Prolog/Data/Epilog; not recommended in Metadata. This is an advisory recommendation, not an IBM prohibition: write attributes after newly created elements have been committed.\n- AddClient / DeleteClient / AddGroup / DeleteGroup / CellSecurityCubeCreate / CellSecurityCubeDestroy: valid in Prolog/Metadata; not recommended in Data/Epilog, where administrative changes run per record or after the load.\n- Dimension and Hierarchy Direct functions: ElementInsertDirect, ElementDeleteDirect, ElementComponentAddDirect, ElementComponentDeleteDirect, TopElementInsertDirect and UpdateDirect are unrestricted in all four sections. IBM describes direct edits during Data loads; they do not inherit the non-Direct functions' restrictions.\n- ItemSkip: valid in Metadata/Data; invalid in Prolog/Epilog.\n\nRestrictions are function-specific. ElementDelete, ElementComponentDelete and TopElementInsert are not automatically restricted like ElementInsert. See docs/function-placement.md for the IBM sources and the distinction between documented restrictions and LinTi recommendations.\n\nFunction matching is case-insensitive. Unknown functions and code without a known procedure section are not reported. Calls inside expressions and nested control flow are checked too. Statements the parser could not read are skipped.\n\nFindings fail the run like any other error. Two settings narrow the rule instead of switching it off wholesale:\n- report_not_recommended: false reports only the documented restrictions. Use it when the recommendations do not match how the project loads its data.\n- allowed_functions lists functions to exempt from the check in every section, for a placement this project disagrees with.\n\nrules.misplaced_function.severity reweighs the whole rule, as everywhere else.\n\nSupersedes ItemSkip Block Usage (C130), which is disabled by default and skipped with a warning whenever this rule is active, so the same ItemSkip is never reported twice. Selecting C130 (or its alias S120) explicitly still runs the legacy ItemSkip-only rule with its own rules.item_skip settings.",
+    "config_example": "rules:\n  misplaced_function:\n    enabled: true\n    # Set to false to report only the documented restrictions,\n    # keeping the recommendations out of the report.\n    report_not_recommended: true\n    # Functions to exempt from the placement check entirely.\n    allowed_functions: []",
+    "default_config": "rules:\n  misplaced_function:\n    enabled: true\n    severity: error\n    report_not_recommended: true\n    allowed_functions: []\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "DimensionElementInsert('Product', '', vProduct, 'N');",
+        "description": "Metadata: create the element",
+        "valid": true,
+        "procedure": "metadata",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "AttrPutS(vDescription, 'Product', vProduct, 'Description');",
+        "description": "Data: write the attribute after Metadata completes",
+        "valid": true,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "DisableBulkLoadMode();",
+        "description": "Epilog: leave bulk load mode when the process ends",
+        "valid": true,
+        "procedure": "epilog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "ItemSkip();",
+        "description": "Prolog: invalid placement",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "DisableBulkLoadMode();",
+        "description": "Data: invalid placement",
+        "valid": false,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "AttrPutS(vDescription, 'Product', vProduct, 'Description');",
+        "description": "Metadata: not recommended placement",
+        "valid": false,
+        "procedure": "metadata",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C210",
+    "name": "Read-only Parameters and Variables",
+    "description": "Enforces that parameters and data source variables are read-only",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "readonly_parameter_variable",
+    "explanation": "Enforces that TM1 parameters and data source variables are read-only.\n\nParameters (from the Parameters section) and data source variables (from the Variables section) should not be modified in the process code. These values are inputs to your process and should be treated as immutable. If you need to change their values, assign them to a new local variable first.\n\nWhy this matters:\n- Parameters represent user input or configuration values\n- Variables represent data from the source that should be preserved\n- Modifying these can make debugging difficult\n- Following this convention makes code more readable and maintainable",
+    "config_example": "rules:\n  readonly_parameter_variable:\n    enabled: true",
+    "default_config": "rules:\n  readonly_parameter_variable:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [
+      "S210"
+    ],
+    "examples": [
+      {
+        "code": "cLogOutput = pLogOutput;\ncLogOutput = 0;",
+        "description": "Read parameter, modify local copy",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [
+          "pLogOutput"
+        ],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "pLogOutput = 0;",
+        "description": "Modifying a parameter",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [
+          "pLogOutput"
+        ],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "vDimension = 'NewValue';",
+        "description": "Modifying a data source variable",
+        "valid": false,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [
+          "vDimension"
+        ],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C220",
+    "name": "Single-assignment Constants",
+    "description": "Enforces that constants (c-prefixed variables) are assigned only once",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "constant_assignment",
+    "explanation": "Enforces that constants (variables starting with 'c') are assigned only once throughout the process.\n\nThis rule is automatically enabled when `allow_constant_prefix: true` is set in the variable_prefix rule.",
+    "config_example": "rules:\n  variable_prefix:\n    enabled: true\n    allow_constant_prefix: true  # Enables C220",
+    "default_config": "rules:\n  constant_assignment:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [
+      "S220"
+    ],
+    "examples": [
+      {
+        "code": "cRate = 1.5;",
+        "description": "First assignment",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "cRate = 1.5;\ncRate = 2.0;",
+        "description": "Reassignment",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C310",
+    "name": "Literal Process Calls",
+    "description": "Enforces that RunProcess()/ExecuteProcess() use a string literal as first argument",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "process_call_literal",
+    "explanation": "Enforces that RunProcess() and ExecuteProcess() calls use a string literal as their first argument (the target process name).\n\nThis keeps process lineage explicit and avoids dynamic indirection through variables/parameters.",
+    "config_example": "rules:\n  process_call_literal:\n    enabled: true",
+    "default_config": "rules:\n  process_call_literal:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [
+      "S310"
+    ],
+    "examples": [
+      {
+        "code": "RunProcess('pLoad_Customer', 'pYear', '2026');",
+        "description": "",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "ExecuteProcess('pBuild_Dimensions');",
+        "description": "",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "RunProcess(pProcessName);",
+        "description": "Variable as process name",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C410",
+    "name": "Use Hierarchy-Aware Functions",
+    "description": "Enforces hierarchy-aware functions, or at least consistent usage of hierarchy-aware vs. standard hierarchy functions",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "use_hierarchy_aware_functions",
+    "explanation": "TM1 offers hierarchy-aware functions (e.g. HierarchyElementExists, ElementParent) that take an explicit hierarchy, alongside standard functions (e.g. DimensionElementExists, ELPAR) that implicitly use a dimension's default hierarchy.\n\nModes:\n- enforce: only hierarchy-aware functions are allowed; standard functions are reported with their hierarchy-aware replacement.\n- consistent: either style is allowed, but mixing both within the same file is reported.\n\nIndependently of the mode, a standard function whose dimension argument provably addresses a hierarchy ('Dimension:Hierarchy') is reported — whether the colon comes from a string literal, a literal concatenation (sDim | ':' | sHier), or a variable with a statically known branch variant that contains a colon (a single reachable path already addresses a hierarchy there, even if other branches don't). In enforce mode the call is already reported by name, so this extra check adds signal in consistent mode. Unknown/dynamic values are never reported.\n\nGeneric processes (whose names start with a configured ``generic_prefixes`` entry) are always held to the stricter ``enforce`` mode, regardless of the base ``mode``.\n\nCovers both TI functions and Rules functions that are valid in TI.",
+    "config_example": "# Generic processes (top-level setting) are always enforced\ngeneric_prefixes:\n  - '}core.'\nrules:\n  use_hierarchy_aware_functions:\n    enabled: true\n    # base mode: 'enforce' or 'consistent'\n    mode: consistent",
+    "default_config": "rules:\n  use_hierarchy_aware_functions:\n    enabled: true\n    severity: error\n    mode: consistent\n",
+    "deprecated_by": null,
+    "previous_ids": [
+      "S410"
+    ],
+    "examples": [
+      {
+        "code": "nExists = HierarchyElementExists('Region', 'Region', 'EMEA');",
+        "description": "hierarchy-aware function (valid in any mode)",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "nExists = DimensionElementExists('Region', 'EMEA');",
+        "description": "enforce mode: standard function (use HierarchyElementExists)",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "rules:\n  use_hierarchy_aware_functions:\n    mode: enforce\n",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "nParent = ElementParent('Region', 'Region', 'EMEA');\nnIndex = DIMIX('Region', 'EMEA');",
+        "description": "consistent mode: mixes hierarchy-aware and standard styles",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "nExists = DimensionElementExists('Region:Detail', 'EMEA');",
+        "description": "dimension argument addresses a hierarchy; use HierarchyElementExists with an explicit hierarchy",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C430",
+    "name": "Do Not Use Undocumented Functions",
+    "description": "Reports calls to TurboIntegrator functions that are not officially documented or supported by IBM",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "do_not_use_undocumented_functions",
+    "explanation": "Some TI functions exist in the engine but are missing from IBM's documentation — for example DimensionElementInsertByAlias, LockOn or Hex. They are occasionally useful, but they come with no compatibility guarantee: behaviour can change or the function can vanish in any release, and IBM support does not cover them. Production code should rely on the documented API instead.\n\nMatching is case-insensitive, and calls are found wherever they appear — including inside IF/WHILE conditions and nested arguments. Because TI makes the parentheses optional on a no-argument call, `LockOn;` is reported just like `LockOn();`. A name merely read as a variable is not a call and is never reported.\n\nWhen the use is intentional, suppress the finding inline with `# noqa: C430` (region- and procedure-level suppression works too), or list the function under `allowed_functions` to permit it across the whole project.",
+    "config_example": "rules:\n  do_not_use_undocumented_functions:\n    enabled: true\n    # Functions the project knowingly relies on (case-insensitive):\n    # allowed_functions:\n    #   - DimensionElementInsertByAlias",
+    "default_config": "rules:\n  do_not_use_undocumented_functions:\n    enabled: true\n    severity: error\n    allowed_functions: []\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "DimensionElementInsertByAlias('Product', '', 'Alias', 'N');",
+        "description": "Undocumented: not part of IBM's supported API",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "LockOn;",
+        "description": "Reported without parentheses too — TI makes them optional on a no-argument call",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "DimensionElementInsertDirect('Product', '', 'Element', 'N');",
+        "description": "The documented equivalent is always allowed",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "DataSpread;",
+        "description": "Allowed once the function is listed under `allowed_functions`",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "rules:\n  do_not_use_undocumented_functions:\n    allowed_functions:\n    - DataSpread\n",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C510",
+    "name": "Function Version Compatibility",
+    "description": "Reports TurboIntegrator functions incompatible with a target Planning Analytics / TM1 version (v11, v12, or both)",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": false,
+    "config_key": "function_version_compatibility",
+    "explanation": "Some TI functions exist only in PA/TM1 v11 and are unsupported in v12; others were introduced in v12 and do not exist in v11. This rule reports calls that break a chosen compatibility target.\n\nModes:\n- CompatibleWithV11AndV12: only functions available in both versions are allowed; any version-specific function is reported.\n- V11: v11 functions are allowed; functions introduced in v12 are reported.\n- V12: v12 functions are allowed; functions removed or unsupported in v12 are reported.\n\nMatching is case-insensitive, and calls are found wherever they appear — including inside IF/WHILE conditions and nested arguments. Because TI makes the parentheses optional on a no-argument call, `SaveDataAll;` is reported just like `SaveDataAll();`.\n\nThe target version is normally set once via the top-level `target_version` (v11 | v12 | both) so other version-aware rules can share it; the per-rule `mode` overrides it when present.",
+    "config_example": "# Project-wide target, shared by version-aware rules:\ntarget_version: both  # v11 | v12 | both\nrules:\n  function_version_compatibility:\n    enabled: true\n    # Optional per-rule override of target_version:\n    # mode: CompatibleWithV11AndV12  # | V11 | V12",
+    "default_config": "rules:\n  function_version_compatibility:\n    enabled: false\n    severity: error\n    mode: null\n    target_version: null\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "nStatus = GetJobStatus(nJobId);",
+        "description": "V11 mode: GetJobStatus was introduced in v12",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "CubeSaveData('Sales');",
+        "description": "V12 mode: CubeSaveData is not supported in v12",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "SaveDataAll;",
+        "description": "V12 mode: reported without parentheses too — TI makes them optional on a no-argument call",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "nValue = CellGetN('Sales', 'Actual', 'Jan');",
+        "description": "A function available in both versions is always allowed",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "X110",
+    "name": "No ExecuteCommand",
+    "description": "Prohibits the use of ExecuteCommand() (disabled for security reasons)",
+    "group": "X",
+    "group_name": "External Interactions Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "execute_command",
+    "explanation": "Prohibits the use of ExecuteCommand() function calls.\n\nWhy:\n- Prevents command injection vulnerabilities\n- Restricts TI code to approved TM1 API functions only\n- Improves security audit compliance",
+    "config_example": "rules:\n  execute_command:\n    enabled: true",
+    "default_config": "rules:\n  execute_command:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [
+      "S320"
+    ],
+    "examples": [
+      {
+        "code": "ExecuteCommand('rm -rf /tmp/*');",
+        "description": "Prohibited",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "ExecuteCommand(sUserCommand);",
+        "description": "Prohibited",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "X120",
+    "name": "ODBCOpen Password Parameter",
+    "description": "Validates that ODBCOpen() password parameter is a defined TI parameter",
+    "group": "X",
+    "group_name": "External Interactions Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "odbc_open_parameter",
+    "explanation": "Validates that ODBCOpen(Source, ClientName, Password) requires the third parameter (password) to be a defined TI process parameter.\n\nThis ensures that sensitive credentials are managed through process parameters rather than hardcoded or undefined values.\n\nRequirements:\n1. Third argument must be an Identifier (not a string literal)\n2. Parameter name must start with 'p' (TI parameter naming convention)\n3. Parameter must be declared in the process Parameters section",
+    "config_example": "rules:\n  odbc_open_parameter:\n    enabled: true",
+    "default_config": "rules:\n  odbc_open_parameter:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [
+      "S330"
+    ],
+    "examples": [
+      {
+        "code": "ODBCOpen('MyDatasource', 'AdminUser', pPassword);",
+        "description": "Password as defined parameter",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [
+          "pPassword"
+        ],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "ODBCOpen('MyDatasource', 'AdminUser', 'hardcodedPassword');",
+        "description": "Hardcoded password",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "X130",
+    "name": "No Hardcoded Secrets",
+    "description": "Reports variables whose name looks like a credential being fed from a hardcoded string literal or read out of a cube",
+    "group": "X",
+    "group_name": "External Interactions Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "hardcoded_secret",
+    "explanation": "A credential written straight into the source ships with the process. Once the process is committed, the value is in version control for good — rotating it later does not remove it from the history. Pass secrets in as process parameters instead, so the value lives in the caller (or a secure store) rather than in the script.\n\nKeeping the credential in a control cube and reading it back with CellGetS() is reported for the same reason. Cube values — attributes included, since they live in `}ElementAttributes_*` cubes — are held in the TM1 data directory. That directory *can* be encrypted, but in practice almost never is, so anyone with file access to the server, a backup or a snapshot reads the value without needing a TM1 login. Set `allow_secrets_in_cubes: true` if your deployment accepts that risk.\n\nA variable is considered secret-looking when its name contains one of the configured fragments, matched case-insensitively (so `sPassword`, `vApiKey` and `sPwd_Prod` all qualify). It is reported when the value is provably a non-empty string — whether written directly, folded from a concatenation (`'let' | 'mein'`) or carried over from another variable that holds a literal — or when it comes from a direct cube read. For the most unambiguous fragments (`password`, `apikey`, `token`, ... — the `standard` preset) a numeric literal such as `sPassword = 12345;` counts too, since a PIN is still a hardcoded secret; the generic `strict`-only fragments (`key`, `auth`, `cert`, ...) and custom `secret_names` stay string-only, since those names are just as commonly an ordinary integer. Whatever cannot be resolved statically is left alone: parameters, datasource variables and other function results. So are half-known values such as `sPassword = 'prefix_' | pDyn;`, where the secret itself may well be dynamic, and the common `sPassword = '';` initialisation.\n\nNeither the value nor the cube coordinates ever appear in linti's output — reports often end up in CI logs. Widen or narrow the name detection with `mode`, extend it with `secret_names`, or suppress a single finding inline with `# noqa: X130`.",
+    "config_example": "rules:\n  hardcoded_secret:\n    enabled: true\n    # relaxed | standard | strict | custom\n    mode: standard\n    # Extra name fragments (the whole list when mode is 'custom'):\n    # secret_names:\n    #   - kennwort\n    # Set to true to accept credentials stored in a cube:\n    allow_secrets_in_cubes: false",
+    "default_config": "rules:\n  hardcoded_secret:\n    enabled: true\n    severity: error\n    mode: standard\n    secret_names: []\n    allow_secrets_in_cubes: false\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "sPassword = 'hunter2';",
+        "description": "Hardcoded credential — ships with the process",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "sPassword = 'let' | 'mein';",
+        "description": "Split across a concatenation — folded back together",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "sPassword = 12345;",
+        "description": "A numeric PIN is still a hardcoded secret",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "sApiKey = CellGetS('Config', 'Api', 'Key');",
+        "description": "Stored in a cube — readable by anyone with file access to the TM1 data directory",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "sPassword = pPassword;",
+        "description": "Passed in as a process parameter",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "sPassword = 'prefix_' | pDyn;",
+        "description": "Only half known — the secret itself may be dynamic",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "sPassword = '';",
+        "description": "Empty-string initialisation is a common no-op",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "sCustomer = CellGetS('Sales', '2026', 'Customer');",
+        "description": "Ordinary cube read — the name is not secret-looking",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "X210",
+    "name": "Filter ODBC Rows in SQL",
+    "description": "Flags ItemSkip() or exclusively conditional writes in Metadata/Data when the ODBC data source query has no WHERE clause",
+    "group": "X",
+    "group_name": "External Interactions Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "sql_where_filtering",
+    "explanation": "When an ODBC data source returns all rows and the filtering happens only in the TI script, the server pulls rows it immediately discards. This is reported in the Metadata and Data blocks when the data source query has no WHERE clause and either:\n- ItemSkip() is used to skip records, or\n- every cube write (CellPutN, CellPutS, CellIncrementN) is guarded by an IF, so no unconditional write ever happens.\n\nMove the filter into a SQL WHERE clause so the database returns only the rows the process needs.\n\nA DatasourceType/DatasourceQuery reassignment in the Prolog overrides the process metadata and is used instead.\n\nInspired by the Bedrock TM1 best practices (https://github.com/cubewise-code/bedrock).",
+    "config_example": "rules:\n  sql_where_filtering:\n    enabled: true",
+    "default_config": "rules:\n  sql_where_filtering:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [
+      "S340"
+    ],
+    "examples": [
+      {
+        "code": "IF(vRegion @= 'EMEA');\n  CellPutN(vAmount, 'Sales', vRegion, vMonth);\nENDIF;",
+        "description": "all writes conditional, no WHERE — filter in SQL",
+        "valid": false,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [
+          "vRegion",
+          "vAmount",
+          "vMonth"
+        ],
+        "datasource_type": "ODBC",
+        "datasource_query": "SELECT region, amount, month FROM t"
+      },
+      {
+        "code": "IF(vRegion @= 'EMEA');\n  ItemSkip();\nENDIF;",
+        "description": "ItemSkip() filters rows, no WHERE — filter in SQL",
+        "valid": false,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [
+          "vRegion",
+          "vAmount",
+          "vMonth"
+        ],
+        "datasource_type": "ODBC",
+        "datasource_query": "SELECT region, amount, month FROM t"
+      },
+      {
+        "code": "CellPutN(vAmount, 'Sales', vRegion, vMonth);",
+        "description": "filtering done in SQL WHERE clause",
+        "valid": true,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [
+          "vRegion",
+          "vAmount",
+          "vMonth"
+        ],
+        "datasource_type": "ODBC",
+        "datasource_query": "SELECT region, amount, month FROM t WHERE region = ?"
+      }
+    ]
+  },
+  {
+    "id": "P110",
+    "name": "Unparseable Statement",
+    "description": "Flags statements that could not be parsed, warning that linting quality is reduced for that code",
+    "group": "P",
+    "group_name": "Parser Rules",
+    "severity": "warning",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "unknown_statement",
+    "explanation": "The parser could not understand this statement and kept it in the AST as an unknown statement so the rest of the section could still be linted. AST-based rules skip unknown statements entirely, so any problem inside one is never reported — linting quality is reduced there. Fixing the syntax (a missing semicolon, an unbalanced parenthesis, a stray token) restores full coverage.\n\nThis can equally mean linti's parser does not yet cover a construct TM1 accepts. If the process compiles on the server, it is a linti gap worth reporting — that is why this is a warning and does not fail a build by default.",
+    "config_example": "rules:\n  unknown_statement:\n    enabled: true\n    severity: warning",
+    "default_config": "rules:\n  unknown_statement:\n    enabled: true\n    severity: warning\n",
+    "deprecated_by": null,
+    "previous_ids": [
+      "E110"
+    ],
+    "examples": [
+      {
+        "code": "nValue = 1;",
+        "description": "A well-formed statement parses and is fully linted",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "nValue = 1",
+        "description": "Missing terminating semicolon — cannot be parsed",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "P900",
+    "name": "Maximum Nesting Depth Exceeded",
+    "description": "Flags a procedure whose statement or expression nesting exceeded the configured limit, stopping the parser before it could build a full AST for that section",
+    "group": "P",
+    "group_name": "Parser Rules",
+    "severity": "warning",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "nesting_depth",
+    "explanation": "TI statements and expressions are parsed recursively; without a cap, pathologically deep nesting would recurse until Python's own RecursionError, crashing the run instead of reporting a clean diagnostic. `max_nesting_depth` (top-level config key, default 150) caps that recursion; once a procedure's nesting exceeds it, the parser aborts the section and this diagnostic reports the drop.\n\nThis safety cap itself cannot be turned off — only how loud linti is about hitting it. `rules.nesting_depth.enabled: false` silences the diagnostic, but the procedure is still dropped from linting exactly the same; the cap keeps applying either way. Raise `max_nesting_depth` if your codebase genuinely nests deeper than the default. Python stack exhaustion is also reported as P900.\n\nUnlike every other rule, this diagnostic is enforced directly in the parser rather than by a rule module — there is nothing to `--select` or scan for in the AST, since the AST for the affected procedure was never built. Only `rules.nesting_depth.enabled` and `rules.nesting_depth.severity` control it.",
+    "config_example": "rules:\n  nesting_depth:\n    enabled: true    # hides the diagnostic only — the cap always applies\n    severity: warning",
+    "default_config": "rules:\n  nesting_depth:\n    enabled: true\n    severity: warning\n",
+    "deprecated_by": null,
+    "previous_ids": [
+      "S900"
+    ],
+    "examples": []
+  }
+]

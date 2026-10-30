@@ -47,9 +47,9 @@ class NewLinePerStatementRule(BaseTokenRule):
     def visit(self, token, window, context: LintContext):
         issues = []
 
-        if context.is_end_of_procedure(token.line):
-            return issues
-
+        # No early exit for the procedure's last line: a statement there still
+        # needs a newline when another one follows on the same line. Only
+        # whitespace/comments up to EOF are exempt, which the scan below handles.
         offset = 1
         ws_token = None
         while True:

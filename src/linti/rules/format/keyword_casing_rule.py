@@ -44,6 +44,7 @@ class KeywordCasingRule(BaseTokenRule):
                 code="if (x = 1);\n    nResult = 10;\nendif;",
                 description="lowercase style",
                 valid=True,
+                config={"rules": {"keyword_casing": {"style": "lowercase"}}},
             ),
             RuleExample(
                 code="IF (x = 1);\n    nResult = 10;\nendif;",

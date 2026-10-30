@@ -110,6 +110,7 @@ IF (x = 1);
     nResult = 10;
 ENDIF;
 # lowercase style
+# Context: config: rules.keyword_casing.style=lowercase
 if (x = 1);
     nResult = 10;
 endif;
@@ -410,6 +411,7 @@ IF(
 **Invalid usage:**
 ```ti
 # Single line over the limit
+# Context: config: rules.max_line_length.limit=40
 sValue = CellGetS( 'Cube', 'AAAA', 'BBBB', 'CCCC', 'DDDD' );
 ```
 
@@ -446,6 +448,7 @@ nCount = 5;
 # String variable
 sMessage = 'test';
 # Loop counter before WHILE (exempt when allow_loop_counter_variables: true)
+# Context: config: rules.variable_prefix.allow_loop_counter_variables=true
 i = 0;
 WHILE(i < 10);
   i = i + 1;
@@ -519,13 +522,16 @@ rules:
 **Valid usage:**
 ```ti
 # Valid parameter name
+# Context: parameters: pLogOutput
 pLogOutput
+# Context: parameters: pFactor
 pFactor
 ```
 
 **Invalid usage:**
 ```ti
 # Missing 'p' prefix
+# Context: parameters: LogOutput
 LogOutput
 ```
 
@@ -549,13 +555,16 @@ rules:
 **Valid usage:**
 ```ti
 # Valid variable name
+# Context: variables: vDimension
 vDimension
+# Context: variables: vHierarchy
 vHierarchy
 ```
 
 **Invalid usage:**
 ```ti
 # Missing 'v' prefix
+# Context: variables: Dimension
 Dimension
 ```
 
@@ -725,6 +734,7 @@ rules:
 **Valid usage:**
 ```ti
 # ItemSkip in Metadata/Data
+# Context: Data procedure
 # In Metadata/Data section
 IF (nValue = 0);
     ItemSkip();
@@ -816,10 +826,13 @@ rules:
 **Valid usage:**
 ```ti
 # Metadata: create the element
+# Context: Metadata procedure
 DimensionElementInsert('Product', '', vProduct, 'N');
 # Data: write the attribute after Metadata completes
+# Context: Data procedure
 AttrPutS(vDescription, 'Product', vProduct, 'Description');
 # Epilog: leave bulk load mode when the process ends
+# Context: Epilog procedure
 DisableBulkLoadMode();
 ```
 
@@ -828,8 +841,10 @@ DisableBulkLoadMode();
 # Prolog: invalid placement
 ItemSkip();
 # Data: invalid placement
+# Context: Data procedure
 DisableBulkLoadMode();
 # Metadata: not recommended placement
+# Context: Metadata procedure
 AttrPutS(vDescription, 'Product', vProduct, 'Description');
 ```
 
@@ -861,6 +876,7 @@ rules:
 **Valid usage:**
 ```ti
 # Read parameter, modify local copy
+# Context: parameters: pLogOutput
 cLogOutput = pLogOutput;
 cLogOutput = 0;
 ```
@@ -868,8 +884,10 @@ cLogOutput = 0;
 **Invalid usage:**
 ```ti
 # Modifying a parameter
+# Context: parameters: pLogOutput
 pLogOutput = 0;
 # Modifying a data source variable
+# Context: Data procedure · variables: vDimension
 vDimension = 'NewValue';
 ```
 
@@ -978,6 +996,7 @@ nExists = HierarchyElementExists('Region', 'Region', 'EMEA');
 **Invalid usage:**
 ```ti
 # enforce mode: standard function (use HierarchyElementExists)
+# Context: config: rules.use_hierarchy_aware_functions.mode=enforce
 nExists = DimensionElementExists('Region', 'EMEA');
 # consistent mode: mixes hierarchy-aware and standard styles
 nParent = ElementParent('Region', 'Region', 'EMEA');
@@ -1013,6 +1032,7 @@ rules:
 # The documented equivalent is always allowed
 DimensionElementInsertDirect('Product', '', 'Element', 'N');
 # Allowed once the function is listed under `allowed_functions`
+# Context: config: rules.do_not_use_undocumented_functions.allowed_functions=[DataSpread]
 DataSpread;
 ```
 
@@ -1125,6 +1145,7 @@ rules:
 **Valid usage:**
 ```ti
 # Password as defined parameter
+# Context: parameters: pPassword
 ODBCOpen('MyDatasource', 'AdminUser', pPassword);
 ```
 
@@ -1214,19 +1235,19 @@ rules:
 **Valid usage:**
 ```ti
 # filtering done in SQL WHERE clause
-# Data block, ODBC query: SELECT ... FROM t WHERE region = ?
+# Context: Data procedure · variables: vRegion, vAmount, vMonth · ODBC data source (SELECT region, amount, month FROM t WHERE region = ?)
 CellPutN(vAmount, 'Sales', vRegion, vMonth);
 ```
 
 **Invalid usage:**
 ```ti
 # all writes conditional, no WHERE — filter in SQL
-# Data block, ODBC query: SELECT ... FROM t
+# Context: Data procedure · variables: vRegion, vAmount, vMonth · ODBC data source (SELECT region, amount, month FROM t)
 IF(vRegion @= 'EMEA');
   CellPutN(vAmount, 'Sales', vRegion, vMonth);
 ENDIF;
 # ItemSkip() filters rows, no WHERE — filter in SQL
-# Data block, ODBC query: SELECT ... FROM t
+# Context: Data procedure · variables: vRegion, vAmount, vMonth · ODBC data source (SELECT region, amount, month FROM t)
 IF(vRegion @= 'EMEA');
   ItemSkip();
 ENDIF;

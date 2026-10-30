@@ -24,9 +24,14 @@ and `PYTHONPATH=src pytest`.
 
 ## Project conventions (from .github/copilot-instructions.md)
 
-- After adding a rule or changing rule metadata, regenerate docs with
-  `python scripts/generate_all_rules.py`. **Never edit `ALL_RULES.md` by hand** —
-  it is generated from each rule's `METADATA`.
+- After adding a rule or changing rule metadata or `config.py`, regenerate docs
+  with `python scripts/generate_all_rules.py`. **Never edit `ALL_RULES.md`,
+  `site/app/data/rules.json` or `site/app/data/config-schema.json` by hand**.
+  They are generated from each rule's `METADATA` (via
+  `rules.rule_ids.rule_docs()`), the pydantic `Config` model and
+  `config_presets.PRESETS`, and tests check they are current. Help text for a
+  config option belongs in its `Field(description=...)`, because the site's
+  configurator shows it.
 - Run the full test suite after changes.
 - Update `README.md` when behavior changes, and suggest a `pyproject.toml`
   version bump after a feature or fix.
@@ -82,6 +87,11 @@ every rule before each pass — stateful rules must implement it.
 - `linter/api.py` — high-level orchestration: `lint_process_model` runs the full
   per-procedure pipeline; `lint_process` / `lint_all` drive a provider and
   optionally auto-fix then re-lint.
+- `linter/text_api.py` — `lint_text` lints/fixes a whole process given as a
+  string (format auto-detected, `linti.yaml` as text) by routing it through the
+  normal providers in a temp dir. Backs the browser playground (`site/`,
+  Pyodide), so it must stay free of CLI/Typer imports; `linter_from_config`
+  lives in `linter/api.py` for the same reason.
 - `linter/constant_evaluation.py` — the *interpreter*: process-wide
   `ConstantEvaluationIndex`, shared by all sections and independent of the
   per-rule reset cycle. It tracks literal assignments and folded literal
@@ -118,6 +128,12 @@ to a project root. `cli/rule_explainer.py` powers `linti explain`.
 1. Create `rules/<category>/<name>_rule.py` subclassing `BaseTokenRule` or
    `BaseStatementRule`; set `CONFIG_KEY`, `RULE_ID`, `METADATA`, and implement
    `interested_in` + `visit`. Attach a `Fix` to issues if it is safely fixable.
-2. Add a test under `tests/`.
-3. Run `python scripts/generate_all_rules.py` to refresh `ALL_RULES.md`.
+2. Add a test under `tests/`. The rule's `METADATA.examples` are tests too:
+   `tests/test_rule_examples.py` lints each one with its rule alone and fails
+   unless invalid examples are reported and valid ones are not. An example that
+   needs context declares it on the `RuleExample` (`procedure`, `config`,
+   `parameters`, `variables`, `datasource_type`/`datasource_query`); run one by
+   hand with `linti.rules.examples.run_example`.
+3. Run `python scripts/generate_all_rules.py` to refresh `ALL_RULES.md` and
+   `site/app/data/rules.json`.
 4. Update `README.md` if user-facing, and bump the version in `pyproject.toml`.

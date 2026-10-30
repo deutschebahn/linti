@@ -201,6 +201,49 @@ def rule_metadata_index() -> dict[str, RuleMetadata]:
     return index
 
 
+@dataclass(frozen=True)
+class RuleDoc:
+    """Everything the documentation generators need about one rule ID."""
+
+    rule_id: str
+    metadata: RuleMetadata
+    config_key: str
+    enabled_by_default: bool
+
+
+def rule_docs() -> list[RuleDoc]:
+    """Return one :class:`RuleDoc` per documented rule ID, in canonical order.
+
+    Registry rules and synthetic rules alike, each ID once. Shared by
+    ``ALL_RULES.md`` generation and the site's ``rules.json`` export so both
+    describe exactly the same set of rules.
+    """
+    docs: list[RuleDoc] = []
+    seen: set[str] = set()
+
+    for rule_cls in _RULE_REGISTRY:
+        meta: RuleMetadata | None = getattr(rule_cls, "METADATA", None)
+        if meta is None:
+            continue
+        for inst in rule_instances(rule_cls):
+            rule_id = inst.RULE_ID
+            if rule_id in seen:
+                continue
+            seen.add(rule_id)
+            docs.append(
+                RuleDoc(rule_id, meta, rule_cls.CONFIG_KEY, rule_cls.DEFAULT_ENABLED)
+            )
+
+    for synth in synthetic_rules():
+        if synth.rule_id in seen:
+            raise DuplicateRuleIdError(f"Duplicate rule ID: {synth.rule_id}")
+        seen.add(synth.rule_id)
+        docs.append(RuleDoc(synth.rule_id, synth.metadata, synth.config_key, True))
+
+    docs.sort(key=lambda doc: group_sort_key(doc.rule_id))
+    return docs
+
+
 def rule_name(rule_id: str) -> str:
     """Human-readable name for *rule_id*, or ``""`` when it is unknown.
 

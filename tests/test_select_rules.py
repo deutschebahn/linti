@@ -101,6 +101,16 @@ def test_create_rules_with_specific_rule():
         assert all_rules[0].RULE_ID == "F110"
 
 
+def test_explicit_select_runs_a_disabled_rule():
+    cfg = Config(rules={"docstring_region": {"enabled": False}})
+
+    default_rules = sum(create_rules(cfg), [])
+    selected_rules = sum(create_rules(cfg, select="D110"), [])
+
+    assert not any(rule.RULE_ID == "D110" for rule in default_rules)
+    assert [rule.RULE_ID for rule in selected_rules] == ["D110"]
+
+
 def test_create_rules_with_multiple_select():
     """Test selecting multiple rules with comma-separated patterns."""
     cfg = Config()
