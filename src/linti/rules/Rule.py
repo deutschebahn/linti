@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, ClassVar
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import DEFAULT_SEVERITY, Severity
@@ -17,11 +18,27 @@ _RULE_REGISTRY: list[type] = []
 
 @dataclass(frozen=True)
 class RuleExample:
-    """A code example for rule documentation."""
+    """A code example for rule documentation.
+
+    Examples are executable specs: ``tests/test_rule_examples.py`` lints each
+    one with its rule (see :func:`linti.rules.examples.run_example`) and checks
+    that it is reported exactly when ``valid`` is false. The optional context
+    fields describe the process the snippet has to live in for that to hold.
+    """
 
     code: str
     description: str = ""
     valid: bool = True
+    # Procedure section the code is linted as.
+    procedure: Literal["prolog", "metadata", "data", "epilog"] = "prolog"
+    # linti.yaml-shaped settings (validated as ``Config``), e.g.
+    # ``{"rules": {"keyword_casing": {"style": "lowercase"}}}``.
+    config: Mapping[str, Any] | None = None
+    # Declared process parameters and data-source variables.
+    parameters: tuple[str, ...] = ()
+    variables: tuple[str, ...] = ()
+    datasource_type: str | None = None
+    datasource_query: str | None = None
 
 
 @dataclass(frozen=True)

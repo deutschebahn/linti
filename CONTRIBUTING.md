@@ -35,7 +35,7 @@ For larger changes — new features, architectural changes, or significant refac
 ## Code Style
 
 - Use `ruff` for linting: `ruff check src/`
-- After adding or modifying a rule, regenerate `ALL_RULES.md`: `python scripts/generate_all_rules.py`
+- After adding or modifying a rule, regenerate `ALL_RULES.md` and the site's `site/app/data/rules.json`: `python scripts/generate_all_rules.py`
 - Do not edit `ALL_RULES.md` directly.
 
 ## License

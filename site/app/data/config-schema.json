@@ -1,0 +1,1123 @@
+{
+  "schema": {
+    "$defs": {
+      "ConditionalControlFlowConfig": {
+        "description": "Configuration for ConditionalControlFlowRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "ConditionalControlFlowConfig",
+        "type": "object"
+      },
+      "DoNotUseUndocumentedFunctionsConfig": {
+        "description": "Configuration for DoNotUseUndocumentedFunctionsRule (C430).",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          },
+          "allowed_functions": {
+            "description": "Undocumented functions the project knowingly relies on; matched case-insensitively and never reported.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Functions",
+            "type": "array"
+          }
+        },
+        "title": "DoNotUseUndocumentedFunctionsConfig",
+        "type": "object"
+      },
+      "DocstringRegionConfig": {
+        "description": "Configuration for DocstringRegionRule (D110).",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          },
+          "region_name": {
+            "default": "Docstring",
+            "description": "Name of the `#region` holding the docstring.",
+            "title": "Region Name",
+            "type": "string"
+          },
+          "required_headers": {
+            "description": "Headers every docstring must contain.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Headers",
+            "type": "array"
+          },
+          "generic_prefixes": {
+            "description": "Deprecated: use the top-level `generic_prefixes` instead.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Generic Prefixes",
+            "type": "array",
+            "x-hidden": true
+          },
+          "generic_extra_headers": {
+            "description": "Additional headers required in generic processes.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Generic Extra Headers",
+            "type": "array"
+          }
+        },
+        "title": "DocstringRegionConfig",
+        "type": "object"
+      },
+      "EmptyBlockConfig": {
+        "description": "Configuration for EmptyBlockRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "EmptyBlockConfig",
+        "type": "object"
+      },
+      "ExecuteCommandConfig": {
+        "description": "Configuration for ExecuteCommandRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "ExecuteCommandConfig",
+        "type": "object"
+      },
+      "FunctionVersionCompatibilityConfig": {
+        "description": "Configuration for FunctionVersionCompatibilityRule (C510).",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "CompatibleWithV11AndV12",
+                  "V11",
+                  "V12"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Per-rule override of the top-level `target_version`; unset inherits it.",
+            "title": "Mode"
+          },
+          "target_version": {
+            "anyOf": [
+              {
+                "enum": [
+                  "v11",
+                  "v12",
+                  "both"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The same override in the top-level vocabulary; `mode` wins if both are set.",
+            "title": "Target Version",
+            "x-hidden": true
+          }
+        },
+        "title": "FunctionVersionCompatibilityConfig",
+        "type": "object"
+      },
+      "HardcodedSecretConfig": {
+        "description": "Configuration for HardcodedSecretRule (X130).",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          },
+          "mode": {
+            "default": "standard",
+            "description": "Preset of secret-looking name fragments to match. `custom` starts from an empty preset, so `secret_names` becomes the whole list.",
+            "enum": [
+              "relaxed",
+              "standard",
+              "strict",
+              "custom"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "secret_names": {
+            "description": "Extra name fragments, matched case-insensitively as substrings, on top of the preset selected by `mode`.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Secret Names",
+            "type": "array"
+          },
+          "allow_secrets_in_cubes": {
+            "default": false,
+            "description": "Accept secrets read from a cube (CellGetS, AttrS, …).",
+            "title": "Allow Secrets In Cubes",
+            "type": "boolean"
+          }
+        },
+        "title": "HardcodedSecretConfig",
+        "type": "object"
+      },
+      "IndentationConfig": {
+        "description": "Configuration for IndentationRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          },
+          "size": {
+            "default": 4,
+            "description": "Spaces per indentation level.",
+            "title": "Size",
+            "type": "integer"
+          },
+          "continuation_style": {
+            "default": "hanging",
+            "description": "How a line that continues an earlier statement is indented.",
+            "enum": [
+              "hanging",
+              "aligned",
+              "ignore"
+            ],
+            "title": "Continuation Style",
+            "type": "string"
+          }
+        },
+        "title": "IndentationConfig",
+        "type": "object"
+      },
+      "ItemSkipConfig": {
+        "description": "Configuration for the deprecated, opt-in ItemSkipRule.",
+        "properties": {
+          "enabled": {
+            "default": false,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "ItemSkipConfig",
+        "type": "object"
+      },
+      "KeywordCasingConfig": {
+        "description": "Configuration for KeywordCasingRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          },
+          "style": {
+            "default": "uppercase",
+            "description": "Casing required for TI keywords; `consistent` accepts any casing used the same way throughout a process.",
+            "enum": [
+              "uppercase",
+              "lowercase",
+              "camelcase",
+              "consistent"
+            ],
+            "title": "Style",
+            "type": "string"
+          }
+        },
+        "title": "KeywordCasingConfig",
+        "type": "object"
+      },
+      "MaxLineLengthConfig": {
+        "description": "Configuration for MaxLineLengthRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          },
+          "limit": {
+            "default": 120,
+            "description": "Maximum characters per line.",
+            "title": "Limit",
+            "type": "integer"
+          },
+          "indent_size": {
+            "default": 4,
+            "description": "Spaces per indentation level in rewrapped lines.",
+            "title": "Indent Size",
+            "type": "integer"
+          }
+        },
+        "title": "MaxLineLengthConfig",
+        "type": "object"
+      },
+      "MisplacedFunctionConfig": {
+        "description": "Configuration for MisplacedFunctionRule (C150).",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          },
+          "report_not_recommended": {
+            "default": true,
+            "description": "Also report functions in a section where they are allowed but discouraged (reported as warnings).",
+            "title": "Report Not Recommended",
+            "type": "boolean"
+          },
+          "allowed_functions": {
+            "description": "Functions never reported, whatever section they are in.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Functions",
+            "type": "array"
+          }
+        },
+        "title": "MisplacedFunctionConfig",
+        "type": "object"
+      },
+      "NewLinePerStatementConfig": {
+        "description": "Configuration for NewLinePerStatementRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "NewLinePerStatementConfig",
+        "type": "object"
+      },
+      "ODBCOpenParameterConfig": {
+        "description": "Configuration for ODBCOpenParameterRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "ODBCOpenParameterConfig",
+        "type": "object"
+      },
+      "ParameterNamingConfig": {
+        "description": "Configuration for ParameterNamingRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "ParameterNamingConfig",
+        "type": "object"
+      },
+      "ProcessCallLiteralConfig": {
+        "description": "Configuration for ProcessCallLiteralRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "ProcessCallLiteralConfig",
+        "type": "object"
+      },
+      "ReadOnlyParameterVariableConfig": {
+        "description": "Configuration for ReadOnlyParameterVariableRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "ReadOnlyParameterVariableConfig",
+        "type": "object"
+      },
+      "RuleConfig": {
+        "description": "Settings every rule accepts, whatever else it adds on top.\n\n``severity`` left unset (``None``) means the rule keeps whatever its\n``METADATA`` declares; naming a value here overrides that for this project.\nThat is the escape hatch for findings a team weighs differently than linti\ndoes by default — e.g. promoting P110 back to ``error`` in a codebase where\nunparseable TI really is always a syntax error.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "RuleConfig",
+        "type": "object"
+      },
+      "RulesConfig": {
+        "additionalProperties": true,
+        "description": "Configuration for all linting rules.\n\nKnown rules have typed fields for validation.  Unknown keys are accepted\nvia ``extra = \"allow\"`` so that new rules only need a rule file — no\nConfig class or RulesConfig field required.",
+        "properties": {
+          "keyword_casing": {
+            "$ref": "#/$defs/KeywordCasingConfig"
+          },
+          "indentation": {
+            "$ref": "#/$defs/IndentationConfig"
+          },
+          "variable_prefix": {
+            "$ref": "#/$defs/VariablePrefixConfig"
+          },
+          "conditional_control_flow": {
+            "$ref": "#/$defs/ConditionalControlFlowConfig"
+          },
+          "unreachable_code": {
+            "$ref": "#/$defs/UnreachableCodeConfig"
+          },
+          "misplaced_function": {
+            "$ref": "#/$defs/MisplacedFunctionConfig"
+          },
+          "item_skip": {
+            "$ref": "#/$defs/ItemSkipConfig"
+          },
+          "empty_block": {
+            "$ref": "#/$defs/EmptyBlockConfig"
+          },
+          "parameter_naming": {
+            "$ref": "#/$defs/ParameterNamingConfig"
+          },
+          "variable_naming": {
+            "$ref": "#/$defs/VariableNamingConfig"
+          },
+          "readonly_parameter_variable": {
+            "$ref": "#/$defs/ReadOnlyParameterVariableConfig"
+          },
+          "process_call_literal": {
+            "$ref": "#/$defs/ProcessCallLiteralConfig"
+          },
+          "execute_command": {
+            "$ref": "#/$defs/ExecuteCommandConfig"
+          },
+          "odbc_open_parameter": {
+            "$ref": "#/$defs/ODBCOpenParameterConfig"
+          },
+          "hardcoded_secret": {
+            "$ref": "#/$defs/HardcodedSecretConfig"
+          },
+          "use_hierarchy_aware_functions": {
+            "$ref": "#/$defs/UseHierarchyAwareFunctionsConfig"
+          },
+          "do_not_use_undocumented_functions": {
+            "$ref": "#/$defs/DoNotUseUndocumentedFunctionsConfig"
+          },
+          "function_version_compatibility": {
+            "$ref": "#/$defs/FunctionVersionCompatibilityConfig"
+          },
+          "newline_per_statement": {
+            "$ref": "#/$defs/NewLinePerStatementConfig"
+          },
+          "docstring_region": {
+            "$ref": "#/$defs/DocstringRegionConfig"
+          },
+          "max_line_length": {
+            "$ref": "#/$defs/MaxLineLengthConfig"
+          },
+          "whitespace": {
+            "$ref": "#/$defs/WhitespaceConfig"
+          },
+          "nesting_depth": {
+            "$ref": "#/$defs/RuleConfig"
+          }
+        },
+        "title": "RulesConfig",
+        "type": "object"
+      },
+      "Severity": {
+        "description": "How much weight a finding carries.\n\nOrdered from least to most severe via :attr:`rank`.  ``str`` is the base so\na value round-trips through YAML config and CLI options unchanged.\n\n``WARNING`` marks findings the *user* may not own — most importantly the\nparse diagnostics (P110, P900), which can equally mean \"your TI has a\nsyntax error\" or \"linti's parser does not cover this construct\".  Such a\nfinding is worth reporting but is a poor reason to fail a build, so by\ndefault it does not affect the exit code.\n\nComparison is deliberately explicit through :attr:`rank` rather than by\noverriding ``<``/``>``: ``str`` already defines those lexicographically,\nand \"error\" sorts *below* \"warning\" there, which is the wrong way round.",
+        "enum": [
+          "warning",
+          "error"
+        ],
+        "title": "Severity",
+        "type": "string"
+      },
+      "UnreachableCodeConfig": {
+        "description": "Configuration for UnreachableCodeRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "UnreachableCodeConfig",
+        "type": "object"
+      },
+      "UseHierarchyAwareFunctionsConfig": {
+        "description": "Configuration for UseHierarchyAwareFunctionsRule (C410).",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          },
+          "mode": {
+            "default": "consistent",
+            "description": "`enforce` allows only hierarchy-aware functions; `consistent` allows either style but not both in one process.",
+            "enum": [
+              "enforce",
+              "consistent"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "title": "UseHierarchyAwareFunctionsConfig",
+        "type": "object"
+      },
+      "VariableNamingConfig": {
+        "description": "Configuration for VariableNamingRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "VariableNamingConfig",
+        "type": "object"
+      },
+      "VariablePrefixConfig": {
+        "description": "Configuration for VariablePrefixRule.",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          },
+          "allow_constant_prefix": {
+            "default": false,
+            "description": "Accept variables starting with `c` as constants; each may then be assigned only once (see C220).",
+            "title": "Allow Constant Prefix",
+            "type": "boolean"
+          },
+          "allow_loop_counter_variables": {
+            "default": false,
+            "description": "Exempt single-character numeric loop counters (e.g. `i`) assigned right before a WHILE loop.",
+            "title": "Allow Loop Counter Variables",
+            "type": "boolean"
+          }
+        },
+        "title": "VariablePrefixConfig",
+        "type": "object"
+      },
+      "WhitespaceConfig": {
+        "description": "Configuration for the whitespace rule group (W101-W106).",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          },
+          "around_operators": {
+            "default": true,
+            "description": "F220: one space around operators.",
+            "title": "Around Operators",
+            "type": "boolean"
+          },
+          "after_comma": {
+            "default": true,
+            "description": "F230: one space after a comma.",
+            "title": "After Comma",
+            "type": "boolean"
+          },
+          "no_space_before_semicolon": {
+            "default": true,
+            "description": "F240: no space before a semicolon.",
+            "title": "No Space Before Semicolon",
+            "type": "boolean"
+          },
+          "one_space_inside_parentheses": {
+            "default": true,
+            "description": "F250: one space inside parentheses.",
+            "title": "One Space Inside Parentheses",
+            "type": "boolean"
+          },
+          "no_multiple_spaces": {
+            "default": true,
+            "description": "F260: no runs of multiple spaces.",
+            "title": "No Multiple Spaces",
+            "type": "boolean"
+          },
+          "no_trailing_whitespace": {
+            "default": true,
+            "description": "F270: no whitespace at the end of a line.",
+            "title": "No Trailing Whitespace",
+            "type": "boolean"
+          }
+        },
+        "title": "WhitespaceConfig",
+        "type": "object"
+      }
+    },
+    "description": "Configuration for linti.",
+    "properties": {
+      "rules": {
+        "$ref": "#/$defs/RulesConfig"
+      },
+      "generic_prefixes": {
+        "description": "Process names starting with one of these mark a generic (templated) process.",
+        "items": {
+          "type": "string"
+        },
+        "title": "Generic Prefixes",
+        "type": "array"
+      },
+      "exclude_paths": {
+        "description": "Files, directories or glob patterns to skip during discovery.",
+        "items": {
+          "type": "string"
+        },
+        "title": "Exclude Paths",
+        "type": "array"
+      },
+      "follow_external_symlinks": {
+        "default": false,
+        "description": "Let a directory or glob scan follow symlinks out of the scanned tree.",
+        "title": "Follow External Symlinks",
+        "type": "boolean"
+      },
+      "target_version": {
+        "anyOf": [
+          {
+            "enum": [
+              "v11",
+              "v12",
+              "both"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "description": "Planning Analytics / TM1 version the code must run on (`both`: v11 and v12).",
+        "title": "Target Version"
+      },
+      "fail_on": {
+        "$ref": "#/$defs/Severity",
+        "default": "error",
+        "description": "Lowest severity that makes the run fail (--fail-on)."
+      },
+      "severity": {
+        "$ref": "#/$defs/Severity",
+        "default": "warning",
+        "description": "Lowest severity that is reported at all (--severity)."
+      },
+      "max_nesting_depth": {
+        "default": 150,
+        "description": "Control-flow nesting beyond this depth is reported as P900.",
+        "title": "Max Nesting Depth",
+        "type": "integer"
+      },
+      "max_file_size": {
+        "default": 10485760,
+        "description": "Files larger than this many bytes are rejected.",
+        "title": "Max File Size",
+        "type": "integer"
+      },
+      "max_values_per_variable": {
+        "default": 8,
+        "description": "Distinct values tracked per variable before it counts as unknown.",
+        "title": "Max Values Per Variable",
+        "type": "integer"
+      }
+    },
+    "title": "Config",
+    "type": "object"
+  },
+  "defaults": {
+    "rules": {
+      "keyword_casing": {
+        "enabled": true,
+        "severity": null,
+        "style": "uppercase"
+      },
+      "indentation": {
+        "enabled": true,
+        "severity": null,
+        "size": 4,
+        "continuation_style": "hanging"
+      },
+      "variable_prefix": {
+        "enabled": true,
+        "severity": null,
+        "allow_constant_prefix": false,
+        "allow_loop_counter_variables": false
+      },
+      "conditional_control_flow": {
+        "enabled": true,
+        "severity": null
+      },
+      "unreachable_code": {
+        "enabled": true,
+        "severity": null
+      },
+      "misplaced_function": {
+        "enabled": true,
+        "severity": null,
+        "report_not_recommended": true,
+        "allowed_functions": []
+      },
+      "item_skip": {
+        "enabled": false,
+        "severity": null
+      },
+      "empty_block": {
+        "enabled": true,
+        "severity": null
+      },
+      "parameter_naming": {
+        "enabled": true,
+        "severity": null
+      },
+      "variable_naming": {
+        "enabled": true,
+        "severity": null
+      },
+      "readonly_parameter_variable": {
+        "enabled": true,
+        "severity": null
+      },
+      "process_call_literal": {
+        "enabled": true,
+        "severity": null
+      },
+      "execute_command": {
+        "enabled": true,
+        "severity": null
+      },
+      "odbc_open_parameter": {
+        "enabled": true,
+        "severity": null
+      },
+      "hardcoded_secret": {
+        "enabled": true,
+        "severity": null,
+        "mode": "standard",
+        "secret_names": [],
+        "allow_secrets_in_cubes": false
+      },
+      "use_hierarchy_aware_functions": {
+        "enabled": true,
+        "severity": null,
+        "mode": "consistent"
+      },
+      "do_not_use_undocumented_functions": {
+        "enabled": true,
+        "severity": null,
+        "allowed_functions": []
+      },
+      "function_version_compatibility": {
+        "enabled": false,
+        "severity": null,
+        "mode": null,
+        "target_version": null
+      },
+      "newline_per_statement": {
+        "enabled": true,
+        "severity": null
+      },
+      "docstring_region": {
+        "enabled": false,
+        "severity": null,
+        "region_name": "Docstring",
+        "required_headers": [
+          "# Description"
+        ],
+        "generic_prefixes": [],
+        "generic_extra_headers": [
+          "# Use Case"
+        ]
+      },
+      "max_line_length": {
+        "enabled": true,
+        "severity": null,
+        "limit": 120,
+        "indent_size": 4
+      },
+      "whitespace": {
+        "enabled": true,
+        "severity": null,
+        "around_operators": true,
+        "after_comma": true,
+        "no_space_before_semicolon": true,
+        "one_space_inside_parentheses": true,
+        "no_multiple_spaces": true,
+        "no_trailing_whitespace": true
+      },
+      "nesting_depth": {
+        "enabled": true,
+        "severity": null
+      }
+    },
+    "generic_prefixes": [],
+    "exclude_paths": [],
+    "follow_external_symlinks": false,
+    "target_version": null,
+    "fail_on": "error",
+    "severity": "warning",
+    "max_nesting_depth": 150,
+    "max_file_size": 10485760,
+    "max_values_per_variable": 8
+  },
+  "presets": [
+    {
+      "key": "recommended",
+      "title": "Recommended",
+      "description": "LinTi's defaults: every rule that is on by default, errors fail the run, warnings are reported. A good start for most projects.",
+      "yaml": ""
+    },
+    {
+      "key": "strict-ci",
+      "title": "Strict CI gate",
+      "description": "Every finding blocks the build, processes need a docstring, and secret detection matches more names. For teams that want a clean codebase enforced on every merge.",
+      "yaml": "fail_on: warning\nrules:\n  docstring_region:\n    enabled: true\n  hardcoded_secret:\n    mode: strict\n  unknown_statement:\n    severity: error\n  nesting_depth:\n    severity: error\n"
+    },
+    {
+      "key": "pa-v12",
+      "title": "Planning Analytics v12 migration",
+      "description": "Targets Planning Analytics v12: reports functions that v12 no longer supports and requires hierarchy-aware functions everywhere.",
+      "yaml": "target_version: v12\nrules:\n  function_version_compatibility:\n    enabled: true\n  use_hierarchy_aware_functions:\n    mode: enforce\n"
+    }
+  ],
+  "removed_rule_configs": {
+    "one_space_before_equals": "Configures the removed Equals Spacing rule. This setting is ignored; remove 'rules.one_space_before_equals' from the config.",
+    "process_quit": "The 'process_quit' rule was renamed. This setting is ignored; use 'rules.conditional_control_flow' (and 'rules.unreachable_code') instead."
+  },
+  "moved_to_toplevel": {
+    "docstring_region": {
+      "setting": "generic_prefixes",
+      "top_level": "generic_prefixes"
+    }
+  }
+}

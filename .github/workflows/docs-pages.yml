@@ -1,0 +1,85 @@
+name: Docs Pages
+
+on:
+  pull_request:
+    paths:
+      - 'site/**'
+      - 'src/linti/**'
+      - 'scripts/export_rule_reference.py'
+      - 'pyproject.toml'
+      - '.github/workflows/docs-pages.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Build LinTi wheel and export rules
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python scripts/export_rule_reference.py --check
+          python -m pip wheel --no-deps --wheel-dir site/public/wheels .
+      - name: Prepare self-hosted browser assets
+        working-directory: site
+        run: |
+          npm ci
+          node scripts/write-wheel-manifest.mjs
+          node scripts/prepare-assets.mjs
+          node scripts/smoke-pyodide.mjs
+      - name: Test and typecheck Docus site
+        working-directory: site
+        run: |
+          npm run test:unit
+          npm run typecheck
+      - name: Generate Docus site
+        working-directory: site
+        run: npm run generate
+      - name: Browser regression tests
+        working-directory: site
+        run: |
+          npm install --no-save --package-lock=false @playwright/test@1.63.0
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site/.output/public
+
+  deploy:
+    # Only main deploys. Pull requests and other branches build and test the
+    # site but never publish it.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    # One fixed group, never cancelled, so two deploys cannot race.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

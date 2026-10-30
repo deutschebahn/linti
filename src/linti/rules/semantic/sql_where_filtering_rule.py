@@ -185,31 +185,34 @@ class SqlWhereFilteringRule(BaseStatementRule):
         examples=[
             RuleExample(
                 code=(
-                    "# Data block, ODBC query: SELECT ... FROM t\n"
                     "IF(vRegion @= 'EMEA');\n"
                     "  CellPutN(vAmount, 'Sales', vRegion, vMonth);\n"
                     "ENDIF;"
                 ),
                 description="all writes conditional, no WHERE — filter in SQL",
                 valid=False,
+                procedure="data",
+                variables=("vRegion", "vAmount", "vMonth"),
+                datasource_type="ODBC",
+                datasource_query="SELECT region, amount, month FROM t",
             ),
             RuleExample(
-                code=(
-                    "# Data block, ODBC query: SELECT ... FROM t\n"
-                    "IF(vRegion @= 'EMEA');\n"
-                    "  ItemSkip();\n"
-                    "ENDIF;"
-                ),
+                code=("IF(vRegion @= 'EMEA');\n  ItemSkip();\nENDIF;"),
                 description="ItemSkip() filters rows, no WHERE — filter in SQL",
                 valid=False,
+                procedure="data",
+                variables=("vRegion", "vAmount", "vMonth"),
+                datasource_type="ODBC",
+                datasource_query="SELECT region, amount, month FROM t",
             ),
             RuleExample(
-                code=(
-                    "# Data block, ODBC query: SELECT ... FROM t WHERE region = ?\n"
-                    "CellPutN(vAmount, 'Sales', vRegion, vMonth);"
-                ),
+                code=("CellPutN(vAmount, 'Sales', vRegion, vMonth);"),
                 description="filtering done in SQL WHERE clause",
                 valid=True,
+                procedure="data",
+                variables=("vRegion", "vAmount", "vMonth"),
+                datasource_type="ODBC",
+                datasource_query="SELECT region, amount, month FROM t WHERE region = ?",
             ),
         ],
     )

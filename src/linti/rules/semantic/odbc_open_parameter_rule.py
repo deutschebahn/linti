@@ -40,6 +40,7 @@ class ODBCOpenParameterRule(BaseStatementRule):
                 code="ODBCOpen('MyDatasource', 'AdminUser', pPassword);",
                 description="Password as defined parameter",
                 valid=True,
+                parameters=("pPassword",),
             ),
             RuleExample(
                 code="ODBCOpen('MyDatasource', 'AdminUser', 'hardcodedPassword');",

@@ -126,17 +126,18 @@ def test_function_call_on_same_line():
     assert issues[0].rule_id == "F320"
 
 
-def test_end_of_procedure_context_disables_newline_rule():
+def test_end_of_procedure_line_still_needs_one_statement_per_line():
     code = "x = 1; y = 2;"
     tokens = Lexer(code).tokenize()
     rule = NewLinePerStatementRule()
     linter = Linter(rules=[rule])
 
-    # Simulate that this one-line snippet is exactly the procedure end in YAML.
+    # This one-line snippet is exactly the procedure end in YAML. Only the
+    # final statement is exempt; the one before it still needs a newline.
     context = LintContext(block_start_line=10, block_end_line=10)
     issues = linter.lint(tokens, context)
 
-    assert len(issues) == 0
+    assert len(issues) == 1
 
 
 def test_autofix_two_statements_on_same_line():
@@ -178,3 +179,27 @@ def test_autofix_no_whitespace_between_statements():
     fixed, count = apply_fixes(code, issues)
     assert count == 1
     assert fixed == "x = 1;\ny = 2;\n"
+
+
+def _lint_as_procedure(code: str):
+    """Lint through the process pipeline, which knows the procedure's last line."""
+    from linti.linter.api import lint_process_model
+    from linti.model.process_ir import ProcedureInfo, ProcessIR
+
+    source_end_line = code.rstrip("\n").count("\n") + 1
+    process = ProcessIR(
+        name="p", prolog=ProcedureInfo(code=code, source_end_line=source_end_line)
+    )
+    linter = Linter(rules=[NewLinePerStatementRule()])
+    return [issue for _, issue, _ in lint_process_model(process, linter)]
+
+
+def test_two_statements_on_last_procedure_line():
+    """Regression: the procedure's last line used to be skipped entirely."""
+    issues = _lint_as_procedure("nA = 1;\nx = 1; y = 2;")
+    assert [issue.rule_id for issue in issues] == ["F320"]
+
+
+def test_last_statement_of_procedure_needs_no_newline():
+    assert _lint_as_procedure("nA = 1;\nx = 1;") == []
+    assert _lint_as_procedure("x = 1; # trailing comment") == []

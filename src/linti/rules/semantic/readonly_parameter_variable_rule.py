@@ -39,16 +39,20 @@ class ReadOnlyParameterVariableRule(BaseStatementRule):
                 code="cLogOutput = pLogOutput;\ncLogOutput = 0;",
                 description="Read parameter, modify local copy",
                 valid=True,
+                parameters=("pLogOutput",),
             ),
             RuleExample(
                 code="pLogOutput = 0;",
                 description="Modifying a parameter",
                 valid=False,
+                parameters=("pLogOutput",),
             ),
             RuleExample(
                 code="vDimension = 'NewValue';",
                 description="Modifying a data source variable",
                 valid=False,
+                procedure="data",
+                variables=("vDimension",),
             ),
         ],
     )

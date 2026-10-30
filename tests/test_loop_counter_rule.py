@@ -103,3 +103,16 @@ END;
 """
     errors = _lint(code)
     assert any("count" in e.message for e in errors)
+
+
+def test_option_is_read_from_linti_yaml_config():
+    """Regression: the config model dropped the key, so linti.yaml could not enable it."""
+    from linti.config import Config
+    from linti.rules.rule_factory import create_rules
+
+    cfg = Config.model_validate(
+        {"rules": {"variable_prefix": {"allow_loop_counter_variables": True}}}
+    )
+    _, statement_rules = create_rules(cfg, select="N110")
+    code = "i = 0;\nWHILE(i < 10);\n  i = i + 1;\nEND;\n"
+    assert Linter(statement_rules=statement_rules).lint(Lexer(code).tokenize()) == []

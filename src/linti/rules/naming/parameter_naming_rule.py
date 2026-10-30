@@ -87,14 +87,20 @@ class ParameterNamingRule(_MetadataNamingRule):
             "of a TM1 TI process. Following a consistent naming convention makes it "
             "easy to identify parameters throughout the code."
         ),
-        config_example=("rules:\n" "  parameter_naming:\n" "    enabled: true"),
+        config_example=("rules:\n  parameter_naming:\n    enabled: true"),
         examples=[
             RuleExample(
-                code="pLogOutput", description="Valid parameter name", valid=True
+                code="pLogOutput",
+                description="Valid parameter name",
+                valid=True,
+                parameters=("pLogOutput",),
             ),
-            RuleExample(code="pFactor", valid=True),
+            RuleExample(code="pFactor", valid=True, parameters=("pFactor",)),
             RuleExample(
-                code="LogOutput", description="Missing 'p' prefix", valid=False
+                code="LogOutput",
+                description="Missing 'p' prefix",
+                valid=False,
+                parameters=("LogOutput",),
             ),
         ],
     )

@@ -32,14 +32,20 @@ class VariableNamingRule(_MetadataNamingRule):
             "the YAML Variables section. These variables are automatically populated "
             "by TM1 during Metadata and Data processing."
         ),
-        config_example=("rules:\n" "  variable_naming:\n" "    enabled: true"),
+        config_example=("rules:\n  variable_naming:\n    enabled: true"),
         examples=[
             RuleExample(
-                code="vDimension", description="Valid variable name", valid=True
+                code="vDimension",
+                description="Valid variable name",
+                valid=True,
+                variables=("vDimension",),
             ),
-            RuleExample(code="vHierarchy", valid=True),
+            RuleExample(code="vHierarchy", valid=True, variables=("vHierarchy",)),
             RuleExample(
-                code="Dimension", description="Missing 'v' prefix", valid=False
+                code="Dimension",
+                description="Missing 'v' prefix",
+                valid=False,
+                variables=("Dimension",),
             ),
         ],
     )

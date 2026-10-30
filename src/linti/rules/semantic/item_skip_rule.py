@@ -54,6 +54,7 @@ class ItemSkipRule(BaseStatementRule):
                 code="# In Metadata/Data section\nIF (nValue = 0);\n    ItemSkip();\nENDIF;",
                 description="ItemSkip in Metadata/Data",
                 valid=True,
+                procedure="data",
             ),
             RuleExample(
                 code="# In Prolog section\nItemSkip();",

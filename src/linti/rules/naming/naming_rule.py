@@ -86,6 +86,9 @@ class VariablePrefixRule(BaseStatementRule):
                 code="i = 0;\nWHILE(i < 10);\n  i = i + 1;\nEND;",
                 description="Loop counter before WHILE (exempt when allow_loop_counter_variables: true)",
                 valid=True,
+                config={
+                    "rules": {"variable_prefix": {"allow_loop_counter_variables": True}}
+                },
             ),
             RuleExample(
                 code="DatasourceASCIIDecimalSeparator = ',';",
