@@ -38,10 +38,18 @@ async function load() {
   return pyodide;
 }
 
+// Each action names its Python entry point and how the request maps onto it.
+// User input is passed as data, never interpolated into Python source.
+const actions = {
+  process: ['run_playground', data => [data.code, data.config || '', data.fix]],
+  validate: ['validate_config', data => [data.config || '']],
+  rule: ['run_linti', data => [data.code, data.procedure, data.ruleId, data.fix, JSON.stringify(data.context || {})]],
+};
+
 self.onmessage = async ({ data }) => {
   const { id, action = 'rule' } = data;
   try {
-    if (!['rule', 'process', 'validate'].includes(action)) throw new Error('Unknown lint action');
+    if (!Object.hasOwn(actions, action)) throw new Error('Unknown lint action');
     if (encoder.encode(data.code || '').byteLength > MAX_CODE_BYTES) {
       throw new Error('Code is too large for the browser playground (10 MB limit).');
     }
@@ -53,15 +61,10 @@ self.onmessage = async ({ data }) => {
     // Loading is done; tell the page so its run timeout covers only the
     // (synchronous) lint itself, not the Pyodide download.
     self.postMessage({ id, status: 'running' });
-    // Pass user input as data, never interpolate it into Python source.
-    const run = pyodide.globals.get(action === 'process' ? 'run_playground' : action === 'validate' ? 'validate_config' : 'run_linti');
+    const [entryPoint, args] = actions[action];
+    const run = pyodide.globals.get(entryPoint);
     try {
-      const result = action === 'process'
-        ? run(data.code, data.config || '', data.fix)
-        : action === 'validate'
-          ? run(data.config || '')
-          : run(data.code, data.procedure, data.ruleId, data.fix, JSON.stringify(data.context || {}));
-      const parsed = JSON.parse(result);
+      const parsed = JSON.parse(run(...args(data)));
       self.postMessage(parsed.error ? { id, error: parsed.error } : { id, result: parsed });
     } finally {
       run.destroy();

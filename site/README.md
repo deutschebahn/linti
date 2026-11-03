@@ -13,14 +13,21 @@ from `Field(description=...)`), the defaults, and the use-case presets from
 only settings that differ from the defaults. The configurator, the playground
 and the rule reference share local drafts and named configurations via
 `useConfigLibrary()`, which uses `localStorage` and `#config=` share links.
-Every write is merged into the library stored at that moment, and other tabs'
-writes arrive through the `storage` event, so tabs never drop each other's
-profiles. A share link pasted into an already open page is imported as well.
+Every change is written back at once; another tab's write arrives through the
+`storage` event and replaces the profiles here while each tab keeps its own
+draft (last write wins). A share link pasted into an already open page is
+imported as well.
+
+Shared building blocks: `<CodeEditor>` (CodeMirror behind `v-model`),
+`<FindingsList>` (summary and clickable findings of a lint run) and
+`useLintiWorker()`, which runs typed requests in the Pyodide worker and
+resolves with the result, or with null when the run failed or was replaced.
 
 The three tools lay themselves out by the width Docus gives them (CSS
 container queries on `.lint-tool`), not by the viewport, and take the full
-page width (`app/app.css`). Confirmations go through `useConfirm()` and
-`<ConfirmDialog>` rather than `window.confirm()`. `e2e/layout.spec.mjs` checks
+page width (`app/app.css`). Confirmations and choices (`ask`, `choose`) go
+through `useConfirm()` and `<ConfirmDialog>` (a `UModal`) rather than
+`window.confirm()`. `e2e/layout.spec.mjs` checks
 phone, tablet and desktop widths.
 
 `scripts/generate_all_rules.py` regenerates both `app/data/*.json` files; never

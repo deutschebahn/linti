@@ -1,24 +1,23 @@
 <script setup lang="ts">
-import type { EditorView } from '@codemirror/view'
-import type { AnnotationType } from '@codemirror/state'
+import type { CodeEditorHandle, EditorDiagnostic } from '../utils/editor'
+import ConfigLibraryPanel from './ConfigLibraryPanel.vue'
 
 const route = useRoute()
 const configs = useConfigLibrary()
-const { ask } = useConfirm()
-const toast = useToast()
-const validator = useLintiWorker<{ valid: boolean, message?: string }>()
-const origin = computed(() => route.query.from === 'rules' || route.query.from === 'playground' ? route.query.from : null)
-const originRule = computed(() => {
+const copyText = useCopyText()
+const fromRules = computed(() => route.query.from === 'rules')
+const returnLink = computed(() => {
+  if (route.query.from === 'playground') return { to: '/playground', label: 'Back to playground' }
+  if (!fromRules.value) return null
   const id = String(route.query.rule || '').toUpperCase()
-  return ruleCards.some(card => card.rules.some(rule => rule.id === id)) ? id : null
+  const known = ruleCards.some(card => card.rules.some(rule => rule.id === id))
+  return known
+    ? { to: `/rules?rule=${encodeURIComponent(id)}&config=working`, label: `Back to rule ${id}` }
+    : { to: '/rules?config=working', label: 'Back to rule reference' }
 })
-const returnLink = computed(() => origin.value === 'playground'
-  ? { to: '/playground', label: 'Back to playground' }
-  : origin.value === 'rules'
-    ? { to: originRule.value ? `/rules?rule=${encodeURIComponent(originRule.value)}&config=working` : '/rules?config=working', label: originRule.value ? `Back to rule ${originRule.value}` : 'Back to rule reference' }
-    : null)
 
-const editorHost = ref<HTMLElement | null>(null)
+const editor = ref<CodeEditorHandle | null>(null)
+const panel = ref<InstanceType<typeof ConfigLibraryPanel> | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 const parsed = shallowRef<ParsedConfig>(parseConfig(''))
 /** The YAML the form currently reflects (the editor's text as last parsed). */
@@ -28,23 +27,10 @@ const onlyChanged = ref(false)
 const highlighted = ref('')
 const openCards = ref(new Set<string>())
 const mobilePane = ref<'form' | 'yaml'>('form')
-const nameDialog = ref<HTMLDialogElement | null>(null)
-const nameInput = ref<HTMLInputElement | null>(null)
-const nameMode = ref<'new' | 'duplicate' | 'rename'>('new')
-const nameValue = ref('')
-const newTemplate = ref(presets[0]!.key)
-const nameError = ref('')
-const profileError = ref('')
-const pendingSwitch = shallowRef<(() => void) | null>(null)
-const libraryInput = ref<HTMLInputElement | null>(null)
 const shareError = ref('')
-const hasUnsavedChanges = configs.dirty
 
-let view: EditorView | undefined
-let setDiagnostics: typeof import('@codemirror/lint').setDiagnostics | undefined
-// Marks editor transactions this component made itself (form edits, presets,
-// uploads), which are already parsed and must not be parsed again.
-let programmatic: AnnotationType<boolean> | undefined
+// Typing reaches the shared draft at once and the form after a short pause.
+let typed: string | null = null
 let parseTimer: ReturnType<typeof setTimeout> | undefined
 
 const data = computed(() => parsed.value.data)
@@ -54,9 +40,10 @@ const allFields = [...topLevelFields, ...ruleCards.flatMap(card => card.fields)]
 const changedCount = computed(() => allFields.filter(field => isChanged(data.value, field)).length)
 const errorCount = computed(() => parsed.value.parseErrors.length + issues.value.filter(issue => issue.level === 'error').length)
 const warningCount = computed(() => issues.value.filter(issue => issue.level === 'warning').length)
-const switcherValue = computed(() => configs.status.value === 'draft'
-  ? 'draft'
-  : configs.activeProfile.value ? `profile:${configs.activeProfile.value.id}` : 'defaults')
+const diagnostics = computed<EditorDiagnostic[]>(() => [
+  ...parsed.value.parseErrors.map(error => ({ from: error.from, to: error.to, severity: 'error' as const, message: error.message })),
+  ...issues.value.map(issue => ({ ...(rangeOf(parsed.value.doc, issue.path) ?? { from: 0, to: 0 }), severity: issue.level, message: issue.message })),
+])
 
 const groups = computed(() => {
   const needle = query.value.toLowerCase().trim()
@@ -74,10 +61,6 @@ const groups = computed(() => {
   }
   return [...byGroup.entries()].map(([letter, group]) => ({ letter, ...group }))
 })
-
-function currentText() {
-  return view?.state.doc.toString() ?? configs.yaml.value
-}
 
 function valueOf(field: FieldSpec) {
   return effectiveValue(data.value, field)
@@ -132,260 +115,61 @@ function severityLabel(card: RuleCard) {
   return `Rule default (${declared})`
 }
 
-function ruleLink(ruleId: string) {
-  return `/rules?rule=${encodeURIComponent(ruleId)}`
-}
-
-function pushDiagnostics() {
-  if (!view || !setDiagnostics) return
-  const length = view.state.doc.length
-  const clamp = (range: { from: number, to: number }) => {
-    const from = Math.min(range.from, length)
-    return { from, to: Math.min(Math.max(range.to, from), length) }
-  }
-  const { doc, parseErrors } = parsed.value
-  const diagnostics = [
-    ...parseErrors.map(error => ({ ...clamp(error), severity: 'error' as const, message: error.message })),
-    ...issues.value.map((issue) => {
-      const range = rangeOf(doc, issue.path) ?? { from: 0, to: 0 }
-      return { ...clamp(range), severity: issue.level, message: issue.message }
-    }),
-  ]
-  view.dispatch(setDiagnostics(view.state, diagnostics))
-}
-
-/** Parse the editor's current text into the form state. */
-function syncFromEditor() {
+/** Show *text* in the editor and the form, and make it the working draft. */
+function load(text: string) {
   clearTimeout(parseTimer)
-  parseTimer = undefined
-  const text = currentText()
+  typed = null
   yamlText.value = text
   parsed.value = parseConfig(text)
   configs.yaml.value = text
-  pushDiagnostics()
 }
 
-/** Replace the YAML (form edit, preset, upload) and parse it right away. */
-function applyText(text: string) {
-  if (view && text !== view.state.doc.toString()) {
-    view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: text },
-      annotations: programmatic!.of(true),
-    })
-  }
-  yamlText.value = text
-  parsed.value = parseConfig(text)
-  configs.yaml.value = text
-  pushDiagnostics()
-}
-
-function updateField(field: FieldSpec, value: unknown) {
-  // Typing in the YAML that is still waiting for its debounce comes first.
-  if (parseTimer) syncFromEditor()
-  if (locked.value) return
-  const { doc } = parsed.value
-  setOption(doc, field.path, value, field.default)
-  applyText(stringifyConfig(doc))
-}
-
-function askBeforeSwitch(action: () => void) {
-  if (parseTimer) syncFromEditor()
-  if (hasUnsavedChanges.value) pendingSwitch.value = action
-  else action()
-}
-
-function setWorking(yaml: string) {
-  applyText(yaml)
-  profileError.value = ''
+/** A different configuration: also open the cards it changes. */
+function setWorking(text: string) {
+  load(text)
   openCards.value = new Set(ruleCards.filter(card => cardChanged(card)).map(card => card.configKey))
 }
 
-function switchProfile(value: string) {
-  if (value === switcherValue.value) return
-  askBeforeSwitch(() => {
-    if (value === 'defaults') configs.selectDefaults()
-    else if (value.startsWith('profile:')) configs.selectProfile(value.slice(8))
-    setWorking(configs.yaml.value)
-  })
+function onType(text: string) {
+  typed = text
+  configs.yaml.value = text
+  clearTimeout(parseTimer)
+  parseTimer = setTimeout(() => load(text), 200)
 }
 
-function createVariant() {
-  askBeforeSwitch(() => openNameDialog('new'))
-}
-
-function openNameDialog(mode: 'new' | 'duplicate' | 'rename') {
-  nameMode.value = mode
-  newTemplate.value = presets[0]!.key
-  nameValue.value = mode === 'new' ? '' : mode === 'duplicate'
-    ? `${configs.label.value} copy` : configs.activeProfile.value?.name ?? ''
-  nameError.value = ''
-  nameDialog.value?.showModal()
-  void nextTick(() => nameInput.value?.focus())
-}
-
-function submitName() {
-  const name = nameValue.value.trim()
-  if (nameMode.value !== 'new' && validator.busy.value) {
-    nameError.value = 'Please wait for the current save to finish.'
-    return
-  }
-  if (!name) {
-    nameError.value = 'Give this configuration a name.'
-    return
-  }
-  if (configs.library.value.profiles.some(profile => profile.name.toLowerCase() === name.toLowerCase()
-    && (nameMode.value !== 'rename' || profile.id !== configs.activeProfile.value?.id))) {
-    nameError.value = 'A configuration with this name already exists.'
-    return
-  }
-  nameDialog.value?.close()
-  if (nameMode.value === 'new') {
-    const preset = presets.find(item => item.key === newTemplate.value) ?? presets[0]!
-    const source = presetText(preset)
-    configs.startDraft(name, source)
-    setWorking(source)
-  } else {
-    submitSave(name, nameMode.value === 'duplicate')
-  }
-}
-
-function availableName(preferred: string): string {
-  const names = new Set(configs.library.value.profiles.map(profile => profile.name.toLowerCase()))
-  let name = preferred
-  let suffix = 2
-  while (names.has(name.toLowerCase())) name = `${preferred} (${suffix++})`
-  return name
-}
-
-function saveCurrent(name: string, asNew = false): boolean {
-  try {
-    configs.save(name, asNew)
-    profileError.value = ''
-    return true
-  } catch (error) {
-    profileError.value = (error as Error).message
-    return false
-  }
-}
-
-function submitSave(explicitName?: string, asNew = false) {
-  if (validator.busy.value) return
-  if (parseTimer) syncFromEditor()
-  const text = currentText()
-  const baseId = configs.library.value.draft.baseId
-  const draftName = configs.library.value.draft.name
-  const name = explicitName ?? (configs.activeProfile.value?.name
-    || availableName(configs.library.value.draft.name.trim() || 'My configuration'))
-  profileError.value = ''
-  validator.run({ action: 'validate', config: text }, (result) => {
-    if (currentText() !== text || configs.library.value.draft.baseId !== baseId
-      || configs.library.value.draft.name !== draftName) {
-      profileError.value = 'The configuration changed during validation. Please save again.'
-      return
-    }
-    if (!result.valid) {
-      profileError.value = result.message || 'LinTi could not load this YAML.'
-      return
-    }
-    if (!saveCurrent(name, asNew)) return
-    const action = pendingSwitch.value
-    pendingSwitch.value = null
-    action?.()
-  }, message => (profileError.value = message))
-}
-
-function finishSwitch(saveFirst: boolean) {
-  if (saveFirst) {
-    submitSave()
-    return
-  }
-  if (!saveFirst) {
-    if (configs.activeProfile.value) configs.selectProfile(configs.activeProfile.value.id)
-    else configs.selectDefaults()
-    setWorking(configs.yaml.value)
-  }
-  const action = pendingSwitch.value
-  pendingSwitch.value = null
-  action?.()
-}
-
-async function deleteSelected(id: string) {
-  const profile = configs.library.value.profiles.find(item => item.id === id)
-  if (!profile || !(await ask(`Delete "${profile.name}" from this browser? Any unsaved edits to it will also be discarded.`, 'Delete', true))) return
-  configs.deleteProfile(profile.id)
-  setWorking(configs.yaml.value)
-}
-
-async function copyText(text: string, what: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-    toast.add({ title: `${what} copied`, icon: 'i-lucide-check' })
-  } catch {
-    toast.add({ title: `Could not copy the ${what.toLowerCase()}`, color: 'error', icon: 'i-lucide-circle-x' })
-  }
-}
-
-function download() {
-  const url = URL.createObjectURL(new Blob([currentText()], { type: 'text/yaml' }))
-  const link = Object.assign(document.createElement('a'), { href: url, download: 'linti.yaml' })
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-function downloadLibrary() {
-  const backup = { version: 1, profiles: configs.library.value.profiles, draft: { yaml: '', baseId: null, name: '' } }
-  const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }))
-  const link = Object.assign(document.createElement('a'), { href: url, download: 'linti-configurations.json' })
-  link.click()
-  URL.revokeObjectURL(url)
-}
-
-async function uploadLibrary(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
-  profileError.value = configs.importLibrary(await file.text()) ? '' : 'This is not a LinTi configuration library.'
+function updateField(field: FieldSpec, value: unknown) {
+  // Typing that is still waiting for its pause comes first.
+  if (typed !== null) load(typed)
+  if (locked.value) return
+  const { doc } = parsed.value
+  setOption(doc, field.path, value, field.default)
+  load(stringifyConfig(doc))
 }
 
 async function copyShareLink() {
-  if (parseTimer) syncFromEditor()
-  const link = shareLink(configs.label.value, currentText())
+  const link = shareLink(configs.label.value, configs.yaml.value)
   shareError.value = link ? '' : 'This configuration is too large for a link. Download its YAML instead.'
   if (link) await copyText(link, 'Share link')
 }
 
-async function upload(event: Event) {
-  const input = event.target as HTMLInputElement
+async function openFile(input: HTMLInputElement) {
   const file = input.files?.[0]
   input.value = ''
   if (!file) return
   const text = await file.text()
-  askBeforeSwitch(() => {
-    configs.startDraft(file.name.replace(/\.ya?ml$/i, ''), text)
-    setWorking(text)
-  })
+  void panel.value?.guard(() => configs.startDraft(file.name.replace(/\.ya?ml$/i, ''), text))
 }
 
-const moreActions = computed(() => [[
-  { label: 'Copy YAML', icon: 'i-lucide-copy', onSelect: () => void copyText(currentText(), 'linti.yaml') },
+const moreActions = [[
+  { label: 'Copy YAML', icon: 'i-lucide-copy', onSelect: () => void copyText(configs.yaml.value, 'linti.yaml') },
   { label: 'Copy share link', icon: 'i-lucide-link', onSelect: () => void copyShareLink() },
   { label: 'Open file…', icon: 'i-lucide-upload', onSelect: () => fileInput.value?.click() },
-]])
-
-function openInPlayground() {
-  if (parseTimer) syncFromEditor()
-  void navigateTo('/playground')
-}
+]]
 
 function focusIssue(issue: ConfigIssue) {
   const range = rangeOf(parsed.value.doc, issue.path)
   mobilePane.value = 'yaml'
-  if (!view || !range) return
-  view.dispatch({ selection: { anchor: range.from, head: range.to }, scrollIntoView: true })
-  // On touch screens focusing would open the keyboard over the YAML.
-  if (matchMedia('(pointer: fine)').matches) view.focus()
-  else editorHost.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  if (range) void nextTick(() => editor.value?.reveal(range))
 }
 
 /** `?rule=F110` (or `?rule=keyword_casing`): open, reveal and flash that card. */
@@ -408,80 +192,20 @@ function applyRuleQuery() {
 }
 
 watch(() => route.query.rule, applyRuleQuery)
-// A share link pasted into the open page replaces the draft outside the editor.
+// Switching profiles, share links and uploads replace the draft from outside.
 watch(configs.yaml, (text) => {
-  if (text === yamlText.value) return
-  clearTimeout(parseTimer)
-  parseTimer = undefined
-  setWorking(text)
+  if (text !== yamlText.value && text !== typed) setWorking(text)
 })
+watch(mobilePane, pane => pane === 'yaml' && nextTick(() => editor.value?.measure()))
 
-onMounted(async () => {
+onMounted(() => {
   // Nothing is stored until the visitor changes something: the recommended
   // preset is what LinTi does without a linti.yaml anyway.
-  const initial = configs.yaml.value
-  yamlText.value = initial
-  parsed.value = parseConfig(initial)
-  openCards.value = new Set(ruleCards.filter(card => cardChanged(card)).map(card => card.configKey))
-  // Open the target before editor imports and Nuxt's post-navigation anchor scroll.
+  setWorking(configs.yaml.value)
+  // Open the target before Nuxt's post-navigation anchor scroll.
   applyRuleQuery()
-
-  const [{ EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection }, { EditorState, Annotation }, commands, lint, { yaml }, language, { tags }] = await Promise.all([
-    import('@codemirror/view'),
-    import('@codemirror/state'),
-    import('@codemirror/commands'),
-    import('@codemirror/lint'),
-    import('@codemirror/lang-yaml'),
-    import('@codemirror/language'),
-    import('@lezer/highlight'),
-  ])
-  setDiagnostics = lint.setDiagnostics
-  programmatic = Annotation.define<boolean>()
-  // Theme colors instead of a fixed palette, so light and dark mode both read well.
-  const highlight = language.HighlightStyle.define([
-    { tag: [tags.propertyName, tags.definition(tags.propertyName)], color: 'var(--ui-primary)' },
-    { tag: tags.comment, color: 'var(--ui-text-muted)', fontStyle: 'italic' },
-    { tag: [tags.string, tags.special(tags.string), tags.content], color: 'var(--ui-info)' },
-    { tag: [tags.bool, tags.number, tags.null, tags.keyword, tags.atom], color: 'var(--ui-warning)' },
-    { tag: [tags.punctuation, tags.separator, tags.squareBracket, tags.brace], color: 'var(--ui-text-muted)' },
-  ])
-  view = new EditorView({
-    parent: editorHost.value!,
-    state: EditorState.create({
-      // The draft can change while the editor modules load.
-      doc: yamlText.value,
-      extensions: [
-        lineNumbers(),
-        highlightActiveLineGutter(),
-        highlightActiveLine(),
-        drawSelection(),
-        EditorView.lineWrapping,
-        commands.history(),
-        lint.lintGutter(),
-        yaml(),
-        language.syntaxHighlighting(highlight),
-        keymap.of([...commands.defaultKeymap, ...commands.historyKeymap, commands.indentWithTab]),
-        EditorView.updateListener.of((update) => {
-          if (!update.docChanged || update.transactions.some(tr => tr.annotation(programmatic!))) return
-          clearTimeout(parseTimer)
-          parseTimer = setTimeout(syncFromEditor, 200)
-        }),
-        EditorView.contentAttributes.of({ 'aria-label': 'linti.yaml' }),
-      ],
-    }),
-  })
-  pushDiagnostics()
-  if (route.query.save === '1') {
-    submitSave()
-  }
 })
-
-watch(mobilePane, pane => pane === 'yaml' && nextTick(() => view?.requestMeasure()))
-
-onBeforeUnmount(() => {
-  if (parseTimer) syncFromEditor()
-  view?.destroy()
-})
+onBeforeUnmount(() => clearTimeout(parseTimer))
 </script>
 
 <template>
@@ -490,74 +214,9 @@ onBeforeUnmount(() => {
     <div class="configurator">
       <nav v-if="returnLink" class="return-links" aria-label="Continue with your configuration">
         <UButton :to="returnLink.to" icon="i-lucide-arrow-left" color="neutral" variant="soft" size="sm">{{ returnLink.label }}</UButton>
-        <UButton v-if="origin !== 'rules'" to="/rules" icon="i-lucide-list" color="neutral" variant="ghost" size="sm">Rule reference</UButton>
+        <UButton v-if="!fromRules" to="/rules" icon="i-lucide-list" color="neutral" variant="ghost" size="sm">Rule reference</UButton>
       </nav>
-      <section class="library-panel" aria-label="Current configuration">
-        <div class="library-heading">
-          <div class="library-title">
-            <h2>Current configuration</h2>
-            <span class="status-badge" :class="hasUnsavedChanges ? 'draft' : configs.status.value">{{ hasUnsavedChanges ? 'Unsaved changes' : configs.status.value === 'saved' ? 'Saved in this browser' : 'LinTi defaults' }}</span>
-          </div>
-          <p class="muted">{{ configs.status.value === 'defaults' ? 'Create a configuration with + or adjust a rule below, then save it.' : 'Adjust the rules below. Save when you want to keep this version.' }}</p>
-        </div>
-        <p v-if="configs.storageError.value" class="error" role="alert">Browser storage is unavailable. Download your YAML before leaving this page.</p>
-        <div class="library-primary" :class="{ 'with-save': hasUnsavedChanges }">
-          <ConfigSwitcher
-            :model-value="switcherValue"
-            :profiles="configs.library.value.profiles"
-            :show-draft="configs.status.value === 'draft'"
-            :draft-name="configs.label.value"
-            show-add
-            show-delete
-            @update:model-value="switchProfile"
-            @add="createVariant()"
-            @delete="deleteSelected"
-          />
-          <UButton v-if="hasUnsavedChanges" class="save-action" size="sm" :loading="validator.busy.value" @click="submitSave()">{{ configs.activeProfile.value ? 'Save changes' : 'Save configuration' }}</UButton>
-        </div>
-        <p class="local-note">Only in this browser · no account or sync</p>
-        <p v-if="profileError" class="error" role="alert">{{ profileError }}</p>
-        <div v-if="pendingSwitch" class="switch-prompt" role="alert">
-          <span>There are unsaved changes. Save them before switching?</span>
-          <UButton size="sm" @click="finishSwitch(true)">Save</UButton>
-          <UButton size="sm" color="neutral" variant="outline" @click="finishSwitch(false)">Discard changes</UButton>
-          <UButton size="sm" color="neutral" variant="ghost" @click="pendingSwitch = null">Cancel</UButton>
-        </div>
-        <details class="library-more">
-          <summary>Manage configurations</summary>
-          <p class="muted">Profiles stay in this browser only. Clearing its data removes them; export a copy to keep them elsewhere.</p>
-          <div class="library-actions">
-            <UButton v-if="configs.activeProfile.value" size="sm" color="neutral" variant="outline" @click="openNameDialog('duplicate')">Duplicate current</UButton>
-            <UButton v-if="configs.activeProfile.value" size="sm" color="neutral" variant="outline" @click="openNameDialog('rename')">Rename</UButton>
-          </div>
-          <div class="library-actions">
-            <UButton size="sm" color="neutral" variant="ghost" @click="downloadLibrary()">Export saved profiles</UButton>
-            <UButton size="sm" color="neutral" variant="ghost" @click="libraryInput?.click()">Import profiles</UButton>
-            <input ref="libraryInput" type="file" accept=".json,application/json" class="sr-only" aria-label="Import configuration backup" @change="uploadLibrary">
-          </div>
-        </details>
-      </section>
-      <dialog ref="nameDialog" class="name-dialog" aria-labelledby="name-dialog-title">
-        <form @submit.prevent="submitName()">
-          <h2 id="name-dialog-title">{{ nameMode === 'new' ? 'New configuration' : nameMode === 'duplicate' ? 'Duplicate configuration' : 'Rename configuration' }}</h2>
-          <p v-if="nameMode === 'new'" class="muted">Choose a starting point. You can change every setting before saving.</p>
-          <label class="profile-picker">Configuration name
-            <input ref="nameInput" v-model="nameValue" type="text" maxlength="100" required placeholder="e.g. Strict CI" aria-label="Configuration name" @input="nameError = ''">
-          </label>
-          <fieldset v-if="nameMode === 'new'" class="template-options">
-            <legend>Start from</legend>
-            <label v-for="preset in presets" :key="preset.key" class="template-option">
-              <input v-model="newTemplate" type="radio" name="new-template" :value="preset.key">
-              <span><strong>{{ preset.title }}</strong><small>{{ preset.description }}</small></span>
-            </label>
-          </fieldset>
-          <p v-if="nameError" class="error" role="alert">{{ nameError }}</p>
-          <div class="save-buttons">
-            <UButton type="submit" size="sm">{{ nameMode === 'new' ? 'Create' : nameMode === 'duplicate' ? 'Duplicate' : 'Rename' }}</UButton>
-            <UButton type="button" size="sm" color="neutral" variant="ghost" @click="nameDialog?.close()">Cancel</UButton>
-          </div>
-        </form>
-      </dialog>
+      <ConfigLibraryPanel ref="panel" />
       <div class="pane-switch" role="group" aria-label="Show">
         <button type="button" :aria-pressed="mobilePane === 'form'" :class="{ active: mobilePane === 'form' }" @click="mobilePane = 'form'">Form</button>
         <button type="button" :aria-pressed="mobilePane === 'yaml'" :class="{ active: mobilePane === 'yaml' }" @click="mobilePane = 'yaml'">linti.yaml</button>
@@ -622,7 +281,7 @@ onBeforeUnmount(() => {
                     <div class="rule-card-title">
                       <strong>{{ card.title }}</strong>
                       <span class="rule-ids">
-                        <NuxtLink v-for="rule in card.rules" :key="rule.id" :to="ruleLink(rule.id)" :title="`${rule.id}: ${rule.name}`"><code>{{ rule.id }}</code></NuxtLink>
+                        <NuxtLink v-for="rule in card.rules" :key="rule.id" :to="`/rules?rule=${encodeURIComponent(rule.id)}`" :title="`${rule.id}: ${rule.name}`"><code>{{ rule.id }}</code></NuxtLink>
                       </span>
                     </div>
                     <span v-if="cardChanged(card)" class="changed-badge">changed</span>
@@ -652,20 +311,20 @@ onBeforeUnmount(() => {
 
         <aside class="yaml-pane" :class="{ hidden: mobilePane !== 'yaml' }" aria-label="linti.yaml">
           <div class="yaml-toolbar">
-            <UButton icon="i-lucide-download" size="sm" @click="download()">Download linti.yaml</UButton>
-            <UButton icon="i-lucide-square-terminal" size="sm" color="neutral" variant="outline" @click="openInPlayground()">Try in playground</UButton>
+            <UButton icon="i-lucide-download" size="sm" @click="downloadText('linti.yaml', configs.yaml.value, 'text/yaml')">Download linti.yaml</UButton>
+            <UButton icon="i-lucide-square-terminal" size="sm" color="neutral" variant="outline" to="/playground">Try in playground</UButton>
             <UDropdownMenu :items="moreActions" :content="{ align: 'end' }">
               <UButton icon="i-lucide-ellipsis" size="sm" color="neutral" variant="ghost" aria-label="More YAML actions" />
             </UDropdownMenu>
-            <input ref="fileInput" type="file" accept=".yaml,.yml,text/yaml" class="sr-only" aria-label="Open a linti.yaml file" @change="upload">
+            <input ref="fileInput" type="file" accept=".yaml,.yml,text/yaml" class="sr-only" aria-label="Open a linti.yaml file" @change="openFile($event.target as HTMLInputElement)">
           </div>
           <p v-if="shareError" class="error" role="alert">{{ shareError }}</p>
           <p class="yaml-summary" aria-live="polite">
-            <span>{{ changedCount }} setting{{ changedCount === 1 ? '' : 's' }} differ{{ changedCount === 1 ? 's' : '' }} from the defaults</span>
-            <span v-if="errorCount" class="error">· {{ errorCount }} error{{ errorCount === 1 ? '' : 's' }}</span>
-            <span v-if="warningCount" class="warning">· {{ warningCount }} warning{{ warningCount === 1 ? '' : 's' }}</span>
+            <span>{{ plural(changedCount, 'setting') }} changed from the defaults</span>
+            <span v-if="errorCount" class="error">· {{ plural(errorCount, 'error') }}</span>
+            <span v-if="warningCount" class="warning">· {{ plural(warningCount, 'warning') }}</span>
           </p>
-          <div ref="editorHost" class="editor" />
+          <CodeEditor ref="editor" class="editor" :model-value="yamlText" label="linti.yaml" language="yaml" wrap :diagnostics="diagnostics" @update:model-value="onType" />
           <ul v-if="parsed.parseErrors.length || issues.length" class="problems">
             <li v-for="(error, index) in parsed.parseErrors" :key="`p${index}`" class="error">{{ error.message }}</li>
             <li v-for="(issue, index) in issues" :key="`i${index}`" :class="issue.level">
@@ -676,9 +335,9 @@ onBeforeUnmount(() => {
         </aside>
       </div>
       <!-- Stacked layout: keeps saving within reach while editing far down. -->
-      <div v-if="hasUnsavedChanges" class="save-bar">
+      <div v-if="configs.dirty.value" class="save-bar">
         <span>Unsaved changes</span>
-        <UButton size="sm" :loading="validator.busy.value" @click="submitSave()">{{ configs.activeProfile.value ? 'Save changes' : 'Save configuration' }}</UButton>
+        <UButton size="sm" :loading="panel?.saving" @click="panel?.save()">{{ configs.activeProfile.value ? 'Save changes' : 'Save configuration' }}</UButton>
       </div>
     </div>
   </div>
@@ -687,37 +346,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .lint-tool { container-type: inline-size; }
 .configurator { margin-top: 0; }
-.library-panel { min-width: 0; padding: .85rem 1rem; margin-bottom: 1.2rem; border: 1px solid var(--ui-border-accented); border-radius: .6rem; background: var(--ui-bg-elevated); }
-.library-title, .library-actions, .save-buttons, .switch-prompt { display: flex; gap: .55rem; align-items: center; flex-wrap: wrap; }
-.library-title h2 { font-size: 1.1rem; font-weight: 700; }
-.library-heading p { margin: .25rem 0 .7rem; }
-.library-primary { display: grid; grid-template-columns: minmax(0, 1fr); gap: .6rem; align-items: end; }
-.library-primary.with-save { grid-template-columns: minmax(0, 1fr) auto; }
-.profile-picker { display: flex; flex-direction: column; gap: .2rem; min-width: 0; font-size: .8rem; font-weight: 650; }
-.profile-picker select, .profile-picker input { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--ui-border); border-radius: .4rem; padding: .35rem .5rem; color: var(--ui-text); background: var(--ui-bg); font-size: 1rem; }
-.local-note { margin: .5rem 0 0; color: var(--ui-text-muted); font-size: .76rem; }
-.name-dialog { width: min(32rem, calc(100vw - 2rem)); max-width: none; max-height: min(90dvh, 48rem); overflow-y: auto; padding: 1.2rem; border: 1px solid var(--ui-border); border-radius: .6rem; color: var(--ui-text); background: var(--ui-bg); box-shadow: 0 1rem 3rem rgb(0 0 0 / 20%); }
-.name-dialog::backdrop { background: rgb(0 0 0 / 45%); }
-.name-dialog form { display: grid; gap: .8rem; }
-.name-dialog h2 { font-size: 1.15rem; font-weight: 700; }
-.template-options { min-width: 0; padding: 0; border: 0; }
-.template-options legend { margin-bottom: .4rem; font-size: .8rem; font-weight: 650; }
-.template-option { display: flex; gap: .7rem; align-items: start; padding: .55rem .65rem; border: 1px solid var(--ui-border); border-radius: .45rem; cursor: pointer; }
-.template-option + .template-option { margin-top: .4rem; }
-.template-option:has(input:checked) { border-color: var(--ui-primary); background: color-mix(in srgb, var(--ui-primary) 6%, var(--ui-bg)); }
-.template-option input { margin-top: .2rem; accent-color: var(--ui-primary); }
-.template-option span { display: grid; gap: .15rem; min-width: 0; }
-.template-option strong { font-size: .9rem; }
-.template-option small { color: var(--ui-text-muted); font-size: .76rem; line-height: 1.35; }
-.save-buttons { justify-content: flex-end; }
-.library-more { margin-top: .75rem; padding-top: .6rem; border-top: 1px solid var(--ui-border); }
-.library-more summary { width: fit-content; cursor: pointer; color: var(--ui-primary); font-size: .82rem; font-weight: 600; }
-.library-more .muted { margin: .5rem 0; }
-.library-actions { margin: .55rem 0; }
-.status-badge { border: 1px solid var(--ui-border); border-radius: 1rem; padding: .2rem .6rem; font-size: .75rem; white-space: nowrap; }
-.status-badge.draft { border-color: var(--ui-warning); }
-.status-badge.saved { border-color: var(--ui-success); }
-.switch-prompt { padding: .6rem; border-left: 3px solid var(--ui-warning); background: var(--ui-bg); }
 .return-links { position: sticky; top: calc(var(--ui-header-height) + .5rem); z-index: 10; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-bottom: 1.2rem; padding: .5rem; border: 1px solid var(--ui-border); border-radius: .5rem; background: var(--ui-bg); }
 .pane-switch { display: none; }
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, 26rem); gap: 1.4rem; align-items: start; }
@@ -738,37 +366,22 @@ onBeforeUnmount(() => {
 @media (pointer: coarse) {
   /* A finger-sized target without making the card head taller. */
   .rule-ids a { display: inline-block; padding: .75rem .25rem; margin: -.75rem -.25rem; }
-  .switch-prompt :deep(button), .save-bar :deep(button) { min-height: 2.75rem; }
 }
 .rule-ids a:hover { text-decoration: underline; }
 .rule-card-description { margin: .3rem 0 .4rem; font-size: .83rem; line-height: 1.4; color: var(--ui-text-muted); }
-.changed-badge { padding: 0 .45rem; border-radius: 1rem; font-size: .7rem; font-weight: 650; color: var(--ui-primary); background: color-mix(in srgb, var(--ui-primary) 12%, transparent); }
 .banner { padding: .7rem .9rem; margin-bottom: 1rem; border-left: 3px solid var(--ui-error); background: var(--ui-bg-elevated); }
 .save-bar { display: none; }
 .yaml-pane { position: sticky; top: calc(var(--ui-header-height) + 1rem); display: flex; flex-direction: column; gap: .6rem; min-width: 0; }
 .yaml-toolbar { display: flex; flex-wrap: wrap; gap: .35rem; }
+.editor { --editor-height: min(60dvh, 34rem); }
 .yaml-summary { display: flex; flex-wrap: wrap; gap: .3rem; font-size: .82rem; color: var(--ui-text-muted); }
-.editor { border: 1px solid var(--ui-border); border-radius: .5rem; overflow: hidden; background: var(--ui-bg); }
-.editor :deep(.cm-editor) { height: min(60vh, 34rem); height: min(60dvh, 34rem); font-size: .85rem; }
-.editor :deep(.cm-editor.cm-focused) { outline: 2px solid var(--ui-primary); outline-offset: -1px; }
-.editor :deep(.cm-scroller) { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; line-height: 1.5; }
-.editor :deep(.cm-content) { caret-color: var(--ui-text); }
-.editor :deep(.cm-gutters) { background: var(--ui-bg-elevated); color: var(--ui-text-muted); border-right: 1px solid var(--ui-border); }
-.editor :deep(.cm-activeLine), .editor :deep(.cm-activeLineGutter) { background: color-mix(in srgb, var(--ui-primary) 7%, transparent); }
-.editor :deep(.cm-selectionBackground), .editor :deep(.cm-focused .cm-selectionBackground) { background: color-mix(in srgb, var(--ui-primary) 25%, transparent) !important; }
-.editor :deep(.cm-tooltip) { background: var(--ui-bg-elevated); color: var(--ui-text); border: 1px solid var(--ui-border); }
 .problems { list-style: none; margin: 0; padding: .5rem .7rem; border: 1px solid var(--ui-border); border-radius: .5rem; background: var(--ui-bg-elevated); font-size: .8rem; }
 .problems li { padding: .25rem 0; border-left: 3px solid; padding-left: .5rem; margin: .2rem 0; overflow-wrap: anywhere; }
 .problems li.error { border-color: var(--ui-error); }
 .problems li.warning { border-color: var(--ui-warning); }
 .problems button { text-align: left; }
 .problems button:hover { text-decoration: underline; }
-.muted { color: var(--ui-text-muted); font-size: .82rem; }
-.muted a { color: var(--ui-primary); }
-.error { color: var(--ui-error); }
-.warning { color: var(--ui-warning); }
 .field-issue { font-size: .8rem; margin-bottom: .3rem; }
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* The layout follows the space the page gives it, not the viewport: next to
    Docus' navigation a 1024px tablet leaves the form only ~160px otherwise. */
 @container (max-width: 880px) {
@@ -778,20 +391,8 @@ onBeforeUnmount(() => {
   .pane-switch button.active { background: var(--ui-primary); color: var(--ui-text-inverted); }
   .form-pane.hidden, .yaml-pane.hidden { display: none; }
   .yaml-pane { position: static; }
-  .editor :deep(.cm-editor) { height: 60vh; height: 60dvh; }
+  .editor { --editor-height: 60dvh; }
   .return-links { position: static; }
   .save-bar { position: sticky; bottom: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-top: 1rem; padding: .6rem .8rem calc(.6rem + env(safe-area-inset-bottom)); border: 1px solid var(--ui-border-accented); border-left: 3px solid var(--ui-warning); border-radius: .55rem; background: var(--ui-bg); box-shadow: 0 -.4rem 1.2rem rgb(0 0 0 / 8%); font-size: .88rem; font-weight: 600; }
-}
-@container (max-width: 880px) {
-  /* The sticky save bar takes over. */
-  .library-primary.with-save { grid-template-columns: minmax(0, 1fr); }
-  .save-action { display: none; }
-}
-@container (max-width: 560px) {
-  .save-buttons { justify-content: flex-start; }
-}
-@media (max-width: 860px) {
-  /* 16px text on phones keeps iOS Safari from zooming in when the editor gets focus. */
-  .editor :deep(.cm-editor) { font-size: 1rem; }
 }
 </style>

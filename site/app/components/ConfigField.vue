@@ -114,7 +114,6 @@ function onInteger(raw: string | number) {
 .field-head { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-bottom: .3rem; }
 .field-label { font-size: .88rem; font-weight: 650; }
 .field-key { font-size: .72rem; color: var(--ui-text-muted); }
-.changed-badge { padding: 0 .45rem; border-radius: 1rem; font-size: .7rem; font-weight: 650; color: var(--ui-primary); background: color-mix(in srgb, var(--ui-primary) 12%, transparent); }
 .field-description { margin-top: .25rem; font-size: .8rem; line-height: 1.4; color: var(--ui-text-muted); }
 .field-description code { font-size: .75rem; }
 .field-issue { margin-top: .25rem; font-size: .8rem; overflow-wrap: anywhere; }

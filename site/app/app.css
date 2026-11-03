@@ -8,3 +8,13 @@
     display: none;
   }
 }
+
+/* Shared by the tool pages (ProcessPlayground, RuleReference, ConfigConfigurator). */
+.lint-tool .badge { border: 1px solid var(--ui-border); border-radius: 1rem; padding: .15rem .55rem; font-size: .75rem; }
+.lint-tool .changed-badge { padding: 0 .45rem; border-radius: 1rem; font-size: .7rem; font-weight: 650; color: var(--ui-primary); background: color-mix(in srgb, var(--ui-primary) 12%, transparent); }
+.lint-tool .muted { color: var(--ui-text-muted); font-size: .85rem; }
+.lint-tool .muted a { color: var(--ui-primary); }
+.lint-tool .error { color: var(--ui-error); overflow-wrap: anywhere; }
+.lint-tool .warning { color: var(--ui-warning); }
+.lint-tool .success { color: var(--ui-success); }
+.lint-tool .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

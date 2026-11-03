@@ -54,8 +54,10 @@ async function mountReference(t, query, { draft = ref(null), yaml = ref('') } = 
   const worker = {
     busy: ref(false),
     error: ref(''),
-    invalidate() {},
-    run: payload => requests.push(payload),
+    run: async (payload) => {
+      requests.push(payload)
+      return null
+    },
   }
   const api = scope.run(() => setupReference({
     ref, computed, watch, nextTick,

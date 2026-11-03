@@ -1,27 +1,10 @@
 <script setup lang="ts">
-import type { EditorView } from '@codemirror/view'
 import plainExample from '../../../example/playground/process.ti?raw'
 import regionsExample from '../../../example/playground/process-regions.ti?raw'
 import paExample from '../../../example/playground/process-pa.ti?raw'
 import yamlExample from '../../../example/playground/process.yaml?raw'
-
-type Finding = {
-  procedure: string
-  rule_id: string
-  message: string
-  line: number
-  column: number
-  severity: 'error' | 'warning'
-  fixable: boolean
-}
-type Result = {
-  format: 'ti' | 'pa' | 'yaml'
-  process_name: string
-  code: string
-  fixes: Record<string, number>
-  issues: Finding[]
-  warnings: string[]
-}
+import type { Finding, ProcessResult } from '../composables/useLintiWorker'
+import type { CodeEditorHandle, EditorKey } from '../utils/editor'
 
 const examples: Record<string, { label: string, code: string }> = {
   plain: { label: 'Plain .ti', code: plainExample },
@@ -30,86 +13,63 @@ const examples: Record<string, { label: string, code: string }> = {
   yaml: { label: 'TM1py YAML', code: yamlExample },
 }
 
-// Keep an edited process while moving to the configurator and back.
-const draftCode = useState('linti-playground-code', () => examples.plain!.code)
-
-const formatNames: Record<Result['format'], string> = {
+const formatNames: Record<ProcessResult['format'], string> = {
   ti: '.ti',
   pa: 'PA code',
   yaml: 'YAML',
 }
 
-const config = useRuntimeConfig()
-const editorHost = ref<HTMLElement | null>(null)
-const configs = useConfigLibrary()
-const configText = configs.yaml
-const worker = useLintiWorker<Result>()
-const { busy, error } = worker
-const loading = ref(true)
-const result = ref<Result | null>(null)
-const fixSummary = ref('')
-const copied = ref(false)
+const statusLabels = {
+  defaults: 'LinTi defaults',
+  draft: 'unsaved local draft',
+  saved: 'saved in this browser',
+}
 
-let view: EditorView | undefined
-let setDiagnostics: typeof import('@codemirror/lint').setDiagnostics | undefined
+// Keep an edited process while moving to the configurator and back.
+const code = useState('linti-playground-code', () => examples.plain!.code)
+const editor = ref<CodeEditorHandle | null>(null)
+const resultsPanel = ref<HTMLElement | null>(null)
+const configs = useConfigLibrary()
+const copyText = useCopyText()
+const { busy, error, run: lint } = useLintiWorker()
+const result = ref<ProcessResult | null>(null)
+const loading = computed(() => !result.value && !error.value)
+const fixSummary = ref('')
 let lintTimer: ReturnType<typeof setTimeout> | undefined
 
-watch(worker.ready, ready => { if (ready) loading.value = false })
-watch(error, message => { if (message) loading.value = false })
-
 const fixableCount = computed(() => result.value?.issues.filter(issue => issue.fixable).length ?? 0)
-const errorCount = computed(() => result.value?.issues.filter(issue => issue.severity === 'error').length ?? 0)
-const warningCount = computed(() => (result.value?.issues.length ?? 0) - errorCount.value)
+const diagnostics = computed(() => (result.value?.issues ?? []).map(issue => ({
+  line: issue.line,
+  column: issue.column,
+  severity: issue.severity,
+  source: issue.rule_id,
+  message: issue.message,
+})))
+const keys: EditorKey[] = [
+  { key: 'Mod-Enter', run: () => run() },
+  { key: 'Mod-Shift-Enter', run: () => run(true) },
+]
 
-function currentCode() {
-  return view?.state.doc.toString() ?? ''
-}
-
-function lineRange(line: number, column: number) {
-  const doc = view!.state.doc
-  const target = doc.line(Math.min(Math.max(line, 1), doc.lines))
-  const from = Math.min(target.from + Math.max(column, 1) - 1, target.to)
-  const word = /^\w+/.exec(doc.sliceString(from, target.to))
-  const to = word ? from + word[0].length : Math.min(from + 1, target.to)
-  return { from, to }
-}
-
-function showDiagnostics(issues: Finding[]) {
-  if (!view || !setDiagnostics) return
-  const diagnostics = issues.map((issue) => {
-    const { from, to } = lineRange(issue.line, issue.column)
-    return { from, to, severity: issue.severity, source: issue.rule_id, message: issue.message }
-  })
-  view.dispatch(setDiagnostics(view.state, diagnostics))
-}
-
-function run(fix = false) {
-  if (!view) return
+async function run(fix = false) {
   clearTimeout(lintTimer)
-  const code = currentCode()
-  worker.run({ action: 'process', code, config: configText.value, fix }, (next) => {
-    loading.value = false
-    if (fix && currentCode() !== code) {
-      // Never overwrite edits made while the fix was being computed.
-      fixSummary.value = 'The code changed while fixing; run auto-fix again.'
-      scheduleLint()
-      return
-    }
-    if (fix) {
-      const total = Object.values(next.fixes).reduce((sum, count) => sum + count, 0)
-      fixSummary.value = total
-        ? `Applied ${total} fix${total === 1 ? '' : 'es'}. Undo with Ctrl+Z / ⌘Z.`
-        : 'Nothing to fix automatically.'
-      if (next.code !== code) {
-        view!.dispatch({ changes: { from: 0, to: view!.state.doc.length, insert: next.code } })
-        clearTimeout(lintTimer)
-      }
-    }
-    // Findings belong to the text they were computed for; skip stale ones.
-    if (currentCode() !== (fix ? next.code : code)) return
-    result.value = next
-    showDiagnostics(next.issues)
-  })
+  const source = code.value
+  const next = await lint({ action: 'process', code: source, config: configs.yaml.value, fix })
+  if (!next) return
+  if (fix && code.value !== source) {
+    // Never overwrite edits made while the fix was being computed.
+    fixSummary.value = 'The code changed while fixing; run auto-fix again.'
+    scheduleLint()
+    return
+  }
+  if (fix) {
+    const total = Object.values(next.fixes).reduce((sum, count) => sum + count, 0)
+    fixSummary.value = total
+      ? `Applied ${plural(total, 'fix', 'fixes')}. Undo with Ctrl+Z / ⌘Z.`
+      : 'Nothing to fix automatically.'
+    code.value = next.code
+  }
+  // Findings belong to the text they were computed for; skip stale ones.
+  if (code.value === (fix ? next.code : source)) result.value = next
 }
 
 function scheduleLint() {
@@ -117,91 +77,32 @@ function scheduleLint() {
   lintTimer = setTimeout(() => run(), 500)
 }
 
-function jumpTo(issue: Finding) {
-  if (!view) return
-  const { from, to } = lineRange(issue.line, issue.column)
-  view.dispatch({ selection: { anchor: from, head: to }, scrollIntoView: true })
-  // On touch screens focusing would open the keyboard over the code.
-  if (matchMedia('(pointer: fine)').matches) view.focus()
-  else editorHost.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+function edit(text: string) {
+  code.value = text
+  scheduleLint()
 }
 
-const resultsPanel = ref<HTMLElement | null>(null)
-
-function showResults() {
-  resultsPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
-
-function loadExample(key: string) {
-  if (!view || !examples[key]) return
+function loadExample(select: HTMLSelectElement) {
+  const example = examples[select.value]
+  select.value = ''
+  if (!example) return
   fixSummary.value = ''
-  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: examples[key].code } })
+  edit(example.code)
 }
 
-async function copyCode() {
-  await navigator.clipboard.writeText(currentCode())
-  copied.value = true
-  setTimeout(() => (copied.value = false), 1500)
+function jumpTo(issue: Finding) {
+  editor.value?.reveal(issue)
 }
 
 function downloadCode() {
   const extension = result.value?.format === 'yaml' ? 'yaml' : 'ti'
   const name = (result.value?.process_name || 'process').replace(/[^\w.-]+/g, '_')
-  const url = URL.createObjectURL(new Blob([currentCode()], { type: 'text/plain' }))
-  const link = Object.assign(document.createElement('a'), { href: url, download: `${name}.${extension}` })
-  link.click()
-  URL.revokeObjectURL(url)
+  downloadText(`${name}.${extension}`, code.value)
 }
 
-function ruleLink(ruleId: string) {
-  return `${config.app.baseURL}rules?rule=${encodeURIComponent(ruleId)}`
-}
-
-watch(configText, scheduleLint)
-
-onMounted(async () => {
-  const [{ EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection }, { EditorState }, commands, lint] = await Promise.all([
-    import('@codemirror/view'),
-    import('@codemirror/state'),
-    import('@codemirror/commands'),
-    import('@codemirror/lint'),
-  ])
-  setDiagnostics = lint.setDiagnostics
-  view = new EditorView({
-    parent: editorHost.value!,
-    state: EditorState.create({
-      doc: draftCode.value,
-      extensions: [
-        lineNumbers(),
-        highlightActiveLineGutter(),
-        highlightActiveLine(),
-        drawSelection(),
-        commands.history(),
-        lint.lintGutter(),
-        keymap.of([
-          { key: 'Mod-Enter', run: () => (run(), true) },
-          { key: 'Mod-Shift-Enter', run: () => (run(true), true) },
-          ...commands.defaultKeymap,
-          ...commands.historyKeymap,
-          commands.indentWithTab,
-        ]),
-        EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            draftCode.value = update.state.doc.toString()
-            scheduleLint()
-          }
-        }),
-        EditorView.contentAttributes.of({ 'aria-label': 'TI process source' }),
-      ],
-    }),
-  })
-  run()
-})
-
-onBeforeUnmount(() => {
-  clearTimeout(lintTimer)
-  view?.destroy()
-})
+watch(configs.yaml, scheduleLint)
+onMounted(() => run())
+onBeforeUnmount(() => clearTimeout(lintTimer))
 </script>
 
 <template>
@@ -211,7 +112,7 @@ onBeforeUnmount(() => {
       <div class="toolbar">
         <label class="example-picker">
           <span>Load example</span>
-          <select class="field" @change="loadExample(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''">
+          <select class="field" @change="loadExample($event.target as HTMLSelectElement)">
             <option value="">Choose…</option>
             <option v-for="(example, key) in examples" :key="key" :value="key">{{ example.label }}</option>
           </select>
@@ -222,25 +123,25 @@ onBeforeUnmount(() => {
           <UButton icon="i-lucide-wand-sparkles" :disabled="busy || !fixableCount" title="Ctrl+Shift+Enter / ⌘⇧Enter" @click="run(true)">
             Auto-fix{{ fixableCount ? ` (${fixableCount})` : '' }}
           </UButton>
-          <UButton color="neutral" variant="ghost" icon="i-lucide-copy" @click="copyCode()">{{ copied ? 'Copied' : 'Copy' }}</UButton>
+          <UButton color="neutral" variant="ghost" icon="i-lucide-copy" @click="copyText(code, 'Code')">Copy</UButton>
           <UButton color="neutral" variant="ghost" icon="i-lucide-download" @click="downloadCode()">Download</UButton>
         </div>
         <!-- Stacked layout: the findings are below the editor, out of sight. -->
-        <button v-if="result && !loading" type="button" class="result-jump" @click="showResults()">
-          <strong>{{ result.issues.length }}</strong> finding{{ result.issues.length === 1 ? '' : 's' }}<template v-if="fixableCount"> · {{ fixableCount }} auto-fixable</template>
+        <button v-if="result" type="button" class="result-jump" @click="resultsPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' })">
+          <strong>{{ plural(result.issues.length, 'finding') }}</strong><template v-if="fixableCount"> · {{ fixableCount }} auto-fixable</template>
           <span aria-hidden="true">↓</span>
         </button>
       </div>
 
       <div class="layout">
         <div class="editor-column">
-          <div ref="editorHost" class="editor" />
+          <CodeEditor ref="editor" class="editor" :model-value="code" label="TI process source" :diagnostics="diagnostics" :keys="keys" @update:model-value="edit" />
           <details class="config" :open="configs.status.value !== 'defaults'">
             <summary>
               Configuration: {{ configs.label.value }}
-              <span class="badge">{{ configs.status.value === 'draft' ? 'unsaved local draft' : configs.status.value === 'saved' ? 'saved in this browser' : 'LinTi defaults' }}</span>
+              <span class="badge">{{ statusLabels[configs.status.value] }}</span>
             </summary>
-            <pre class="config-editor"><code>{{ configText }}</code></pre>
+            <pre class="config-editor"><code>{{ configs.yaml.value }}</code></pre>
             <p class="config-hint">
               Configure or save this YAML in the <NuxtLink :to="{ path: '/config', query: { from: 'playground' } }">configurator</NuxtLink>.
             </p>
@@ -249,38 +150,15 @@ onBeforeUnmount(() => {
 
         <section ref="resultsPanel" class="results" aria-live="polite" aria-label="Findings">
           <p v-if="loading" class="status">Loading LinTi in your browser… the first run downloads Pyodide.</p>
-          <template v-else-if="result">
-            <p class="status">
-              <span class="badge">{{ formatNames[result.format] }}</span>
-              <span class="badge">{{ result.process_name }}</span>
-              <span v-if="busy" class="muted">checking…</span>
-            </p>
-            <p class="summary">
-              <strong>{{ result.issues.length }}</strong> finding{{ result.issues.length === 1 ? '' : 's' }}
-              <span v-if="result.issues.length" class="muted">
-                · {{ errorCount }} error{{ errorCount === 1 ? '' : 's' }}, {{ warningCount }} warning{{ warningCount === 1 ? '' : 's' }}, {{ fixableCount }} auto-fixable
-              </span>
-            </p>
-          </template>
-          <p v-if="fixSummary" class="success">{{ fixSummary }}</p>
+          <p v-if="result" class="status">
+            <span class="badge">{{ formatNames[result.format] }}</span>
+            <span class="badge">{{ result.process_name }}</span>
+            <span v-if="busy" class="muted">checking…</span>
+          </p>
           <p v-if="error" role="alert" class="error">{{ error }}</p>
-          <ul v-if="result?.warnings.length" class="warnings">
-            <li v-for="(warning, index) in result.warnings" :key="index">{{ warning }}</li>
-          </ul>
-          <p v-if="result && !result.issues.length && !error" class="success">No findings. 🎉</p>
-          <ol v-if="result?.issues.length" class="issues">
-            <li v-for="(issue, index) in result.issues" :key="index" :class="`severity-${issue.severity}`">
-              <button class="issue" @click="jumpTo(issue)">
-                <span class="location">{{ issue.line }}:{{ issue.column }}</span>
-                <span class="message">{{ issue.message }}</span>
-              </button>
-              <span class="meta">
-                <a :href="ruleLink(issue.rule_id)" target="_blank" rel="noopener"><code>{{ issue.rule_id }}</code></a>
-                · {{ issue.procedure }}
-                <span v-if="issue.fixable" class="fixable">auto-fix</span>
-              </span>
-            </li>
-          </ol>
+          <FindingsList v-if="result" :issues="result.issues" :warnings="result.warnings" empty-text="No findings. 🎉" link-rules @jump="jumpTo">
+            <p v-if="fixSummary" class="success">{{ fixSummary }}</p>
+          </FindingsList>
         </section>
       </div>
     </div>
@@ -300,45 +178,21 @@ onBeforeUnmount(() => {
 .result-jump span { float: right; color: var(--ui-text-muted); }
 .layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(16rem, 2fr); gap: 1.2rem; align-items: start; }
 .editor-column { min-width: 0; }
-.editor { border: 1px solid var(--ui-border); border-radius: .5rem; overflow: hidden; background: var(--ui-bg); }
-.editor :deep(.cm-editor) { height: min(70vh, 40rem); height: min(70dvh, 40rem); font-size: .85rem; }
-.editor :deep(.cm-editor.cm-focused) { outline: 2px solid var(--ui-primary); outline-offset: -1px; }
-.editor :deep(.cm-scroller) { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; line-height: 1.5; }
-.editor :deep(.cm-content) { caret-color: var(--ui-text); }
-.editor :deep(.cm-gutters) { background: var(--ui-bg-elevated); color: var(--ui-text-muted); border-right: 1px solid var(--ui-border); }
-.editor :deep(.cm-activeLine), .editor :deep(.cm-activeLineGutter) { background: color-mix(in srgb, var(--ui-primary) 7%, transparent); }
-.editor :deep(.cm-selectionBackground), .editor :deep(.cm-focused .cm-selectionBackground) { background: color-mix(in srgb, var(--ui-primary) 25%, transparent) !important; }
-.editor :deep(.cm-tooltip) { background: var(--ui-bg-elevated); color: var(--ui-text); border: 1px solid var(--ui-border); }
+.editor { --editor-height: min(70dvh, 40rem); }
+.config-hint a { color: var(--ui-primary); }
 .config { margin-top: .8rem; }
 .config summary { cursor: pointer; font-size: .9rem; font-weight: 600; }
 .config-editor { overflow-x: auto; max-height: 16rem; padding: .7rem; border: 1px solid var(--ui-border); border-radius: .4rem; background: var(--ui-bg); font: .82rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .config-hint { margin-top: .4rem; font-size: .8rem; color: var(--ui-text-muted); }
-.config-hint a, .config-hint .link { color: var(--ui-primary); }
-.config-hint .link:hover { text-decoration: underline; }
 .config summary .badge { margin-left: .4rem; font-weight: 500; }
 .results { position: sticky; top: calc(var(--ui-header-height) + 1rem); max-height: calc(100vh - var(--ui-header-height) - 2rem); scroll-margin-top: calc(var(--ui-header-height) + 1rem); overflow-y: auto; padding: 1rem; border: 1px solid var(--ui-border); border-radius: .5rem; background: var(--ui-bg-elevated); }
 .status { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; font-size: .88rem; }
-.badge { border: 1px solid var(--ui-border); border-radius: 1rem; padding: .1rem .55rem; font-size: .75rem; }
-.summary { margin: .6rem 0; }
-.muted { color: var(--ui-text-muted); font-size: .85rem; }
-.error { color: var(--ui-error); overflow-wrap: anywhere; white-space: pre-wrap; }
-.success { color: var(--ui-success); }
-.warnings { margin: .5rem 0; padding: .6rem .8rem; border-left: 3px solid var(--ui-warning); font-size: .85rem; }
-.issues { list-style: none; padding: 0; margin: 0; }
-.issues li { padding: .5rem .2rem .5rem .6rem; border-bottom: 1px solid var(--ui-border); border-left: 3px solid var(--ui-error); }
-.issues li.severity-warning { border-left-color: var(--ui-warning); }
-.issue { display: flex; gap: .6rem; width: 100%; text-align: left; font-size: .88rem; }
-.issue:hover .message { text-decoration: underline; }
-.location { flex: none; min-width: 3.2rem; color: var(--ui-text-muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .8rem; padding-top: .1rem; }
-.message { overflow-wrap: anywhere; }
-.meta { display: block; margin: .2rem 0 0 3.8rem; font-size: .78rem; color: var(--ui-text-muted); }
-.meta a { color: var(--ui-primary); }
-.fixable { margin-left: .3rem; padding: 0 .4rem; border-radius: 1rem; background: color-mix(in srgb, var(--ui-success) 15%, transparent); color: var(--ui-success); }
+.error { white-space: pre-wrap; }
 /* The layout follows the space the page gives it, not the viewport. */
 @container (max-width: 760px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
   .results { position: static; max-height: none; }
-  .editor :deep(.cm-editor) { height: 55vh; height: 55dvh; }
+  .editor { --editor-height: 55dvh; }
   .result-jump { display: block; }
 }
 @container (max-width: 560px) {
@@ -351,7 +205,7 @@ onBeforeUnmount(() => {
 }
 @media (max-width: 760px) {
   /* 16px text on phones keeps iOS Safari from zooming in when a field gets focus. */
-  .field, .editor :deep(.cm-editor) { font-size: 1rem; }
+  .field { font-size: 1rem; }
 }
 @media (pointer: coarse) {
   .toolbar-actions > * { min-height: 2.75rem; }

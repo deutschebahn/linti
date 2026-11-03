@@ -1,100 +1,128 @@
-type WorkerReply<Result> = { id: number, status?: 'running', result?: Result, error?: string }
+export type Finding = {
+  /** Set by whole-process runs; a single-rule run lints one known procedure. */
+  procedure?: string
+  rule_id: string
+  message: string
+  line: number
+  column: number
+  severity: 'error' | 'warning'
+  fixable: boolean
+}
+
+export type ProcessResult = {
+  format: 'ti' | 'pa' | 'yaml'
+  process_name: string
+  code: string
+  fixes: Record<string, number>
+  issues: Finding[]
+  warnings: string[]
+}
+export type RuleResult = { code: string, fixes: number, warnings: string[], issues: Finding[] }
+export type ValidateResult = { valid: boolean, message?: string }
+
+export type RuleContext = {
+  config: string
+  parameters: string[]
+  variables: string[]
+  datasource_type: string
+  datasource_query: string
+}
+
+export type LintRequest =
+  | { action: 'process', code: string, config: string, fix: boolean }
+  | { action: 'rule', code: string, procedure: string, ruleId: string, fix: boolean, context: RuleContext }
+  | { action: 'validate', config: string }
+
+type ResultOf<R extends LintRequest> = R['action'] extends 'process'
+  ? ProcessResult
+  : R['action'] extends 'rule' ? RuleResult : ValidateResult
+
+type WorkerReply = { id: number, status?: 'running', result?: unknown, error?: string }
+type Job = { request: LintRequest, resolve: (result: unknown) => void }
 
 // Downloading Pyodide can take a while; a lint run should not.
 const LOAD_TIMEOUT_MS = 120_000
 const RUN_TIMEOUT_MS = 15_000
 
-/** One in-flight request and at most one queued replacement, shared by both demos. */
-export function useLintiWorker<Result>() {
+/**
+ * The LinTi worker behind a promise: `run()` resolves with the result, or with
+ * null when the run failed (see `error`) or a newer request replaced it. One
+ * request runs at a time and at most the latest one waits behind it.
+ */
+export function useLintiWorker() {
   const baseURL = useRuntimeConfig().app.baseURL
   const busy = ref(false)
   const ready = ref(false)
   const error = ref('')
   let worker: Worker | undefined
-  type Callback = { onResult: (result: Result) => void, onError?: (message: string) => void }
-  let active: Callback & { id: number } | undefined
-  let queued: Callback & { payload: Record<string, unknown> } | undefined
+  let active: Job & { id: number } | undefined
+  let queued: Job | undefined
   let nextId = 0
   let watchdog: ReturnType<typeof setTimeout> | undefined
 
-  function stop() {
+  function stop(message = '') {
     clearTimeout(watchdog)
     worker?.terminate()
     worker = undefined
-    active = undefined
-    queued = undefined
-    busy.value = false
-    ready.value = false
+    active?.resolve(null)
+    queued?.resolve(null)
+    active = queued = undefined
+    busy.value = ready.value = false
+    error.value = message
   }
 
   function arm(ms: number) {
     clearTimeout(watchdog)
     watchdog = setTimeout(() => {
       const next = queued
-      const onError = active?.onError
-      stop()
-      error.value = ms === LOAD_TIMEOUT_MS
+      queued = undefined
+      stop(ms === LOAD_TIMEOUT_MS
         ? 'LinTi could not finish loading. Please try again.'
-        : `LinTi did not finish within ${RUN_TIMEOUT_MS / 1000} s and was stopped.`
-      onError?.(error.value)
-      if (next) dispatch(next.payload, next.onResult, next.onError)
+        : `LinTi did not finish within ${RUN_TIMEOUT_MS / 1000} s and was stopped.`)
+      if (next) start(next)
     }, ms)
   }
 
-  function dispatch(payload: Record<string, unknown>, onResult: (result: Result) => void, onError?: (message: string) => void) {
-    const id = ++nextId
-    active = { id, onResult, onError }
+  function onMessage({ data }: MessageEvent<WorkerReply>) {
+    if (!active || data.id !== active.id) return
+    if (data.status === 'running') {
+      ready.value = true
+      arm(RUN_TIMEOUT_MS)
+      return
+    }
+    clearTimeout(watchdog)
+    const done = active
+    const next = queued
+    active = queued = undefined
+    if (data.error) error.value = data.error
+    done.resolve(data.error || next ? null : data.result)
+    if (next) start(next)
+    else busy.value = false
+  }
+
+  function start(job: Job) {
+    active = { ...job, id: ++nextId }
     busy.value = true
     error.value = ''
     if (!worker) {
       worker = new Worker(`${baseURL}linti-worker.js`)
-      worker.onmessage = ({ data }: MessageEvent<WorkerReply<Result>>) => {
-        if (!active || data.id !== active.id) return
-        if (data.status === 'running') {
-          ready.value = true
-          arm(RUN_TIMEOUT_MS)
-          return
-        }
-        clearTimeout(watchdog)
-        const callback = active.onResult
-        const fail = active.onError
-        active = undefined
-        const next = queued
-        queued = undefined
-        if (data.error) {
-          error.value = data.error
-          fail?.(data.error)
-        }
-        else if (data.result && !next) callback(data.result)
-        if (next) dispatch(next.payload, next.onResult, next.onError)
-        else busy.value = false
-      }
-      worker.onerror = (event) => {
-        const onError = active?.onError
-        stop()
-        error.value = event.message || 'The browser could not load Pyodide.'
-        onError?.(error.value)
-      }
+      worker.onmessage = onMessage
+      worker.onerror = event => stop(event.message || 'The browser could not load Pyodide.')
     }
     arm(ready.value ? RUN_TIMEOUT_MS : LOAD_TIMEOUT_MS)
-    worker.postMessage({ ...payload, id })
+    worker.postMessage({ ...job.request, id: active.id })
   }
 
-  function run(payload: Record<string, unknown>, onResult: (result: Result) => void, onError?: (message: string) => void) {
+  function run<R extends LintRequest>(request: R): Promise<ResultOf<R> | null> {
     error.value = ''
-    if (active) {
-      queued = { payload, onResult, onError }
-      return
-    }
-    dispatch(payload, onResult, onError)
+    return new Promise((resolve) => {
+      const job = { request, resolve: resolve as Job['resolve'] }
+      if (!active) return start(job)
+      queued?.resolve(null)
+      queued = job
+    })
   }
 
-  /** Ignore the current result after input changes, without re-downloading Pyodide. */
-  function invalidate() {
-    if (active) active.onResult = () => {}
-    queued = undefined
-  }
-
-  onBeforeUnmount(stop)
-  return { busy, ready, error, run, invalidate }
+  onBeforeUnmount(() => stop())
+  return { busy, ready, error, run }
 }
