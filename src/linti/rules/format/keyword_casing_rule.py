@@ -3,6 +3,9 @@ from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import Fix, LintIssue
 from linti.rules.Rule import BaseTokenRule, RuleExample, RuleMetadata
 
+# Sentinel distinct from any real (or ``None``) process name / constant index.
+_UNSET = object()
+
 
 class KeywordCasingRule(BaseTokenRule):
     """
@@ -80,6 +83,13 @@ class KeywordCasingRule(BaseTokenRule):
             )
         self.style = style
         # For 'consistent' style, track detected style
+        self._reset_file_state()
+
+    def _reset_file_state(self) -> None:
+        # Spans all procedures of one process, so it is keyed on the process and
+        # the run's constant index in visit() instead of being cleared by reset().
+        self._current_process = _UNSET
+        self._current_index = _UNSET
         self.detected_style = None
         self.first_keyword_token = None
 
@@ -110,6 +120,14 @@ class KeywordCasingRule(BaseTokenRule):
 
         # Handle 'consistent' style - auto-detect from first keyword
         if self.style == "consistent":
+            if (
+                context.process_name != self._current_process
+                or context.constants is not self._current_index
+            ):
+                self._reset_file_state()
+                self._current_process = context.process_name
+                self._current_index = context.constants
+
             current_style = self._detect_style(keyword)
 
             # First keyword sets the expected style

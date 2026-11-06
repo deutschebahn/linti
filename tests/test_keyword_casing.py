@@ -1,7 +1,9 @@
 import pytest
 
 from linti.lexer.lexer import Lexer
+from linti.linter.api import lint_process_model
 from linti.linter.linter import Linter
+from linti.model.process_ir import ProcedureInfo, ProcessIR
 from linti.rules.format.keyword_casing_rule import KeywordCasingRule
 
 
@@ -172,6 +174,39 @@ def test_consistency_rule_first_keyword_sets_standard():
     # Second IF and ENDIF should be flagged as inconsistent with first 'if'
     assert len(issues) == 2
     assert all("expected lowercase" in issue.message for issue in issues)
+
+
+def test_consistency_rule_state_resets_between_processes():
+    """A directory run reuses the rule; each process sets its own style."""
+    linter = Linter(rules=[KeywordCasingRule(style="consistent")])
+    lower = ProcessIR(name="A", prolog=ProcedureInfo(code="if (1 = 1);\nendif;"))
+    upper = ProcessIR(name="B", prolog=ProcedureInfo(code="IF (1 = 1);\nENDIF;"))
+
+    assert lint_process_model(lower, linter) == []
+    assert lint_process_model(upper, linter) == []
+
+
+def test_consistency_rule_state_resets_when_same_process_is_relinted():
+    """Auto-fix lints a process before the final report; the report starts clean."""
+    linter = Linter(rules=[KeywordCasingRule(style="consistent")])
+    process = ProcessIR(name="P", prolog=ProcedureInfo(code="if (1 = 1);\nendif;"))
+    lint_process_model(process, linter)
+    process.prolog = ProcedureInfo(code="IF (1 = 1);\nENDIF;")
+
+    assert lint_process_model(process, linter) == []
+
+
+def test_consistency_rule_spans_procedures_of_one_process():
+    linter = Linter(rules=[KeywordCasingRule(style="consistent")])
+    process = ProcessIR(
+        name="P",
+        prolog=ProcedureInfo(code="if (1 = 1);\nendif;"),
+        epilog=ProcedureInfo(code="IF (1 = 1);\nENDIF;"),
+    )
+
+    issues = lint_process_model(process, linter)
+
+    assert [proc for proc, _, _ in issues] == ["epilog", "epilog"]
 
 
 def test_keyword_casing_with_comments():
