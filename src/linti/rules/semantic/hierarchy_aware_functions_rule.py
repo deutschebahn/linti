@@ -184,10 +184,13 @@ class UseHierarchyAwareFunctionsRule(BaseTokenRule):
 
     def _reset_file_state(self) -> None:
         # Consistency tracking spans the whole file (all procedures). It is keyed
-        # on the process name in visit() rather than cleared by reset(), because
-        # reset() runs once per procedure while a "file" is one process with
-        # several procedures.
+        # on the process name and the run's constant index in visit() rather
+        # than cleared by reset(), because reset() runs once per procedure while
+        # a "file" is one process with several procedures. The index is fresh
+        # per run, so re-linting the same process (e.g. after auto-fix) starts
+        # clean instead of inheriting an already-reported mix.
         self._current_process = _UNSET
+        self._current_index = _UNSET
         self._first_standard: Optional[object] = None
         self._first_aware: Optional[object] = None
         self._mix_reported = False
@@ -235,9 +238,13 @@ class UseHierarchyAwareFunctionsRule(BaseTokenRule):
     def _visit_consistent(
         self, key: str, token, context: LintContext
     ) -> list[LintIssue]:
-        if context.process_name != self._current_process:
+        if (
+            context.process_name != self._current_process
+            or context.constants is not self._current_index
+        ):
             self._reset_file_state()
             self._current_process = context.process_name
+            self._current_index = context.constants
 
         if key in LEGACY_TO_AWARE:
             style = _STANDARD

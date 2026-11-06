@@ -2,6 +2,7 @@
 
 from linti.lexer.lexer import Lexer
 from linti.linter.api import lint_process_model
+from linti.linter.fixer import auto_fix_process
 from linti.linter.lint_context import LintContext
 from linti.linter.linter import Linter
 from linti.model.process_ir import ProcedureInfo, ProcessIR
@@ -208,6 +209,30 @@ def test_consistent_state_resets_between_processes():
 
     assert a_issues == []
     assert b_issues == []
+
+
+def test_consistent_mix_reported_again_when_same_process_is_relinted():
+    # Auto-fix lints the process once to collect fixes, then re-lints it for the
+    # report with the same rule instances; the mix must survive the second run.
+    rules = UseHierarchyAwareFunctionsRule.from_config({"mode": "consistent"})
+    token_rules = [r for r in rules if isinstance(r, BaseTokenRule)]
+    statement_rules = [r for r in rules if not isinstance(r, BaseTokenRule)]
+    linter = Linter(rules=token_rules, statement_rules=statement_rules)
+    process = ProcessIR(
+        name="P",
+        metadata=ProcedureInfo(
+            code=(
+                "IF (ElementType('R', 'R', 'E') @= 'C');\n"
+                "DimensionElementDelete('R', 'E');\n"
+                "EndIf;"
+            )
+        ),
+    )
+
+    auto_fix_process(process, linter)
+    issues = [issue for _, issue, _ in lint_process_model(process, linter)]
+
+    assert [issue.rule_id for issue in issues] == ["C410"]
 
 
 # --- colon-in-dimension-argument check (consistent mode) ---
