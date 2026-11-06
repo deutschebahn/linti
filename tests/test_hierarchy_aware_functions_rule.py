@@ -125,6 +125,19 @@ def test_consistent_flags_mixed_styles_once():
     assert "ElementIndex" in issues[0].message
 
 
+def test_consistent_flags_element_type_with_standard_dimension_function():
+    code = (
+        "sType = ElementType('Region', 'Region', 'EMEA');\n"
+        "DimensionElementDelete('Region', 'EMEA');"
+    )
+    issues = _lint(code, mode="consistent")
+
+    assert len(issues) == 1
+    assert issues[0].rule_id == "C410"
+    assert "DimensionElementDelete" in issues[0].message
+    assert "ElementType" in issues[0].message
+
+
 def test_consistent_detects_mix_across_procedures_in_same_process():
     rule = UseHierarchyAwareFunctionsRule(mode="consistent")
     linter = Linter(rules=[rule])
