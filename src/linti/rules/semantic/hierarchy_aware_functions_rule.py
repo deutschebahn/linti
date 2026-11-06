@@ -32,7 +32,7 @@ from linti.parser.ast import (
     statement_expression,
 )
 from linti.rules.generic_process import is_generic_process
-from linti.rules.Rule import BaseTokenRule, BaseStatementRule, RuleExample, RuleMetadata
+from linti.rules.Rule import BaseStatementRule, BaseTokenRule, RuleExample, RuleMetadata
 
 #: Maps a standard/legacy function (lower-cased) to its hierarchy-aware
 #: replacement (canonical casing).  Covers TI functions and Rules functions
