@@ -1,14 +1,12 @@
 #SECTION Prolog
-cCube='Sales';
-count=0;
-if (DimensionExists('Year')=0);
-    LogOutput('WARN','Year dimension missing');
-endif;
-count=count+1;
-cCube='Archive';
-LogOutput('INFO','Rows: '|NumberToString(count));
+
+DatasourceNameForServer=pDimensionName;
 
 #SECTION Metadata
+
+IF ( elementtype( pDimensionName, pHierarchyName, vElementName) @= pElementType  );
+DimensionElementDelete( pDimensionName, vElementName );
+EndIf;
 
 #SECTION Data
 
@@ -16,8 +14,40 @@ LogOutput('INFO','Rows: '|NumberToString(count));
 
 #JSON_PROPERTIES
 {
-  "Parameters": [],
-  "DataSource": {"Type": "None"},
-  "Variables": [],
+  "Parameters": [
+    {
+      "Name": "pDimensionName",
+      "Prompt": "Dimension Name",
+      "Value": "TestDimension",
+      "Type": "String"
+    },
+    {
+      "Name": "pHierarchyName",
+      "Prompt": "Hierarchy Name",
+      "Value": "TestHierarchy",
+      "Type": "String"
+    },
+    {
+      "Name": "pElementType",
+      "Prompt": "( C | N | S ) Only elements of type",
+      "Value": "C",
+      "Type": "String"
+    }
+  ],
+  "DataSource": {
+    "Type": "TM1DimensionSubset",
+    "dataSourceNameForClient": "TestDimension:TestHierarchy",
+    "dataSourceNameForServer": "TestDimension:TestHierarchy",
+    "subset": "All"
+  },
+  "Variables": [
+    {
+      "Name": "vElementName",
+      "Type": "String",
+      "Position": 1,
+      "StartByte": 0,
+      "EndByte": 0
+    }
+  ],
   "HasSecurityAccess": false
 }
