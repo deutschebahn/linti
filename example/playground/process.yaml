@@ -1,18 +1,35 @@
 !TM1py.ProcessObject
 Name: Playground-Example
 PrologProcedure: |-
-  cCube='Sales';
-  count=0;
-  if (DimensionExists('Year')=0);
-      LogOutput('WARN','Year dimension missing');
-  endif;
-  count=count+1;
-  cCube='Archive';
-  LogOutput('INFO','Rows: '|NumberToString(count));
-MetadataProcedure: ''
-DataProcedure: ''
-EpilogProcedure: ''
-Parameters: []
-Variables: []
+  DatasourceNameForServer=pDimensionName;
+MetadataProcedure: |-
+  IF ( elementtype( pDimensionName, pHierarchyName, vElementName) @= pElementType  );
+  DimensionElementDelete( pDimensionName, vElementName );
+  EndIf;
+DataProcedure: ""
+EpilogProcedure: ""
+HasSecurityAccess: false
+Parameters:
+  - Name: pDimensionName
+    Prompt: Dimension Name
+    Value: TestDimension
+    Type: String
+  - Name: pHierarchyName
+    Prompt: Hierarchy Name
+    Value: TestHierarchy
+    Type: String
+  - Name: pElementType
+    Prompt: ( C | N | S ) Only elements of type
+    Value: C
+    Type: String
+Variables:
+  - Name: vElementName
+    Type: String
+    Position: 1
+    StartByte: 0
+    EndByte: 0
 DataSource:
-  Type: None
+  Type: TM1DimensionSubset
+  dataSourceNameForClient: TestDimension:TestHierarchy
+  dataSourceNameForServer: TestDimension:TestHierarchy
+  subset: All

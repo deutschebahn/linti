@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import plainExample from '../../../example/playground/process.ti?raw'
 import regionsExample from '../../../example/playground/process-regions.ti?raw'
 import paExample from '../../../example/playground/process-pa.ti?raw'
 import yamlExample from '../../../example/playground/process.yaml?raw'
@@ -7,7 +6,6 @@ import type { Finding, ProcessResult } from '../composables/useLintiWorker'
 import type { CodeEditorHandle, EditorKey } from '../utils/editor'
 
 const examples: Record<string, { label: string, code: string }> = {
-  plain: { label: 'Plain .ti', code: plainExample },
   regions: { label: '.ti with #region sections', code: regionsExample },
   pa: { label: 'PA code (#SECTION)', code: paExample },
   yaml: { label: 'TM1py YAML', code: yamlExample },
@@ -26,7 +24,7 @@ const statusLabels = {
 }
 
 // Keep an edited process while moving to the configurator and back.
-const code = useState('linti-playground-code', () => examples.plain!.code)
+const code = useState('linti-playground-code', () => examples.regions!.code)
 const editor = ref<CodeEditorHandle | null>(null)
 const resultsPanel = ref<HTMLElement | null>(null)
 const configs = useConfigLibrary()

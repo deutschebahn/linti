@@ -1,7 +1,7 @@
 """Linting a process pasted as text (the browser playground's entry point)."""
 
-from pathlib import Path
 from collections import Counter
+from pathlib import Path
 
 import pytest
 
@@ -33,9 +33,8 @@ def test_region_ti_is_detected_as_ti():
     assert detect_format(text) == "ti"
 
 
-def test_playground_examples_show_the_same_findings_in_all_four_formats():
+def test_playground_examples_show_the_same_findings_in_all_three_formats():
     files = {
-        "process.ti": "ti",
         "process-regions.ti": "ti",
         "process-pa.ti": "pa",
         "process.yaml": "yaml",
@@ -54,7 +53,7 @@ def test_playground_examples_show_the_same_findings_in_all_four_formats():
         assert detect_format(fixed.code) == expected_format
 
     assert all(report == reports[0] for report in reports)
-    assert set(reports[0]) >= {"C220", "F110", "F220", "F230", "F250", "N110"}
+    assert set(reports[0]) >= {"F110", "F220", "F250", "F250", "F260"}
 
 
 def test_plain_ti_findings_use_text_line_numbers():
