@@ -4,7 +4,7 @@ DatasourceNameForServer=pDimensionName;
 
 #SECTION Metadata
 
-IF ( elementtype( pDimensionName, pHierarchyName, vElementName) @= pElementType  );
+IF ( ElementType( pDimensionName, pHierarchyName, vElementName) @= pElementType  );
 DimensionElementDelete( pDimensionName, vElementName );
 EndIf;
 

@@ -65,7 +65,7 @@ LEGACY_TO_AWARE: dict[str, str] = {
     "elisanc": "ElementIsAncestor",
     "elweight": "ElementWeight",
     "dimix": "ElementIndex",
-    "dtype": "elementtype",
+    "dtype": "ElementType",
 }
 
 #: Lower-cased names of all hierarchy-aware functions (the replacement column).

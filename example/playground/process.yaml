@@ -3,7 +3,7 @@ Name: Playground-Example
 PrologProcedure: |-
   DatasourceNameForServer=pDimensionName;
 MetadataProcedure: |-
-  IF ( elementtype( pDimensionName, pHierarchyName, vElementName) @= pElementType  );
+  IF ( ElementType( pDimensionName, pHierarchyName, vElementName) @= pElementType  );
   DimensionElementDelete( pDimensionName, vElementName );
   EndIf;
 DataProcedure: ""
