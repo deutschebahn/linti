@@ -8,9 +8,9 @@ compatibility promise for them, they can change behaviour or disappear in any
 release, and support will not help when they do.
 
 The rule reports every call to one of the names in ``UNDOCUMENTED_FUNCTIONS``.
-Deliberate use is silenced either inline (``# noqa: C430``, also available
-region- and procedure-wide) or project-wide by listing the function under the
-rule's ``allowed_functions`` setting.
+Deliberate use is silenced either with a ``# noqa: C430`` comment on the line
+above (also available region- and procedure-wide) or project-wide by listing
+the function under the rule's ``allowed_functions`` setting.
 
 Like C510, the rule inspects the AST rather than the token stream: TI makes the
 parentheses optional on a no-argument call, so ``LockOn;`` and ``LockOn();`` are
@@ -107,8 +107,9 @@ class DoNotUseUndocumentedFunctionsRule(BaseStatementRule):
             "Because TI makes the parentheses optional on a no-argument call, "
             "`LockOn;` is reported just like `LockOn();`. A name merely read as a "
             "variable is not a call and is never reported.\n\n"
-            "When the use is intentional, suppress the finding inline with "
-            "`# noqa: C430` (region- and procedure-level suppression works too), or "
+            "When the use is intentional, suppress the finding with a "
+            "`# noqa: C430` comment on the line above (region- and procedure-level "
+            "suppression works too), or "
             "list the function under `allowed_functions` to permit it across the "
             "whole project."
         ),

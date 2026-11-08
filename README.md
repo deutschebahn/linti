@@ -373,11 +373,9 @@ rules:
 You can suppress specific rules directly in TI code using `# noqa` comments.
 TI uses `#` for comments, so the syntax feels natural.
 
-#### Trailing comment — suppress current line
-
-```
-nVar=1;  # noqa: F220
-```
+A `noqa` comment must stand on its own line. A comment after code on the same
+line makes the process fail at runtime in TM1 (it can still be saved), so a
+trailing `nVar=1;  # noqa: F220` is **not** treated as a suppression.
 
 #### Standalone comment — suppress the next code line
 

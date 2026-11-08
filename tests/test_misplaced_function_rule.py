@@ -383,12 +383,12 @@ def test_selecting_legacy_rule_warns_once():
 
 
 def test_new_noqa_suppresses_replacement():
-    assert _lint("AttrPutS('x', 'd', 'e', 'a'); # noqa: C150", "metadata") == []
+    assert _lint("# noqa: C150\nAttrPutS('x', 'd', 'e', 'a');", "metadata") == []
 
 
 @pytest.mark.parametrize("rule_id", ["C130", "S120"])
 def test_legacy_noqa_does_not_suppress_new_rule(rule_id):
-    code = f"ItemSkip(); # noqa: {rule_id}"
+    code = f"# noqa: {rule_id}\nItemSkip();"
     with pytest.warns(LintiConfigWarning):
         assert len(_lint(code)) == 1
     with pytest.warns(LintiConfigWarning):

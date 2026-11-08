@@ -151,7 +151,7 @@ class HardcodedSecretRule(BaseStatementRule):
             "Neither the value nor the cube coordinates ever appear in linti's "
             "output — reports often end up in CI logs. Widen or narrow the name "
             "detection with `mode`, extend it with `secret_names`, or suppress a "
-            "single finding inline with `# noqa: X130`."
+            "single finding with a `# noqa: X130` comment on the line above."
         ),
         config_example=(
             "rules:\n"
