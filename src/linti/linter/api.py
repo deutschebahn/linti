@@ -4,6 +4,7 @@ from typing import Optional
 
 from linti.config import Config
 from linti.semantic.constant_evaluation import ConstantEvaluationIndex
+from linti.semantic.process_facts import ProcessFacts
 from linti.linter.fixer import auto_fix_process
 from linti.linter.lint_context import LintContext
 from linti.linter.linter import Linter
@@ -90,8 +91,12 @@ def lint_process_model(process: ProcessIR, linter: Linter) -> list[ProcedureIssu
         max_values_per_variable=linter.max_values_per_variable,
     )
 
+    facts = ProcessFacts(process, parse_cache, constants)
+
     for proc_name, proc_info in extract_procedures(process).items():
-        lint_ctx = LintContext.for_procedure(process, proc_name, proc_info, constants)
+        lint_ctx = LintContext.for_procedure(
+            process, proc_name, proc_info, constants, process_facts=facts
+        )
         parsed = parse_cache.get(proc_name)
         if parsed.error is not None:
             # The section could not be parsed at all, so no rule ever sees it.

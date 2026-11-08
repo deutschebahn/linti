@@ -51,6 +51,13 @@ def _configured_enabled(rule_cls, rule_cfg) -> bool:
     return getattr(rule_cfg, "enabled", rule_cls.DEFAULT_ENABLED)
 
 
+def _rule_config(cfg: Config, rule_cls):
+    """The rule's config block, with any settings it inherits resolved."""
+    return rule_cls.resolve_config(
+        cfg.rules, getattr(cfg.rules, rule_cls.CONFIG_KEY, None)
+    )
+
+
 def _active_rule_ids(cfg: Config, registry: list, select_patterns: list | None) -> set:
     """The rule IDs this run would report under, decided before any rule is built.
 
@@ -68,7 +75,7 @@ def _active_rule_ids(cfg: Config, registry: list, select_patterns: list | None) 
     return {
         rule_id
         for rule_cls, rule_id in registry
-        if _configured_enabled(rule_cls, getattr(cfg.rules, rule_cls.CONFIG_KEY, None))
+        if _configured_enabled(rule_cls, _rule_config(cfg, rule_cls))
     }
 
 
@@ -108,7 +115,7 @@ def create_rules(cfg: Config, select: str | None = None) -> tuple:
         config_key = rule_cls.CONFIG_KEY
 
         # Look up per-rule config from RulesConfig.
-        rule_cfg = getattr(cfg.rules, config_key, None)
+        rule_cfg = _rule_config(cfg, rule_cls)
 
         # --select overrides the enabled setting for the rules it matches, and
         # excludes every rule it does not.

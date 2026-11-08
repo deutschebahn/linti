@@ -72,6 +72,11 @@ class _RuleBase(ABC):
     # resolved to it (with a deprecation warning) wherever a rule is referenced
     # by ID — ``--select``, ``# noqa`` comments, and ``linti explain``.
     DEPRECATED_IDS: ClassVar[list[str]] = []
+    #: Rule IDs whose finding at the same position this rule's finding replaces.
+    #: A more concrete diagnosis (C152) wins over the general advice (C151) for
+    #: the same call. Applied after inline suppression, so suppressing this rule's
+    #: finding lets the superseded one through again.
+    SUPERSEDES: ClassVar[tuple[str, ...]] = ()
 
     #: Set by ``rule_factory`` from ``rules.<key>.severity``; ``None`` means
     #: "use whatever METADATA declares". Kept off METADATA itself because
@@ -112,6 +117,17 @@ class _RuleBase(ABC):
             List of rule instances.
         """
         return [cls()]
+
+    @classmethod
+    def resolve_config(cls, rules, rule_cfg):
+        """This rule's effective config, given the whole ``RulesConfig``.
+
+        The default is the rule's own block. Override when a rule inherits
+        settings from another rule's block (C151 falls back to C150's).
+        The rule factory uses the result both to decide whether the rule runs
+        and to build it.
+        """
+        return rule_cfg
 
     def reset(self) -> None:
         """Reset mutable state before a new lint pass. Override in stateful rules."""

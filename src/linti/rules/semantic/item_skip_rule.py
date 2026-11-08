@@ -26,7 +26,7 @@ class ItemSkipRule(BaseStatementRule):
         auto_fix=False,
         deprecated_by="C150",
         explanation=(
-            "Deprecated: use Misplaced Function (C150), configured via "
+            "Deprecated: use Invalid Function Placement (C150), configured via "
             "rules.misplaced_function. This rule remains available with its "
             "original ItemSkip-only behavior, but is disabled by default and "
             "is skipped with a warning whenever C150 is active, so the same "

@@ -54,6 +54,8 @@ rules:
 
   misplaced_function:
     enabled: true
-    # Set to false to report only the documented restrictions,
-    # keeping the recommendations out of the report.
-    report_not_recommended: true
+    # Functions to exempt from the placement check entirely.
+    allowed_functions: []
+
+  discouraged_function_placement:
+    enabled: true
