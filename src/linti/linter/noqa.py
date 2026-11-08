@@ -1,12 +1,11 @@
 """Parse and apply ``# noqa`` suppression directives.
 
 Supported formats (TI uses ``#`` for comments). Every directive must be a
-comment on its own line: a comment after code on the same line makes the
-process fail at runtime in TM1 (it still saves), so a trailing
+comment on its own line: a trailing comment (after code on the same line)
+makes the process fail at runtime in TM1 (it still saves), so a trailing
 ``nVar=1;  # noqa: F220`` is **not** a directive and is ignored (see issue #46).
-The one exception is ``noqa-end``: it is honoured anywhere, so a trailing end
-marker still closes its region instead of leaving it open to the end of the
-procedure. Closing a region can only ever suppress less.
+This applies to region markers too: a trailing ``noqa-end`` does not close its
+region. Rule P120 reports every trailing comment.
 
 1. **Standalone comment** – suppresses rules for the *next* code line::
 
@@ -37,9 +36,9 @@ from linti.lexer.token import Token, TokenType
 from linti.linter.lint_issue import LintIssue
 
 # Patterns (case-insensitive)
-_NOQA_INLINE_RE = re.compile(r"#\s*noqa\s*:\s*([A-Za-z0-9,\s]+)", re.IGNORECASE)
-_NOQA_BEGIN_RE = re.compile(r"#\s*noqa-begin\s*:\s*([A-Za-z0-9,\s]+)", re.IGNORECASE)
-_NOQA_END_RE = re.compile(r"#\s*noqa-end\s*:\s*([A-Za-z0-9,\s]+)", re.IGNORECASE)
+NOQA_INLINE_RE = re.compile(r"#\s*noqa\s*:\s*([A-Za-z0-9,\s]+)", re.IGNORECASE)
+NOQA_BEGIN_RE = re.compile(r"#\s*noqa-begin\s*:\s*([A-Za-z0-9,\s]+)", re.IGNORECASE)
+NOQA_END_RE = re.compile(r"#\s*noqa-end\s*:\s*([A-Za-z0-9,\s]+)", re.IGNORECASE)
 
 
 def _parse_rule_ids(raw: str) -> set[str]:
@@ -55,7 +54,7 @@ def _parse_rule_ids(raw: str) -> set[str]:
     return {resolve_and_warn(r.strip()) for r in raw.split(",") if r.strip()}
 
 
-def _is_standalone_comment(tokens: list[Token], comment_index: int) -> bool:
+def is_standalone_comment(tokens: list[Token], comment_index: int) -> bool:
     """Check if the comment token is on a line by itself (no code before it).
 
     A comment is standalone when everything before it on the same line is
@@ -108,8 +107,9 @@ def parse_noqa(tokens: list[Token]) -> NoqaDirectives:
     3. Then check for plain ``# noqa: …`` directives.
        - If the comment is *standalone* (nothing but whitespace before it on
          the line), it suppresses the **next code line**.
-       - A *trailing* comment (code precedes it on the line) is ignored:
-         a comment after code makes the process fail at runtime in TM1.
+       - A *trailing* comment (code precedes it on the line) is ignored,
+         region markers included: a trailing comment makes the process fail
+         at runtime in TM1.
     4. The first standalone ``# noqa: …`` that appears before any non-comment,
        non-whitespace, non-newline token is treated as a **procedure-level**
        suppression covering **all** lines.
@@ -137,23 +137,21 @@ def parse_noqa(tokens: list[Token]) -> NoqaDirectives:
 
         comment_text = token.value
 
-        # Directives must stand on their own line; a comment after code fails
+        # Directives must stand on their own line; a trailing comment fails
         # at runtime in TM1, so a trailing suppression comment suppresses nothing.
-        standalone = _is_standalone_comment(tokens, i)
+        if not is_standalone_comment(tokens, i):
+            continue
 
         # --- Region begin ---
-        m_begin = _NOQA_BEGIN_RE.search(comment_text)
+        m_begin = NOQA_BEGIN_RE.search(comment_text)
         if m_begin:
-            if standalone:
-                rule_ids = _parse_rule_ids(m_begin.group(1))
-                for rid in rule_ids:
-                    open_regions[rid] = token.line
+            rule_ids = _parse_rule_ids(m_begin.group(1))
+            for rid in rule_ids:
+                open_regions[rid] = token.line
             continue
 
         # --- Region end ---
-        # Honoured even when trailing: ignoring it would leave the region open
-        # to the end of the procedure and silently suppress everything after.
-        m_end = _NOQA_END_RE.search(comment_text)
+        m_end = NOQA_END_RE.search(comment_text)
         if m_end:
             rule_ids = _parse_rule_ids(m_end.group(1))
             for rid in rule_ids:
@@ -166,11 +164,8 @@ def parse_noqa(tokens: list[Token]) -> NoqaDirectives:
                         directives._suppress_line(line_no, {rid})
             continue
 
-        if not standalone:
-            continue
-
         # --- Plain noqa ---
-        m_inline = _NOQA_INLINE_RE.search(comment_text)
+        m_inline = NOQA_INLINE_RE.search(comment_text)
         if m_inline:
             rule_ids = _parse_rule_ids(m_inline.group(1))
 

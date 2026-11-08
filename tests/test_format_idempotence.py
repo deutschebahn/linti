@@ -100,6 +100,18 @@ def _significant_tokens(source: str):
     ]
 
 
+def _code_and_comments(source: str):
+    """Like :func:`_significant_tokens`, but comments compared as a multiset.
+
+    P120 moves a comment that trails code onto its own line above, which
+    reorders the comment against the code without changing what either says.
+    """
+    tokens = _significant_tokens(source)
+    code = [t for t in tokens if t[0].name != "COMMENT"]
+    comments = sorted(t[1] for t in tokens if t[0].name == "COMMENT")
+    return code, comments
+
+
 def _sources():
     yield from CORPUS.items()
     for path in sorted(EXAMPLE_DIR.glob("*.ti")):
@@ -158,4 +170,4 @@ def test_every_rule_group_converges_together(source):
     twice, _ = apply_fixes_iteratively(once, linter)
 
     assert twice == once
-    assert _significant_tokens(once) == _significant_tokens(source)
+    assert _code_and_comments(once) == _code_and_comments(source)

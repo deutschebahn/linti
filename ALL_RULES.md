@@ -77,6 +77,7 @@ Rule IDs consist of a letter indicating the rule group, followed by a 3-digit nu
 | Rule ID | Rule Name | Description | Auto-fix | Severity |
 |---------|-----------|-------------|----------|----------|
 | P110 | Unparseable Statement | Flags statements that could not be parsed, warning that linting quality is reduced for that code | ❌ | warning |
+| P120 | Trailing Comment | Flags trailing comments that follow code on the same line | ✅ | error |
 | P900 | Maximum Nesting Depth Exceeded | Flags a procedure whose statement or expression nesting exceeded the configured limit, stopping the parser before it could build a full AST for that section | ❌ | warning |
 
 ## Rule Details
@@ -1289,6 +1290,40 @@ nValue = 1
 
 ---
 
+### P120: Trailing Comment
+
+Flags trailing comments that follow code on the same line.
+
+**✨ Auto-fix available:** Use `linti --auto-fix` to automatically fix issues.
+
+TI only allows a comment on a line of its own. A trailing comment after code on the same line (`nVar = 1; # note`) is saved by TM1 without an error, but the process fails when it runs.
+
+This also applies to suppression comments: a trailing `# noqa: F220` has no effect, because linti only honours `noqa` directives on their own line.
+
+The auto-fix moves the comment onto its own line directly above the code, with the same indentation, so a moved `# noqa` starts working for exactly that line. It is left to you when moving could change meaning: on a continuation line of a multi-line statement, for a `noqa-begin`/`noqa-end` marker (the region would shift), and for a `# noqa` on the first code line (it would turn into a procedure-wide suppression).
+
+**Configuration:**
+```yaml
+rules:
+  trailing_comment:
+    enabled: true
+```
+
+**Valid usage:**
+```ti
+# Comment on its own line
+# Initialise the counter
+nVar = 1;
+```
+
+**Invalid usage:**
+```ti
+# Trailing comment fails at runtime in TM1
+nVar = 1; # Initialise the counter
+```
+
+---
+
 ### P900: Maximum Nesting Depth Exceeded
 
 Flags a procedure whose statement or expression nesting exceeded the configured limit, stopping the parser before it could build a full AST for that section.
@@ -1488,6 +1523,9 @@ rules:
   unknown_statement:
     enabled: true
     severity: warning
+
+  trailing_comment:
+    enabled: true
 
   nesting_depth:
     enabled: true    # hides the diagnostic only — the cap always applies
