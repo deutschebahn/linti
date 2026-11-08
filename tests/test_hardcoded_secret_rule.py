@@ -101,7 +101,7 @@ class TestDetection:
         assert len(_lint(code)) == 1
 
     def test_noqa_suppresses_the_finding(self):
-        code = "sPassword = 'REPLACE_ME';  # noqa: X130"
+        code = "# noqa: X130\nsPassword = 'REPLACE_ME';"
         assert _lint(code) == []
 
 

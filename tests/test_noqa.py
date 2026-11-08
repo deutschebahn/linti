@@ -175,24 +175,42 @@ class TestFilterIssues:
 # ---------------------------------------------------------------------------
 
 
-class TestParseNoqaInline:
-    """Trailing (inline) comment: ``code; # noqa: RULE``"""
+class TestParseNoqaTrailing:
+    """Trailing comment ``code; # noqa: RULE`` is not a directive (issue #46).
 
-    def test_inline_suppresses_current_line(self):
-        code = "if(nVar = 1); # noqa: F110"
-        tokens = _tokenize(code)
-        directives = parse_noqa(tokens)
-        # The 'if' keyword is on line 1
-        assert directives.is_suppressed("F110", 1) is True
-        assert directives.is_suppressed("F110", 2) is False
+    A comment after code makes the process fail at runtime in TM1, so linti must
+    not encourage that placement by honouring it.
+    """
 
-    def test_inline_multiple_rules(self):
-        code = "nVar=1; # noqa: F220, N110"
-        tokens = _tokenize(code)
-        directives = parse_noqa(tokens)
-        assert directives.is_suppressed("F220", 1) is True
-        assert directives.is_suppressed("N110", 1) is True
-        assert directives.is_suppressed("C220", 1) is False
+    def test_trailing_noqa_suppresses_nothing(self):
+        code = "nVar = 1;\nif(nVar = 1); # noqa: F110\nnVar = 2;"
+        directives = parse_noqa(_tokenize(code))
+        assert directives.line_suppressions == {}
+        assert directives.global_suppressions == set()
+
+    def test_trailing_noqa_on_first_line_is_not_procedure_level(self):
+        directives = parse_noqa(_tokenize("nVar=1; # noqa: F220, N110"))
+        assert directives.is_suppressed("F220", 1) is False
+        assert directives.is_suppressed("N110", 1) is False
+        assert directives.global_suppressions == set()
+
+    def test_trailing_region_end_still_closes_the_region(self):
+        code = (
+            "# noqa-begin: F110\n"
+            "if(nVar = 1);\n"
+            "endif; # noqa-end: F110\n"
+            "if(nVar = 2);\n"
+            "endif;\n"
+        )
+        directives = parse_noqa(_tokenize(code))
+        assert all(directives.is_suppressed("F110", n) for n in (1, 2, 3))
+        assert not directives.is_suppressed("F110", 4)
+        assert not directives.is_suppressed("F110", 5)
+
+    def test_trailing_region_markers_are_ignored(self):
+        code = "nVar = 1; # noqa-begin: F110\nif(nVar = 1);\nendif; # noqa-end: F110\n"
+        directives = parse_noqa(_tokenize(code))
+        assert directives.line_suppressions == {}
 
 
 class TestParseNoqaStandalone:
@@ -322,19 +340,17 @@ class TestParseNoqaRegion:
 class TestNoqaIntegration:
     """End-to-end tests through the Linter pipeline."""
 
-    def test_inline_suppresses_casing_issue(self):
+    def test_trailing_noqa_does_not_suppress(self):
         code = "if(nVar = 1); # noqa: F110\nENDIF;"
         issues = _lint(code)
-        # 'if' on line 1 is suppressed; 'ENDIF' on line 2 should still flag
-        # Actually with uppercase rule — 'if' is the violation, 'ENDIF' is fine
-        assert "F110" not in [i.rule_id for i in issues if i.line == 1]
+        assert "F110" in [i.rule_id for i in issues if i.line == 1]
 
     def test_diagnostics_report_the_canonical_rule_id(self):
         """A renamed rule reports its new ID, and that ID suppresses it."""
         rules = [WhitespaceAroundOperatorsRule()]
         issues = _lint("nVar=1;", rules=rules)
         assert issues and {i.rule_id for i in issues} == {"F220"}
-        assert _lint("nVar=1; # noqa: F220", rules=rules) == []
+        assert _lint("# noqa: F220\nnVar=1;", rules=rules) == []
 
     def test_deprecated_id_suppresses_the_canonical_rule(self):
         """An old ID keeps working for one deprecation cycle, with a warning."""
@@ -345,7 +361,7 @@ class TestNoqaIntegration:
         assert [i.rule_id for i in linter.lint(tokens)] == ["C120"]
 
         tokens = _tokenize(
-            code.replace("ProcessQuit();", "ProcessQuit(); # noqa: S110")
+            code.replace("ProcessQuit();", "# noqa: S110\nProcessQuit();")
         )
         with pytest.warns(LintiConfigWarning, match="S110 is deprecated"):
             issues = linter.lint(tokens)
@@ -381,7 +397,7 @@ class TestNoqaIntegration:
         assert len(f110_issues) == 0
 
     def test_noqa_does_not_affect_other_rules(self):
-        code = "count = 1; # noqa: F110"
+        code = "# noqa: F110\ncount = 1;"
         rules = [KeywordCasingRule(style="uppercase")]
         stmt_rules = [VariablePrefixRule()]
         tokens = _tokenize(code)
@@ -398,7 +414,7 @@ class TestNoqaIntegration:
         assert len(issues) > 0
 
     def test_case_insensitive_noqa(self):
-        code = "if(nVar = 1); # NOQA: f110\nENDIF;"
+        code = "nVar = 1;\n# NOQA: f110\nif(nVar = 1);\nENDIF;"
         issues = _lint(code)
-        line1_f110 = [i for i in issues if i.rule_id == "F110" and i.line == 1]
-        assert len(line1_f110) == 0
+        suppressed_f110 = [i for i in issues if i.rule_id == "F110" and i.line == 3]
+        assert len(suppressed_f110) == 0

@@ -1,24 +1,26 @@
 """Parse and apply ``# noqa`` suppression directives.
 
-Supported formats (TI uses ``#`` for comments):
+Supported formats (TI uses ``#`` for comments). Every directive must be a
+comment on its own line: a comment after code on the same line makes the
+process fail at runtime in TM1 (it still saves), so a trailing
+``nVar=1;  # noqa: F220`` is **not** a directive and is ignored (see issue #46).
+The one exception is ``noqa-end``: it is honoured anywhere, so a trailing end
+marker still closes its region instead of leaving it open to the end of the
+procedure. Closing a region can only ever suppress less.
 
-1. **Inline (trailing) comment** – suppresses rules for the current line::
-
-    nVar=1;  # noqa: F220
-
-2. **Standalone comment** – suppresses rules for the *next* code line::
+1. **Standalone comment** – suppresses rules for the *next* code line::
 
        # noqa: F110
        if(nVar = 1);
 
-3. **Procedure-level** – the *first* ``# noqa`` comment in a procedure
+2. **Procedure-level** – the *first* ``# noqa`` comment in a procedure
    (before any code) suppresses rules for the **entire** procedure/file::
 
        # noqa: X110,C310
        ExecuteCommand(sCmd, 1);
        RunProcess(pProcess);
 
-4. **Region begin / end** – suppresses rules for all lines in between::
+3. **Region begin / end** – suppresses rules for all lines in between::
 
        # noqa-begin: F110
        if(nVar = 1);
@@ -106,8 +108,8 @@ def parse_noqa(tokens: list[Token]) -> NoqaDirectives:
     3. Then check for plain ``# noqa: …`` directives.
        - If the comment is *standalone* (nothing but whitespace before it on
          the line), it suppresses the **next code line**.
-       - If the comment is *trailing* (code precedes it on the line),
-         it suppresses the **current line**.
+       - A *trailing* comment (code precedes it on the line) is ignored:
+         a comment after code makes the process fail at runtime in TM1.
     4. The first standalone ``# noqa: …`` that appears before any non-comment,
        non-whitespace, non-newline token is treated as a **procedure-level**
        suppression covering **all** lines.
@@ -135,15 +137,22 @@ def parse_noqa(tokens: list[Token]) -> NoqaDirectives:
 
         comment_text = token.value
 
+        # Directives must stand on their own line; a comment after code fails
+        # at runtime in TM1, so a trailing suppression comment suppresses nothing.
+        standalone = _is_standalone_comment(tokens, i)
+
         # --- Region begin ---
         m_begin = _NOQA_BEGIN_RE.search(comment_text)
         if m_begin:
-            rule_ids = _parse_rule_ids(m_begin.group(1))
-            for rid in rule_ids:
-                open_regions[rid] = token.line
+            if standalone:
+                rule_ids = _parse_rule_ids(m_begin.group(1))
+                for rid in rule_ids:
+                    open_regions[rid] = token.line
             continue
 
         # --- Region end ---
+        # Honoured even when trailing: ignoring it would leave the region open
+        # to the end of the procedure and silently suppress everything after.
         m_end = _NOQA_END_RE.search(comment_text)
         if m_end:
             rule_ids = _parse_rule_ids(m_end.group(1))
@@ -157,23 +166,22 @@ def parse_noqa(tokens: list[Token]) -> NoqaDirectives:
                         directives._suppress_line(line_no, {rid})
             continue
 
+        if not standalone:
+            continue
+
         # --- Plain noqa ---
         m_inline = _NOQA_INLINE_RE.search(comment_text)
         if m_inline:
             rule_ids = _parse_rule_ids(m_inline.group(1))
-            standalone = _is_standalone_comment(tokens, i)
 
-            if standalone and not seen_code:
+            if not seen_code:
                 # Procedure-level suppression (first comment before any code)
                 directives.global_suppressions.update(rule_ids)
-            elif standalone:
+            else:
                 # Standalone comment → suppress next code line
                 next_code_line = _find_next_code_line(tokens, i)
                 if next_code_line is not None:
                     directives._suppress_line(next_code_line, rule_ids)
-            else:
-                # Trailing (inline) comment → suppress current line
-                directives._suppress_line(token.line, rule_ids)
 
     # Any still-open regions extend to end-of-file — suppress remaining lines
     if open_regions:

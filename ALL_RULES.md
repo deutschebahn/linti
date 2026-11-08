@@ -1015,7 +1015,7 @@ Some TI functions exist in the engine but are missing from IBM's documentation �
 
 Matching is case-insensitive, and calls are found wherever they appear — including inside IF/WHILE conditions and nested arguments. Because TI makes the parentheses optional on a no-argument call, `LockOn;` is reported just like `LockOn();`. A name merely read as a variable is not a call and is never reported.
 
-When the use is intentional, suppress the finding inline with `# noqa: C430` (region- and procedure-level suppression works too), or list the function under `allowed_functions` to permit it across the whole project.
+When the use is intentional, suppress the finding with a `# noqa: C430` comment on the line above (region- and procedure-level suppression works too), or list the function under `allowed_functions` to permit it across the whole project.
 
 **Configuration:**
 ```yaml
@@ -1167,7 +1167,7 @@ Keeping the credential in a control cube and reading it back with CellGetS() is 
 
 A variable is considered secret-looking when its name contains one of the configured fragments, matched case-insensitively (so `sPassword`, `vApiKey` and `sPwd_Prod` all qualify). It is reported when the value is provably a non-empty string — whether written directly, folded from a concatenation (`'let' | 'mein'`) or carried over from another variable that holds a literal — or when it comes from a direct cube read. For the most unambiguous fragments (`password`, `apikey`, `token`, ... — the `standard` preset) a numeric literal such as `sPassword = 12345;` counts too, since a PIN is still a hardcoded secret; the generic `strict`-only fragments (`key`, `auth`, `cert`, ...) and custom `secret_names` stay string-only, since those names are just as commonly an ordinary integer. Whatever cannot be resolved statically is left alone: parameters, datasource variables and other function results. So are half-known values such as `sPassword = 'prefix_' | pDyn;`, where the secret itself may well be dynamic, and the common `sPassword = '';` initialisation.
 
-Neither the value nor the cube coordinates ever appear in linti's output — reports often end up in CI logs. Widen or narrow the name detection with `mode`, extend it with `secret_names`, or suppress a single finding inline with `# noqa: X130`.
+Neither the value nor the cube coordinates ever appear in linti's output — reports often end up in CI logs. Widen or narrow the name detection with `mode`, extend it with `secret_names`, or suppress a single finding with a `# noqa: X130` comment on the line above.
 
 **Configuration:**
 ```yaml
