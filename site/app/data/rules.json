@@ -852,7 +852,7 @@
     "auto_fix": false,
     "enabled_by_default": false,
     "config_key": "item_skip",
-    "explanation": "Deprecated: use Misplaced Function (C150), configured via rules.misplaced_function. This rule remains available with its original ItemSkip-only behavior, but is disabled by default and is skipped with a warning whenever C150 is active, so the same ItemSkip is never reported twice. Selecting C130 (or its alias S120) explicitly still runs it.\n\nEnforces that ItemSkip() is only used in metadata or data sections of TM1 TI processes.\n\nTM1 TI processes have four execution blocks:\n- Prolog: Executes once before processing records\n- Metadata: Processes dimension metadata records\n- Data: Processes cube data records\n- Epilog: Executes once after all records\n\nItemSkip() skips the current record, which only makes sense in Metadata and Data sections. Using it in Prolog or Epilog is a logic error.",
+    "explanation": "Deprecated: use Invalid Function Placement (C150), configured via rules.misplaced_function. This rule remains available with its original ItemSkip-only behavior, but is disabled by default and is skipped with a warning whenever C150 is active, so the same ItemSkip is never reported twice. Selecting C130 (or its alias S120) explicitly still runs it.\n\nEnforces that ItemSkip() is only used in metadata or data sections of TM1 TI processes.\n\nTM1 TI processes have four execution blocks:\n- Prolog: Executes once before processing records\n- Metadata: Processes dimension metadata records\n- Data: Processes cube data records\n- Epilog: Executes once after all records\n\nItemSkip() skips the current record, which only makes sense in Metadata and Data sections. Using it in Prolog or Epilog is a logic error.",
     "config_example": "rules:\n  item_skip:\n    # Deprecated: prefer rules.misplaced_function (C150), which\n    # takes precedence whenever both rules are active.\n    enabled: true",
     "default_config": "rules:\n  item_skip:\n    enabled: false\n    severity: error\n",
     "deprecated_by": "C150",
@@ -926,16 +926,16 @@
   },
   {
     "id": "C150",
-    "name": "Misplaced Function",
-    "description": "Detects TI functions used in invalid or not recommended procedure sections",
+    "name": "Invalid Function Placement",
+    "description": "Detects TI functions used in a procedure section where they are not allowed",
     "group": "C",
     "group_name": "Code Quality Rules",
     "severity": "error",
     "auto_fix": false,
     "enabled_by_default": true,
     "config_key": "misplaced_function",
-    "explanation": "Checks function calls against the Prolog, Metadata, Data and Epilog sections. Both a placement IBM documents as invalid and one this project does not recommend are reported; valid placement produces no diagnostic.\n\n- DimensionElementInsert / HierarchyElementInsert: valid in Prolog/Metadata; invalid in Data/Epilog.\n- DimensionElementComponentAdd / HierarchyElementComponentAdd: valid in Prolog/Metadata/Data; invalid in Epilog.\n- DisableBulkLoadMode: valid in the Epilog; invalid in Prolog/Metadata/Data, because bulk load mode has to stay on for the whole process. IBM asks for it in the Epilog's last line; that position is not checked.\n- AttrPutS / AttrPutN / ElementAttrPutS / ElementAttrPutN: valid in Prolog/Data/Epilog; not recommended in Metadata. This is an advisory recommendation, not an IBM prohibition: write attributes after newly created elements have been committed.\n- AddClient / DeleteClient / AddGroup / DeleteGroup / CellSecurityCubeCreate / CellSecurityCubeDestroy: valid in Prolog/Metadata; not recommended in Data/Epilog, where administrative changes run per record or after the load.\n- Dimension and Hierarchy Direct functions: ElementInsertDirect, ElementDeleteDirect, ElementComponentAddDirect, ElementComponentDeleteDirect, TopElementInsertDirect and UpdateDirect are unrestricted in all four sections. IBM describes direct edits during Data loads; they do not inherit the non-Direct functions' restrictions.\n- ItemSkip: valid in Metadata/Data; invalid in Prolog/Epilog.\n\nRestrictions are function-specific. ElementDelete, ElementComponentDelete and TopElementInsert are not automatically restricted like ElementInsert. See docs/function-placement.md for the IBM sources and the distinction between documented restrictions and LinTi recommendations.\n\nFunction matching is case-insensitive. Unknown functions and code without a known procedure section are not reported. Calls inside expressions and nested control flow are checked too. Statements the parser could not read are skipped.\n\nFindings fail the run like any other error. Two settings narrow the rule instead of switching it off wholesale:\n- report_not_recommended: false reports only the documented restrictions. Use it when the recommendations do not match how the project loads its data.\n- allowed_functions lists functions to exempt from the check in every section, for a placement this project disagrees with.\n\nrules.misplaced_function.severity reweighs the whole rule, as everywhere else.\n\nSupersedes ItemSkip Block Usage (C130), which is disabled by default and skipped with a warning whenever this rule is active, so the same ItemSkip is never reported twice. Selecting C130 (or its alias S120) explicitly still runs the legacy ItemSkip-only rule with its own rules.item_skip settings.",
-    "config_example": "rules:\n  misplaced_function:\n    enabled: true\n    # Set to false to report only the documented restrictions,\n    # keeping the recommendations out of the report.\n    report_not_recommended: true\n    # Functions to exempt from the placement check entirely.\n    allowed_functions: []",
+    "explanation": "Checks function calls against the Prolog, Metadata, Data and Epilog sections and reports a placement the IBM function reference documents as invalid. Valid placement produces no diagnostic.\n\n- DimensionElementInsert / HierarchyElementInsert: valid in Prolog/Metadata; invalid in Data/Epilog.\n- DimensionElementComponentAdd / HierarchyElementComponentAdd: valid in Prolog/Metadata/Data; invalid in Epilog.\n- DisableBulkLoadMode: valid in the Epilog; invalid in Prolog/Metadata/Data, because bulk load mode has to stay on for the whole process. IBM asks for it in the Epilog's last line; that position is not checked.\n- AddInfoCubeRestriction: valid in the Prolog only (IBM: \"must be placed in the Prolog\").\n- DisableMTQViewConstruct: invalid in Metadata/Data. IBM wants it in the Prolog, where it is the only place it has an effect, or, after EnableMTQViewConstruct, on the Epilog's last line; that position is not checked.\n- Dimension and Hierarchy Direct functions: ElementInsertDirect, ElementDeleteDirect, ElementComponentAddDirect, ElementComponentDeleteDirect and TopElementInsertDirect are unrestricted in all four sections. IBM describes direct edits during Data loads; they do not inherit the non-Direct functions' restrictions.\n- ItemSkip: valid in Metadata/Data; invalid in Prolog/Epilog.\n\nRestrictions are function-specific. ElementDelete, ElementComponentDelete and TopElementInsert are not automatically restricted like ElementInsert. See docs/function-placement.md for the IBM sources.\n\nPlacements that are only discouraged (for example attribute writes in Metadata, security changes in Data/Epilog, once-per-process operations in Metadata/Data) are reported as warnings by Discouraged Function Placement (C151), which shares this rule's placement table. `--select C15` runs both. Before C151 existed, this rule reported those recommendations as errors; a `# noqa: C150` no longer suppresses them, use `# noqa: C151`.\n\nFunction matching is case-insensitive. Unknown functions and code without a known procedure section are not reported. Calls inside expressions and nested control flow are checked too. Statements the parser could not read are skipped.\n\nallowed_functions lists functions to exempt from the check in every section, for a placement this project disagrees with. C151 falls back to this list when it sets none of its own.\n\nSupersedes ItemSkip Block Usage (C130), which is disabled by default and skipped with a warning whenever this rule is active, so the same ItemSkip is never reported twice. Selecting C130 (or its alias S120) explicitly still runs the legacy ItemSkip-only rule with its own rules.item_skip settings.",
+    "config_example": "rules:\n  misplaced_function:\n    enabled: true\n    # Functions to exempt from the placement check entirely.\n    allowed_functions: []",
     "default_config": "rules:\n  misplaced_function:\n    enabled: true\n    severity: error\n    report_not_recommended: true\n    allowed_functions: []\n",
     "deprecated_by": null,
     "previous_ids": [],
@@ -952,8 +952,8 @@
         "datasource_query": null
       },
       {
-        "code": "AttrPutS(vDescription, 'Product', vProduct, 'Description');",
-        "description": "Data: write the attribute after Metadata completes",
+        "code": "DimensionElementInsertDirect('Product', '', vProduct, 'N');",
+        "description": "Data: the Direct variant has no section restriction",
         "valid": true,
         "procedure": "data",
         "config": "",
@@ -985,6 +985,17 @@
         "datasource_query": null
       },
       {
+        "code": "DimensionElementInsert('Product', '', vProduct, 'N');",
+        "description": "Data: invalid placement",
+        "valid": false,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
         "code": "DisableBulkLoadMode();",
         "description": "Data: invalid placement",
         "valid": false,
@@ -996,10 +1007,329 @@
         "datasource_query": null
       },
       {
-        "code": "AttrPutS(vDescription, 'Product', vProduct, 'Description');",
-        "description": "Metadata: not recommended placement",
+        "code": "AddInfoCubeRestriction('Sales', 'Version', 'Actual');",
+        "description": "Metadata: IBM requires the Prolog",
         "valid": false,
         "procedure": "metadata",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C151",
+    "name": "Discouraged Function Placement",
+    "description": "Warns about TI functions in a procedure section where they are allowed but discouraged",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "warning",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "discouraged_function_placement",
+    "explanation": "Reports a placement that is allowed but recommended against. It shares the placement table of Invalid Function Placement (C150), which reports the documented restrictions as errors. `--select C15` runs both.\n\n- AttrPutS / AttrPutN / ElementAttrPutS / ElementAttrPutN: discouraged in Metadata. Buffered dimension changes become visible only after the Metadata procedure finishes, so writing attributes in Data avoids referring to elements still being created. Updating elements that already exist can be intentional in Metadata. When the element is provably new, Element Used Before Available (C152) reports the concrete error instead of this warning.\n- AddClient / DeleteClient / AddGroup / DeleteGroup / CellSecurityCubeCreate / CellSecurityCubeDestroy: discouraged in Data/Epilog. Their IBM references say that, like all functions that update metadata, they should not be used in the Data or Epilog tabs. Client and group changes take effect only after the Metadata procedure has finished.\n- DimensionUpdateDirect / HierarchyUpdateDirect: discouraged in Metadata/Data. IBM: the call \"incurs an initial full-copy memory cost\", which these sections pay once per source record.\n- DimensionDeleteAllElements / DimensionDeleteElements / HierarchyDeleteAllElements / HierarchyDeleteElements: valid in the Prolog only. Emptying a dimension per record or after the load discards what the process builds.\n- Once-per-process operations, discouraged in Metadata/Data because they run once per source record: CubeClearData, ViewZeroOut, CubeProcessFeeders, SecurityRefresh, SaveDataAll, CubeSaveData, CubeCreate/Destroy, DimensionCreate/Destroy, HierarchyCreate/Destroy, ViewCreate/Destroy, ViewCreateByMDX, SubsetCreate/Destroy, SubsetCreateByMDX, RefreshMdxHierarchy, CubeSetLogChanges, EnableBulkLoadMode, ASCIIDelete, DimensionSortOrder, HierarchySortOrder.\n- EnableMTQViewConstruct: discouraged in Metadata/Data. IBM: \"You can enable EnableMTQViewConstruct in either the Prolog or Epilog section\".\n- SetInputCharacterSet: valid in the Prolog only. It describes the data source, which is opened when the Prolog ends.\n\nThe UpdateDirect, dimension-emptying and once-per-process entries are discouraged in Metadata/Data only because those sections repeat them per source record. A call inside an IF or ELSE body is not reported there when the condition can differ between records, because it then selects the records the call runs for (a header line, the first record). That needs a data source variable in the condition, or a variable Metadata or Data assign a value that is not provably constant, such as a record counter. A condition on parameters, constants or Prolog values is the same on every record and does not count. A call in the IF's own condition, or in a WHILE outside any IF, is still reported.\n\nThe security, UpdateDirect and MTQ entries rest on the IBM references; the others are LinTi recommendations. See docs/function-placement.md.\n\nThese recommendations used to be C150 errors. They are now warnings under their own ID, so a `# noqa: C150` no longer suppresses them; use `# noqa: C151`.\n\nallowed_functions exempts functions in every section. Unless this rule sets its own list, it uses rules.misplaced_function.allowed_functions. The deprecated rules.misplaced_function.report_not_recommended: false switches this rule off as long as rules.discouraged_function_placement.enabled is not set.",
+    "config_example": "rules:\n  discouraged_function_placement:\n    enabled: true\n    # Functions to exempt; unset falls back to\n    # rules.misplaced_function.allowed_functions.\n    allowed_functions: []",
+    "default_config": "rules:\n  discouraged_function_placement:\n    enabled: true\n    severity: warning\n    allowed_functions: null\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "AttrPutS(vDescription, 'Product', vProduct, 'Description');",
+        "description": "Data: write the attribute after Metadata completes",
+        "valid": true,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "AddGroup('Planners');",
+        "description": "Prolog: set security up before the load",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "AttrPutS(vDescription, 'Product', vProduct, 'Description');",
+        "description": "Metadata: discouraged placement",
+        "valid": false,
+        "procedure": "metadata",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "AddGroup(vGroup);",
+        "description": "Data: runs once per source record",
+        "valid": false,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "ViewZeroOut('Sales', 'Zero');",
+        "description": "Prolog: clear the target once before the load",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "IF(SubsetExists(vDim, 'tmp') = 0);\n    SubsetCreate(vDim, 'tmp');\nENDIF;",
+        "description": "Data: the condition limits the call to some records",
+        "valid": true,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [
+          "vDim"
+        ],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "ViewZeroOut('Sales', 'Zero');",
+        "description": "Data: clears the view again for every record",
+        "valid": false,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "IF(pZero = 1);\n    ViewZeroOut('Sales', 'Zero');\nENDIF;",
+        "description": "Data: a parameter is the same on every record",
+        "valid": false,
+        "procedure": "data",
+        "config": "",
+        "parameters": [
+          "pZero"
+        ],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C152",
+    "name": "Element Used Before Available",
+    "description": "Detects cube access to an element whose buffered insert is not yet available",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "element_used_before_available",
+    "explanation": "DimensionElementInsert and HierarchyElementInsert are buffered. The new element is in the dimension index at once, so DIMIX already finds it, but cubes, including }ElementAttributes_<dimension>, can address it only after the Metadata phase has ended. Until then an attribute write is lost and a read returns no value; the process only ends with minor errors.\n\nThe phase spans Prolog and Metadata: an element inserted in the Prolog is still unreachable in Metadata, on every source record. Once a buffered insert has run, an element inserted later in the same dimension is unreachable as well, even when a Direct insert created it. Elements that already existed are not affected.\n\nThe rule reports only what it can prove on one execution path:\n- the element is new: the insert sits in an IF branch whose condition establishes DIMIX(dim, el) = 0 or ElementIndex(dim, hier, el) = 0 for the same element;\n- the access targets the same dimension, hierarchy and element: equal literals, or the same variable not reassigned in between;\n- the insert is pending on every path to the access. A path that ends first (ProcessQuit, ProcessError, ProcessBreak, ItemReject, ItemSkip, a rollback) does not count.\n\nChecked writes: AttrPutS/N, ElementAttrPutS/N, and CellPutS/N to a }ElementAttributes_<dimension> cube. Checked reads: AttrS/N, ElementAttrS/N, and CellGetS/N from such a cube. Other cubes are skipped, because their dimension order is unknown. A Direct insert makes the element addressable at once, as long as no buffered insert into that dimension ran before it. Data and Epilog are fine, since the phase has ended by then.\n\nFor the same call this finding replaces the general Discouraged Function Placement (C151) warning. Suppressing it with `# noqa: C152` lets the C151 warning through again.\n\nFix it by moving the access to Data, or by inserting the element with the Direct variant, before any buffered insert into the dimension, if that fits the process.",
+    "config_example": "rules:\n  element_used_before_available:\n    enabled: true",
+    "default_config": "rules:\n  element_used_before_available:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "IF(DIMIX('Product', vProduct) = 0);\n    DimensionElementInsert('Product', '', vProduct, 'N');\nENDIF;",
+        "description": "Metadata: only create the element",
+        "valid": true,
+        "procedure": "metadata",
+        "config": "",
+        "parameters": [],
+        "variables": [
+          "vProduct"
+        ],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "IF(DIMIX('Product', vProduct) = 0);\n    DimensionElementInsertDirect('Product', '', vProduct, 'N');\n    AttrPutS(vName, 'Product', vProduct, 'Caption');\nENDIF;",
+        "description": "Metadata: a direct insert is addressable at once",
+        "valid": true,
+        "procedure": "metadata",
+        "config": "",
+        "parameters": [],
+        "variables": [
+          "vProduct",
+          "vName"
+        ],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "IF(DIMIX('Product', vProduct) = 0);\n    DimensionElementInsert('Product', '', vProduct, 'N');\n    AttrPutS(vName, 'Product', vProduct, 'Caption');\nENDIF;",
+        "description": "Metadata: the attribute cube cannot address the new element yet",
+        "valid": false,
+        "procedure": "metadata",
+        "config": "",
+        "parameters": [],
+        "variables": [
+          "vProduct",
+          "vName"
+        ],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "IF(DIMIX('Product', 'Total') = 0 & DIMIX('Product', 'Other') = 0);\n    DimensionElementInsert('Product', '', 'Total', 'C');\n    DimensionElementInsertDirect('Product', '', 'Other', 'N');\n    AttrPutS('Other', 'Product', 'Other', 'Caption');\nENDIF;",
+        "description": "Prolog: a buffered insert ran first, so the direct one waits too",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C153",
+    "name": "Data Source Usage",
+    "description": "Detects Metadata/Data code that never runs without a data source, and data sources nothing uses",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "warning",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "data_source_usage",
+    "explanation": "Metadata and Data run once per data source record. The rule compares the data source in effect when Prolog ends with the executable code in Metadata and Data. That data source is the one in the process properties, followed through statically provable Prolog assignments to DatasourceType, so a data source set up in Prolog counts like one in the properties.\n\n- Code without data source: the effective data source is None, but Metadata or Data contains executable code, which is skipped. Reported once per process, at the first affected statement, naming every affected section.\n- Unused data source: a data source is in effect, but Metadata and Data are both empty. Reported at the Prolog assignment to DatasourceType when there is one, else at the start of the process. A drill-through use (ReturnSQLTableHandle, ReturnViewHandle, ReturnCSVTableHandle) counts as use. Set check_unused_source: false to turn this finding off.\n- Data source without variables: the process is saved without a data source and declares no variables, but Prolog turns one on by assigning DatasourceType while Metadata or Data contain code. The variables belong to the saved definition, so the records arrive with nothing to read their columns into, and tools that read the saved definition do not see the data source. Reported at the Prolog assignment. Save the process with its data source and variables, and keep Prolog for choosing which file, view or query it reads. Set check_runtime_source: false to turn this finding off.\n\nComments, blank lines and bare section markers count as empty; generated statements count as code. When the data source cannot be determined (a plain .ti file without process properties and without a provable Prolog assignment, a DatasourceType assigned from a parameter or inside a branch, or an unparseable Prolog statement mentioning DatasourceType), the rule stays silent. The fix is manual: move the code, set up the data source, or remove it.",
+    "config_example": "rules:\n  data_source_usage:\n    enabled: true\n    severity: warning\n    # Set to false to drop the unused-data-source finding.\n    check_unused_source: true\n    # Set to false to drop the data-source-without-variables finding.\n    check_runtime_source: true",
+    "default_config": "rules:\n  data_source_usage:\n    enabled: true\n    severity: warning\n    check_unused_source: true\n    check_runtime_source: true\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "nCount = nCount + 1;",
+        "description": "Data runs once per record of the ASCII file",
+        "valid": true,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": "ASCII",
+        "datasource_query": null
+      },
+      {
+        "code": "ExecuteProcess('load.sales');",
+        "description": "Prolog-only process without a data source",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": "None",
+        "datasource_query": null
+      },
+      {
+        "code": "nCount = nCount + 1;",
+        "description": "Data is skipped, there is no data source",
+        "valid": false,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": "None",
+        "datasource_query": null
+      },
+      {
+        "code": "ExecuteProcess('load.sales');",
+        "description": "An ASCII data source that Metadata and Data never read",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": "ASCII",
+        "datasource_query": null
+      }
+    ]
+  },
+  {
+    "id": "C154",
+    "name": "Data Source Assigned After Prolog",
+    "description": "Detects assignments to data source variables in Metadata, Data or Epilog",
+    "group": "C",
+    "group_name": "Code Quality Rules",
+    "severity": "error",
+    "auto_fix": false,
+    "enabled_by_default": true,
+    "config_key": "data_source_assigned_after_prolog",
+    "explanation": "IBM runs the Prolog before the data source is opened; Metadata and Data then process its records. Assigning a data source variable such as DatasourceQuery, DatasourceNameForServer or DatasourceType is how a process chooses its source at run time, and that only works in the Prolog. In Metadata, Data or Epilog the source has already been opened, so the assignment does not change what the process reads. A filtered query set in Data, for example, leaves the process loading the unfiltered original.\n\nChecked variables are the data source variables of the IBM reference: DatasourceType, DatasourceNameForServer, DatasourceNameForClient, DatasourceQuery, DatasourceUsername, DatasourcePassword, DatasourceCubeview, DatasourceDimensionSubset, DatasourceJsonRootPointer and DatasourceJsonVariableMapping. Matching is case-insensitive. Reading them anywhere is fine.\n\nThe DatasourceASCII* settings are not checked: ASCIIOutput and TextOutput also use DatasourceASCIIDelimiter and DatasourceASCIIQuoteCharacter for the records they write, so setting them later to shape an export file is legitimate.\n\nIBM documents the order, not the effect of a late assignment; that the assignment is ignored follows from it.\n\nFix it by moving the assignment into the Prolog.",
+    "config_example": "rules:\n  data_source_assigned_after_prolog:\n    enabled: true",
+    "default_config": "rules:\n  data_source_assigned_after_prolog:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "DatasourceQuery = 'SELECT * FROM GL WHERE Period = ' | pPeriod;",
+        "description": "Prolog: choose the query before the source opens",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [
+          "pPeriod"
+        ],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "IF(DatasourceType @= 'ODBC');\n    nOdbc = 1;\nENDIF;",
+        "description": "Data: reading a data source variable is fine",
+        "valid": true,
+        "procedure": "data",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "DatasourceASCIIQuoteCharacter = '';\nTextOutput('out.csv', 'a;b');",
+        "description": "Epilog: the ASCII settings also shape TextOutput",
+        "valid": true,
+        "procedure": "epilog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "DatasourceQuery = 'SELECT * FROM GL WHERE Period = ' | pPeriod;",
+        "description": "Data: the source is already open",
+        "valid": false,
+        "procedure": "data",
+        "config": "",
+        "parameters": [
+          "pPeriod"
+        ],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "DatasourceNameForServer = 'next.csv';",
+        "description": "Epilog: the source has already been read",
+        "valid": false,
+        "procedure": "epilog",
         "config": "",
         "parameters": [],
         "variables": [],

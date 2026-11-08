@@ -68,6 +68,12 @@ class Linter:
             for stmt_type in rule.interested_in():
                 self.statement_registry.setdefault(stmt_type, []).append(rule)
 
+        # Which rule IDs each active rule's findings replace (see SUPERSEDES).
+        self.supersedes: dict[str, set[str]] = {}
+        for rule in [*(rules or []), *(statement_rules or [])]:
+            if rule.SUPERSEDES:
+                self.supersedes.setdefault(rule.RULE_ID, set()).update(rule.SUPERSEDES)
+
     def lint(self, tokens, context: LintContext = None, ast=None, source=None):
         """
         Run all linting rules on the given tokens.
@@ -136,7 +142,26 @@ class Linter:
         directives = parse_noqa(tokens)
         issues = filter_issues(issues, directives)
 
-        return issues
+        return self._drop_superseded(issues)
+
+    def _drop_superseded(self, issues: list) -> list:
+        """Drop findings another reported finding at the same position replaces.
+
+        Runs after noqa: only a finding that is actually reported can replace
+        another one.
+        """
+        if not self.supersedes:
+            return issues
+        replaced = {
+            (issue.position, superseded)
+            for issue in issues
+            for superseded in self.supersedes.get(issue.rule_id, ())
+        }
+        if not replaced:
+            return issues
+        return [
+            issue for issue in issues if (issue.position, issue.rule_id) not in replaced
+        ]
 
     def _visit_node(self, node, context: LintContext) -> list:
         from linti.parser.ast import IfStatement, Program, WhileStatement

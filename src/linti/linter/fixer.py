@@ -4,6 +4,7 @@ from typing import Optional
 
 from linti.lexer.lexer import Lexer
 from linti.semantic.constant_evaluation import ConstantEvaluationIndex
+from linti.semantic.process_facts import ProcessFacts
 from linti.linter.lint_context import LintContext
 from linti.linter.lint_issue import LintIssue
 from linti.linter.linter import Linter
@@ -145,12 +146,19 @@ def auto_fix_process(process: ProcessIR, linter: Linter) -> dict[str, int]:
         max_values_per_variable=linter.max_values_per_variable,
     )
 
+    facts = ProcessFacts(process, parse_cache, constants)
+
     for proc_name, proc_info in extract_procedures(process).items():
         if parse_cache.get(proc_name).error is not None:
             # Leave unparseable sections untouched; the final lint reports P900.
             continue
         lint_ctx = LintContext.for_procedure(
-            process, proc_name, proc_info, constants, track_block_end=False
+            process,
+            proc_name,
+            proc_info,
+            constants,
+            track_block_end=False,
+            process_facts=facts,
         )
 
         fixed_code, num_fixes = apply_fixes_iteratively(

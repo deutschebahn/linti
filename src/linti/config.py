@@ -45,6 +45,17 @@ _MOVED_TO_TOPLEVEL = {
 }
 
 
+# Per-rule settings that are still honoured but deprecated, with the hint shown.
+_DEPRECATED_RULE_SETTINGS = {
+    ("misplaced_function", "report_not_recommended"): (
+        "Recommendations are now reported as warnings by Discouraged Function "
+        "Placement (C151); configure 'rules.discouraged_function_placement' "
+        "instead. The old value is still honoured while that rule sets no "
+        "'enabled' of its own."
+    ),
+}
+
+
 class RuleConfig(BaseModel):
     """Settings every rule accepts, whatever else it adds on top.
 
@@ -150,21 +161,66 @@ class UnreachableCodeConfig(RuleConfig):
 class MisplacedFunctionConfig(RuleConfig):
     """Configuration for MisplacedFunctionRule (C150)."""
 
-    # The rule weighs its findings per placement: an invalid section is an
-    # error, a merely discouraged one a warning. These two narrow the check
-    # without switching it off, since `severity` can only reweigh both levels
-    # at once.
+    # Deprecated bridge: the recommendations moved to C151. False still keeps
+    # C151 off unless `discouraged_function_placement.enabled` is set; see
+    # RulesConfig._bridge_legacy_placement_settings.
     report_not_recommended: bool = Field(
         default=True,
         description=(
-            "Also report functions in a section where they are allowed but "
-            "discouraged (reported as warnings)."
+            "Deprecated: recommendations are now reported by C151 "
+            "(rules.discouraged_function_placement). False disables C151 unless "
+            "its own `enabled` is set."
         ),
     )
     allowed_functions: list[str] = Field(
         default_factory=list,
-        description="Functions never reported, whatever section they are in.",
+        description=(
+            "Functions never reported, whatever section they are in. Also used "
+            "by C151 unless it sets its own list."
+        ),
     )
+
+
+class DiscouragedFunctionPlacementConfig(RuleConfig):
+    """Configuration for DiscouragedFunctionPlacementRule (C151)."""
+
+    # None (not an empty list) means "not set", so the fallback survives a
+    # dump/re-validate round trip and is resolved when the rule is built.
+    allowed_functions: Optional[list[str]] = Field(
+        default=None,
+        description=(
+            "Functions never reported, whatever section they are in. Unset "
+            "falls back to rules.misplaced_function.allowed_functions."
+        ),
+    )
+
+
+class ElementUsedBeforeAvailableConfig(RuleConfig):
+    """Configuration for ElementUsedBeforeAvailableRule (C152)."""
+
+
+class DataSourceUsageConfig(RuleConfig):
+    """Configuration for DataSourceUsageRule (C153)."""
+
+    check_unused_source: bool = Field(
+        default=True,
+        description=(
+            "Also report a data source that is configured while Metadata and "
+            "Data are both empty. The finding for skipped code is unaffected."
+        ),
+    )
+    check_runtime_source: bool = Field(
+        default=True,
+        description=(
+            "Also report a process saved without a data source and without "
+            "variables whose Prolog turns a data source on by assigning "
+            "DatasourceType. The finding for skipped code is unaffected."
+        ),
+    )
+
+
+class DataSourceAssignedAfterPrologConfig(RuleConfig):
+    """Configuration for DataSourceAssignedAfterPrologRule (C154)."""
 
 
 class ItemSkipConfig(RuleConfig):
@@ -387,6 +443,18 @@ class RulesConfig(BaseModel):
     misplaced_function: MisplacedFunctionConfig = Field(
         default_factory=MisplacedFunctionConfig
     )
+    discouraged_function_placement: DiscouragedFunctionPlacementConfig = Field(
+        default_factory=DiscouragedFunctionPlacementConfig
+    )
+    element_used_before_available: ElementUsedBeforeAvailableConfig = Field(
+        default_factory=ElementUsedBeforeAvailableConfig
+    )
+    data_source_usage: DataSourceUsageConfig = Field(
+        default_factory=DataSourceUsageConfig
+    )
+    data_source_assigned_after_prolog: DataSourceAssignedAfterPrologConfig = Field(
+        default_factory=DataSourceAssignedAfterPrologConfig
+    )
     item_skip: ItemSkipConfig = Field(default_factory=ItemSkipConfig)
     empty_block: EmptyBlockConfig = Field(default_factory=EmptyBlockConfig)
     parameter_naming: ParameterNamingConfig = Field(
@@ -427,6 +495,56 @@ class RulesConfig(BaseModel):
     # by a registry rule, so it has no rule module to carry METADATA. Declaring
     # it here gives it the same `enabled` / `severity` knobs as every real rule.
     nesting_depth: RuleConfig = Field(default_factory=RuleConfig)
+
+    @model_validator(mode="after")
+    def _bridge_legacy_placement_switch(self) -> "RulesConfig":
+        """Write the deprecated C150 switch into C151's ``enabled``.
+
+        ``report_not_recommended: false`` switches C151 off while C151 sets no
+        ``enabled`` of its own. Recording that as a value (instead of deciding
+        it only when rules are built) keeps it in a dump of this config, so a
+        dump/re-validate round trip cannot turn C151 back on.
+
+        The written value stays out of ``model_fields_set``: it is derived, not
+        set by the user. The rule factory therefore re-derives it through
+        :func:`resolve_discouraged_placement`, so changing the switch after
+        construction is honoured in both directions.
+        """
+        if legacy_switch_disables_discouraged_placement(self):
+            bridged = self.discouraged_function_placement.model_copy(
+                update={"enabled": False}
+            )
+            # model_copy marks updated fields as set; this one is derived.
+            bridged.__pydantic_fields_set__.discard("enabled")
+            self.discouraged_function_placement = bridged
+        return self
+
+
+def legacy_switch_disables_discouraged_placement(rules: "RulesConfig") -> bool:
+    """Whether the deprecated C150 switch turns C151 off.
+
+    True while ``misplaced_function.report_not_recommended`` is false and
+    ``discouraged_function_placement`` sets no ``enabled`` of its own.
+    """
+    return (
+        not rules.misplaced_function.report_not_recommended
+        and "enabled" not in rules.discouraged_function_placement.model_fields_set
+    )
+
+
+def resolve_discouraged_placement(
+    rules: "RulesConfig",
+) -> DiscouragedFunctionPlacementConfig:
+    """C151's settings with the C150 fallbacks applied, as the rule will use them."""
+    own = rules.discouraged_function_placement
+    update: dict = {}
+    if "enabled" not in own.model_fields_set:
+        # Not set by the user: derived from the deprecated C150 switch alone,
+        # whatever value the bridge validator stored earlier.
+        update["enabled"] = not legacy_switch_disables_discouraged_placement(rules)
+    if own.allowed_functions is None:
+        update["allowed_functions"] = list(rules.misplaced_function.allowed_functions)
+    return own.model_copy(update=update) if update else own
 
 
 # Markers that indicate a project root directory.
@@ -603,6 +721,24 @@ class Config(BaseModel):
                 stacklevel=2,
             )
 
+    @staticmethod
+    def _warn_about_deprecated_rule_settings(
+        config_dict: dict, config_path: Path
+    ) -> None:
+        """Warn about per-rule settings that still work but are going away."""
+        rules_cfg = config_dict.get("rules")
+        if not isinstance(rules_cfg, dict):
+            return
+
+        for (rule_key, key), message in _DEPRECATED_RULE_SETTINGS.items():
+            rule_cfg = rules_cfg.get(rule_key)
+            if isinstance(rule_cfg, dict) and key in rule_cfg:
+                warnings.warn(
+                    f"{config_path}: 'rules.{rule_key}.{key}' is deprecated. {message}",
+                    LintiConfigWarning,
+                    stacklevel=2,
+                )
+
     @classmethod
     def load_from_file(cls, config_path: Path) -> "Config":
         """
@@ -626,6 +762,7 @@ class Config(BaseModel):
 
         cls._warn_about_removed_rule_configs(config_dict, config_path)
         cls._warn_about_moved_rule_configs(config_dict, config_path)
+        cls._warn_about_deprecated_rule_settings(config_dict, config_path)
 
         return cls(**config_dict)
 

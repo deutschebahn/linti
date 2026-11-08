@@ -631,7 +631,12 @@ Control flow, mutability, and TM1 best practices:
   - `C120` - Conditional Control Flow
   - `C130` - ItemSkip Block Usage (deprecated; use `C150`)
   - `C140` - Unreachable Code
-  - `C150` - Misplaced Function
+  - `C15x` - Section placement and process structure (run together with `--select C15`)
+    - `C150` - Invalid Function Placement
+    - `C151` - Discouraged Function Placement
+    - `C152` - Element Used Before Available
+    - `C153` - Data Source Usage
+    - `C154` - Data Source Assigned After Prolog
 
 - **C2xx - Variables**: Variable mutability and assignment constraints
   - `C210` - Read-only Parameters and Variables
@@ -807,7 +812,8 @@ The linter understands TM1's four execution blocks when procedure sections are a
 - **Epilog**: Finalization and cleanup code
 
 Rules can use block context to enforce block-specific requirements. For example:
-- Misplaced Function (`C150`) checks function placement using the table below
+- Invalid Function Placement (`C150`, error) and Discouraged Function
+  Placement (`C151`, warning) check function placement using the table below
 - Rules could require certain variable naming patterns based on the block
 
 | Function | Prolog | Metadata | Data | Epilog |
@@ -815,59 +821,153 @@ Rules can use block context to enforce block-specific requirements. For example:
 | `DimensionElementInsert`, `HierarchyElementInsert` | Valid | Valid | Error | Error |
 | `DimensionElementComponentAdd`, `HierarchyElementComponentAdd` | Valid | Valid | Valid | Error |
 | `DisableBulkLoadMode` | Error | Error | Error | Valid |
-| `AttrPutS`, `AttrPutN`, `ElementAttrPutS`, `ElementAttrPutN` | Valid | Not recommended | Valid | Valid |
-| `AddClient`, `DeleteClient`, `AddGroup`, `DeleteGroup` | Valid | Valid | Not recommended | Not recommended |
-| `CellSecurityCubeCreate`, `CellSecurityCubeDestroy` | Valid | Valid | Not recommended | Not recommended |
+| `AddInfoCubeRestriction` | Valid | Error | Error | Error |
+| `DisableMTQViewConstruct` | Valid | Error | Error | Valid |
+| `AttrPutS`, `AttrPutN`, `ElementAttrPutS`, `ElementAttrPutN` | Valid | Discouraged | Valid | Valid |
+| `AddClient`, `DeleteClient`, `AddGroup`, `DeleteGroup` | Valid | Valid | Discouraged | Discouraged |
+| `CellSecurityCubeCreate`, `CellSecurityCubeDestroy` | Valid | Valid | Discouraged | Discouraged |
+| `DimensionUpdateDirect`, `HierarchyUpdateDirect` | Valid | Discouraged | Discouraged | Valid |
+| `DimensionDeleteAllElements`, `DimensionDeleteElements`, `HierarchyDeleteAllElements`, `HierarchyDeleteElements` | Valid | Discouraged | Discouraged | Discouraged |
+| Once-per-process operations listed below | Valid | Discouraged | Discouraged | Valid |
+| `EnableMTQViewConstruct` | Valid | Discouraged | Discouraged | Valid |
+| `SetInputCharacterSet` | Valid | Discouraged | Discouraged | Discouraged |
 | Dimension/Hierarchy Direct functions listed below | Valid | Valid | Valid | Valid |
 | `ItemSkip` | Error | Valid | Valid | Error |
 
 The Direct functions covered are `Dimension`/`Hierarchy` combined with
 `ElementInsertDirect`, `ElementDeleteDirect`, `ElementComponentAddDirect`,
-`ElementComponentDeleteDirect`, `TopElementInsertDirect` and `UpdateDirect`.
+`ElementComponentDeleteDirect` and `TopElementInsertDirect`.
 IBM describes using direct edits during Data loads; these functions do not
-inherit the non-Direct functions' restrictions.
+inherit the non-Direct functions' restrictions. `UpdateDirect` "incurs an
+initial full-copy memory cost" (IBM), which Metadata and Data would pay once
+per source record.
+
+The once-per-process operations are `CubeClearData`, `ViewZeroOut`,
+`CubeProcessFeeders`, `SecurityRefresh`, `SaveDataAll`, `CubeSaveData`,
+`CubeCreate`/`Destroy`, `DimensionCreate`/`Destroy`,
+`HierarchyCreate`/`Destroy`, `ViewCreate`/`Destroy`, `ViewCreateByMDX`,
+`SubsetCreate`/`Destroy`, `SubsetCreateByMDX`, `RefreshMdxHierarchy`,
+`CubeSetLogChanges`, `EnableBulkLoadMode`, `ASCIIDelete`,
+`DimensionSortOrder` and `HierarchySortOrder`. In Metadata and Data they run
+once per source record. Inside an `IF`/`ELSE` body whose condition reads a data
+source variable or a per-record value such as a counter, the condition limits
+them to the records it selects, so C151 does not report these operations,
+`UpdateDirect` or the dimension-emptying functions there. A condition on
+parameters or constants does not count: it is the same on every record.
 
 `DisableBulkLoadMode` belongs in the Epilog because bulk load mode dedicates
 the server to the running process. IBM asks for it in the Epilog's last line;
 C150 checks the section only, so a call with further statements after it is
 accepted.
 
-Both reported placements carry the rule's severity and fail the run; they
-differ only in wording and in `report_not_recommended`, which drops the
-recommendations while keeping the documented restrictions.
+"Error" placements are reported by `C150` as errors. "Discouraged" placements
+are reported by `C151` as warnings, which do not fail the run with the default
+`fail_on: error`. The two rules share one table but are configured and
+suppressed separately.
 
 The attribute-write recommendation asks for Data after elements created in
-Metadata have been committed. The client, group and cell-security
-recommendations ask for administrative changes in the setup passes rather than
-once per record or after the load. Both are LinTi recommendations, not IBM
-prohibitions: writes to existing elements in Metadata may be intentional, and
-no reference restricts the security functions to a section.
+Metadata have been committed. It is a LinTi recommendation: writes to existing
+elements in Metadata may be intentional. The client, group and cell-security
+recommendations follow the IBM references, which say these metadata-updating
+functions should not be used in the Data or Epilog tabs. The UpdateDirect and
+MTQ entries also rest on IBM statements; emptying dimensions, once-per-process
+operations and the input character set are LinTi recommendations. None of
+them is an IBM prohibition, so all are warnings.
 Function matching is case-insensitive. Each diagnostic names the function,
-its section, and valid or recommended alternatives. Unlisted functions are
+its section, and the sections to use instead. Unlisted functions are
 not restricted, including the reviewed non-Direct ElementDelete,
-ElementComponentDelete and TopElementInsert functions.
+ElementComponentDelete and TopElementInsert functions and the security
+functions without IBM's Data/Epilog note (`AssignClientToGroup`,
+`RemoveClientFromGroup`, `SetElementGroupsSecurity`).
 
 See [the IBM sources and classification rationale](docs/function-placement.md)
 for the individual references and the distinction between documented
 restrictions and LinTi recommendations.
 
-Configure this rule with `rules.misplaced_function`. Two settings narrow it
-instead of switching it off wholesale, because `severity` can only reweigh both
-levels at once:
-
 ```yaml
 rules:
-  misplaced_function:
+  misplaced_function:              # C150
     enabled: true
-    # Set to false to report only the documented restrictions.
-    report_not_recommended: true
     # Functions to exempt from the check in every section.
+    allowed_functions: []
+  discouraged_function_placement:  # C151
+    enabled: true
+    # Unset falls back to misplaced_function.allowed_functions.
     allowed_functions: []
 ```
 
-Use `report_not_recommended: false` when the recommendations do not match how the
-project loads its data, and `allowed_functions` for a single placement you
-disagree with — both keep the remaining checks in place.
+#### Migrating from the combined C150
+
+Up to this release `C150` reported the recommendations as errors. They now
+appear as `C151` warnings:
+
+- An existing `# noqa: C150` no longer suppresses them. Use `# noqa: C151`.
+- `--select C150` no longer shows them. Use `--select C15` for both.
+- `rules.misplaced_function.report_not_recommended: false` is deprecated. It
+  still switches `C151` off while `rules.discouraged_function_placement.enabled`
+  is not set, and loading it prints a deprecation warning.
+- `rules.misplaced_function.allowed_functions` also applies to `C151` while
+  `C151` sets no list of its own.
+- `rules.misplaced_function.severity` now applies to `C150` only.
+
+#### Element Used Before Available (C152)
+
+Buffered `DimensionElementInsert` / `HierarchyElementInsert` calls put the new
+element into the dimension index at once (`DIMIX` finds it), but cubes,
+including `}ElementAttributes_<dim>`, can address it only after the Metadata
+phase has ended. Until then an attribute write is lost and a read returns no
+value. The phase spans Prolog and Metadata, and once a buffered insert has run,
+an element inserted later in the same dimension waits too, even when a Direct
+insert created it.
+
+`C152` reports attribute writes (`AttrPutS/N`, `ElementAttrPutS/N`,
+`CellPutS/N` to a `}ElementAttributes_<dim>` cube) and reads (`AttrS/N`,
+`ElementAttrS/N`, `CellGetS/N` from such a cube) in Prolog and Metadata that
+address a provably new element — the insert is guarded by `DIMIX(...) = 0` or
+`ElementIndex(...) = 0`, or follows an `IF` whose other branch ends the path
+with `ProcessQuit`, `ItemSkip` and the like — on every path to the access.
+An insert the Prolog leaves pending is followed into Metadata. Anything it
+cannot prove stays silent. For the same call it replaces the general `C151`
+warning.
+
+#### Data Source Usage (C153)
+
+`C153` compares the data source in effect when Prolog ends (process
+properties plus provable Prolog assignments to `DatasourceType`) with the code
+in Metadata and Data. It warns when Metadata/Data hold code that is skipped
+because the data source is None, and when a data source is configured but
+Metadata and Data are both empty (`check_unused_source: false` turns this
+check off). It also warns when a process saved without a data source and
+without variables turns one on in Prolog while Metadata or Data contain code:
+the variables belong to the saved definition, so the records have nothing to
+read their columns into (`check_runtime_source: false` turns this check off).
+It stays silent when the data source cannot be determined.
+
+```yaml
+rules:
+  data_source_usage:
+    enabled: true
+    severity: warning
+    check_unused_source: true
+    check_runtime_source: true
+```
+
+#### Data Source Assigned After Prolog (C154)
+
+The Prolog runs before the data source is opened. `C154` reports an error for
+an assignment to a data source variable (`DatasourceType`,
+`DatasourceNameForServer`, `DatasourceQuery`, `DatasourceCubeview`, …) in
+Metadata, Data or Epilog, where it no longer changes what the process reads.
+Reading these variables is fine. The `DatasourceASCII*` settings are not
+checked: `ASCIIOutput` and `TextOutput` also use `DatasourceASCIIDelimiter` and
+`DatasourceASCIIQuoteCharacter` for the records they write, so setting them
+later to shape an export file is legitimate.
+
+```yaml
+rules:
+  data_source_assigned_after_prolog:
+    enabled: true
+```
 
 The old ItemSkip rule (`C130`) remains registered with its original behavior and
 its own `rules.item_skip` settings. It is deprecated in favor of `C150` and
@@ -879,7 +979,7 @@ the legacy rule on its own (`--select C130`, or its alias `--select S120`)
 leaves `C150` out of the run and still executes the ItemSkip-only checks.
 
 Existing `noqa: C130` comments suppress only the legacy rule; migrate them to
-`noqa: C150` when using Misplaced Function. `linti explain C130` and the rule
+`noqa: C150` when using Invalid Function Placement. `linti explain C130` and the rule
 reference retain the old rule and name its replacement.
 
 Metadata-dependent rules (for example checks based on declared Parameters/Variables)

@@ -26,6 +26,109 @@
         "title": "ConditionalControlFlowConfig",
         "type": "object"
       },
+      "DataSourceAssignedAfterPrologConfig": {
+        "description": "Configuration for DataSourceAssignedAfterPrologRule (C154).",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "DataSourceAssignedAfterPrologConfig",
+        "type": "object"
+      },
+      "DataSourceUsageConfig": {
+        "description": "Configuration for DataSourceUsageRule (C153).",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          },
+          "check_unused_source": {
+            "default": true,
+            "description": "Also report a data source that is configured while Metadata and Data are both empty. The finding for skipped code is unaffected.",
+            "title": "Check Unused Source",
+            "type": "boolean"
+          },
+          "check_runtime_source": {
+            "default": true,
+            "description": "Also report a process saved without a data source and without variables whose Prolog turns a data source on by assigning DatasourceType. The finding for skipped code is unaffected.",
+            "title": "Check Runtime Source",
+            "type": "boolean"
+          }
+        },
+        "title": "DataSourceUsageConfig",
+        "type": "object"
+      },
+      "DiscouragedFunctionPlacementConfig": {
+        "description": "Configuration for DiscouragedFunctionPlacementRule (C151).",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          },
+          "allowed_functions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Functions never reported, whatever section they are in. Unset falls back to rules.misplaced_function.allowed_functions.",
+            "title": "Allowed Functions"
+          }
+        },
+        "title": "DiscouragedFunctionPlacementConfig",
+        "type": "object"
+      },
       "DoNotUseUndocumentedFunctionsConfig": {
         "description": "Configuration for DoNotUseUndocumentedFunctionsRule (C430).",
         "properties": {
@@ -113,6 +216,31 @@
           }
         },
         "title": "DocstringRegionConfig",
+        "type": "object"
+      },
+      "ElementUsedBeforeAvailableConfig": {
+        "description": "Configuration for ElementUsedBeforeAvailableRule (C152).",
+        "properties": {
+          "enabled": {
+            "default": true,
+            "description": "Whether the rule runs at all.",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Overrides the severity the rule declares; unset keeps the rule's own."
+          }
+        },
+        "title": "ElementUsedBeforeAvailableConfig",
         "type": "object"
       },
       "EmptyBlockConfig": {
@@ -442,12 +570,12 @@
           },
           "report_not_recommended": {
             "default": true,
-            "description": "Also report functions in a section where they are allowed but discouraged (reported as warnings).",
+            "description": "Deprecated: recommendations are now reported by C151 (rules.discouraged_function_placement). False disables C151 unless its own `enabled` is set.",
             "title": "Report Not Recommended",
             "type": "boolean"
           },
           "allowed_functions": {
-            "description": "Functions never reported, whatever section they are in.",
+            "description": "Functions never reported, whatever section they are in. Also used by C151 unless it sets its own list.",
             "items": {
               "type": "string"
             },
@@ -629,6 +757,18 @@
           },
           "misplaced_function": {
             "$ref": "#/$defs/MisplacedFunctionConfig"
+          },
+          "discouraged_function_placement": {
+            "$ref": "#/$defs/DiscouragedFunctionPlacementConfig"
+          },
+          "element_used_before_available": {
+            "$ref": "#/$defs/ElementUsedBeforeAvailableConfig"
+          },
+          "data_source_usage": {
+            "$ref": "#/$defs/DataSourceUsageConfig"
+          },
+          "data_source_assigned_after_prolog": {
+            "$ref": "#/$defs/DataSourceAssignedAfterPrologConfig"
           },
           "item_skip": {
             "$ref": "#/$defs/ItemSkipConfig"
@@ -987,6 +1127,25 @@
         "severity": null,
         "report_not_recommended": true,
         "allowed_functions": []
+      },
+      "discouraged_function_placement": {
+        "enabled": true,
+        "severity": null,
+        "allowed_functions": null
+      },
+      "element_used_before_available": {
+        "enabled": true,
+        "severity": null
+      },
+      "data_source_usage": {
+        "enabled": true,
+        "severity": null,
+        "check_unused_source": true,
+        "check_runtime_source": true
+      },
+      "data_source_assigned_after_prolog": {
+        "enabled": true,
+        "severity": null
       },
       "item_skip": {
         "enabled": false,

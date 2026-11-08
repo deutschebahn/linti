@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from linti.cst.lines import LineIndex
     from linti.cst.node import CstNode
     from linti.semantic.constant_evaluation import ConstantEvaluationIndex
+    from linti.semantic.process_facts import ProcessFacts
     from linti.semantic.possible_values import PossibleValues
     from linti.model.process_ir import ProcedureInfo, ProcessIR
 
@@ -44,6 +45,9 @@ class LintContext:
         datasource_type: Data source type of the process (``ODBC``, ``ASCII``,
             ``None``, …), or None when the format carries no datasource metadata.
         datasource_query: SQL query of an ODBC data source, or None.
+        process_facts: Process-wide structural facts (which sections hold
+            code, the effective data source), or None when linted without a
+            process model.
     """
 
     block: Optional[str] = None
@@ -61,6 +65,7 @@ class LintContext:
     constants: Optional["ConstantEvaluationIndex"] = None
     datasource_type: Optional[str] = None
     datasource_query: Optional[str] = None
+    process_facts: Optional["ProcessFacts"] = None
     #: Lazily built line model; see :attr:`lines`.
     _line_index: Optional["LineIndex"] = field(default=None, repr=False, compare=False)
 
@@ -73,6 +78,7 @@ class LintContext:
         constants: Optional["ConstantEvaluationIndex"] = None,
         *,
         track_block_end: bool = True,
+        process_facts: Optional["ProcessFacts"] = None,
     ) -> "LintContext":
         """Build the per-procedure context shared by the lint and auto-fix loops.
 
@@ -103,6 +109,7 @@ class LintContext:
             constants=constants,
             datasource_type=process.datasource_type,
             datasource_query=process.datasource_query,
+            process_facts=process_facts,
         )
 
     def possible_values(self, name: str, line: int) -> "PossibleValues":
