@@ -565,6 +565,13 @@ linti explain
 linti explain F110
 ```
 
+### Showing the Version
+
+```bash
+linti version     # prints e.g. "linti 0.7.0"
+linti --version   # same output, for scripts and tooling that expect the flag
+```
+
 
 ## Rule Groups
 

@@ -1,6 +1,8 @@
 """Main CLI application for linti."""
 
 import warnings
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _package_version
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
@@ -23,6 +25,18 @@ if TYPE_CHECKING:
     from click import Context
 
 
+# Top-level flags handled by the group itself; never rewritten to ``lint``.
+_GROUP_FLAGS = ("--help", "-h", "--version")
+
+
+def _linti_version() -> str:
+    """Installed linti version, as recorded in the package metadata."""
+    try:
+        return _package_version("linti")
+    except PackageNotFoundError:
+        return "unknown"
+
+
 class _DefaultLintGroup(TyperGroup):
     """Typer group that falls back to the ``lint`` command.
 
@@ -37,7 +51,7 @@ class _DefaultLintGroup(TyperGroup):
         # treat it as an argument to the default "lint" command.  Top-level
         # help flags are left alone so ``linti --help`` shows the group help
         # instead of being rewritten to ``linti lint --help``.
-        if args and args[0] not in ("--help", "-h") and args[0] not in self.commands:
+        if args and args[0] not in _GROUP_FLAGS and args[0] not in self.commands:
             args = ["lint", *args]
         return super().parse_args(ctx, args)
 
@@ -51,6 +65,26 @@ app = typer.Typer(
     ),
     cls=_DefaultLintGroup,
 )
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"linti {_linti_version()}")
+        raise typer.Exit()
+
+
+@app.callback()
+def _main(
+    _version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show the linti version and exit (same as 'linti version').",
+    ),
+) -> None:
+    pass
+
 
 # Module-level argument/option definitions
 PATHS_ARG = typer.Argument(
@@ -255,6 +289,18 @@ def explain(
         explain_rule(rule_id, config)
     else:
         list_rules(config)
+
+
+@app.command()
+def version() -> None:
+    """
+    Show the installed linti version.
+
+    Example:
+        linti version
+        linti --version
+    """
+    typer.echo(f"linti {_linti_version()}")
 
 
 def _install_config_warning_handler() -> None:
