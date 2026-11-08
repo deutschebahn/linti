@@ -75,6 +75,7 @@ EXPECTED_CANONICAL_IDS = {
     "X130",
     "X210",
     "P110",
+    "P120",
 }
 
 

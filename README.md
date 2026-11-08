@@ -373,9 +373,11 @@ rules:
 You can suppress specific rules directly in TI code using `# noqa` comments.
 TI uses `#` for comments, so the syntax feels natural.
 
-A `noqa` comment must stand on its own line. A comment after code on the same
-line makes the process fail at runtime in TM1 (it can still be saved), so a
-trailing `nVar=1;  # noqa: F220` is **not** treated as a suppression.
+A `noqa` comment must stand on its own line. A trailing comment (after code on the
+same line) makes the process fail at runtime in TM1 (it can still be saved), so a
+trailing `nVar=1;  # noqa: F220` is **not** treated as a suppression. Rule
+`P120` reports such comments, and its auto-fix moves them onto their own line,
+where the `noqa` then takes effect.
 
 #### Standalone comment — suppress the next code line
 
@@ -660,8 +662,10 @@ Interactions with systems outside the TI process:
 Diagnostics enforced by the parser itself rather than a lint pass over a
 finished AST:
 
-- **P1xx - Parsing**: Statements the parser could not understand
+- **P1xx - Parsing**: Code that TM1 cannot run as written
   - `P110` - Unparseable Statement
+  - `P120` - Trailing Comment — `nVar = 1; # note` is saved by TM1 but fails
+    at runtime; the auto-fix moves the comment onto its own line above
 - **P9xx - Safety Limits**: Input-hardening caps that abort parsing instead of
   crashing
   - `P900` - Maximum Nesting Depth Exceeded — control-flow nesting beyond

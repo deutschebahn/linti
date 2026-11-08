@@ -1650,6 +1650,46 @@
     ]
   },
   {
+    "id": "P120",
+    "name": "Trailing Comment",
+    "description": "Flags trailing comments that follow code on the same line",
+    "group": "P",
+    "group_name": "Parser Rules",
+    "severity": "error",
+    "auto_fix": true,
+    "enabled_by_default": true,
+    "config_key": "trailing_comment",
+    "explanation": "TI only allows a comment on a line of its own. A trailing comment after code on the same line (`nVar = 1; # note`) is saved by TM1 without an error, but the process fails when it runs.\n\nThis also applies to suppression comments: a trailing `# noqa: F220` has no effect, because linti only honours `noqa` directives on their own line.\n\nThe auto-fix moves the comment onto its own line directly above the code, with the same indentation, so a moved `# noqa` starts working for exactly that line. It is left to you when moving could change meaning: on a continuation line of a multi-line statement, for a `noqa-begin`/`noqa-end` marker (the region would shift), and for a `# noqa` on the first code line (it would turn into a procedure-wide suppression).",
+    "config_example": "rules:\n  trailing_comment:\n    enabled: true",
+    "default_config": "rules:\n  trailing_comment:\n    enabled: true\n    severity: error\n",
+    "deprecated_by": null,
+    "previous_ids": [],
+    "examples": [
+      {
+        "code": "# Initialise the counter\nnVar = 1;",
+        "description": "Comment on its own line",
+        "valid": true,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      },
+      {
+        "code": "nVar = 1; # Initialise the counter",
+        "description": "Trailing comment fails at runtime in TM1",
+        "valid": false,
+        "procedure": "prolog",
+        "config": "",
+        "parameters": [],
+        "variables": [],
+        "datasource_type": null,
+        "datasource_query": null
+      }
+    ]
+  },
+  {
     "id": "P900",
     "name": "Maximum Nesting Depth Exceeded",
     "description": "Flags a procedure whose statement or expression nesting exceeded the configured limit, stopping the parser before it could build a full AST for that section",

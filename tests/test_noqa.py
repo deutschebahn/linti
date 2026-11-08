@@ -20,7 +20,7 @@ from linti.linter.linter import Linter
 from linti.linter.noqa import (
     NoqaDirectives,
     _find_next_code_line,
-    _is_standalone_comment,
+    is_standalone_comment,
     _parse_rule_ids,
     filter_issues,
     parse_noqa,
@@ -87,17 +87,17 @@ class TestIsStandaloneComment:
     def test_first_token(self):
         tokens = _tokenize("# comment\nnVar = 1;")
         idx = next(i for i, t in enumerate(tokens) if t.type == TokenType.COMMENT)
-        assert _is_standalone_comment(tokens, idx) is True
+        assert is_standalone_comment(tokens, idx) is True
 
     def test_standalone_after_newline(self):
         tokens = _tokenize("nVar = 1;\n# comment\nnVar2 = 2;")
         idx = next(i for i, t in enumerate(tokens) if t.type == TokenType.COMMENT)
-        assert _is_standalone_comment(tokens, idx) is True
+        assert is_standalone_comment(tokens, idx) is True
 
     def test_trailing_comment(self):
         tokens = _tokenize("nVar = 1; # comment")
         idx = next(i for i, t in enumerate(tokens) if t.type == TokenType.COMMENT)
-        assert _is_standalone_comment(tokens, idx) is False
+        assert is_standalone_comment(tokens, idx) is False
 
 
 class TestFindNextCodeLine:
@@ -178,7 +178,7 @@ class TestFilterIssues:
 class TestParseNoqaTrailing:
     """Trailing comment ``code; # noqa: RULE`` is not a directive (issue #46).
 
-    A comment after code makes the process fail at runtime in TM1, so linti must
+    A trailing comment makes the process fail at runtime in TM1, so linti must
     not encourage that placement by honouring it.
     """
 
@@ -194,7 +194,7 @@ class TestParseNoqaTrailing:
         assert directives.is_suppressed("N110", 1) is False
         assert directives.global_suppressions == set()
 
-    def test_trailing_region_end_still_closes_the_region(self):
+    def test_trailing_region_end_does_not_close_the_region(self):
         code = (
             "# noqa-begin: F110\n"
             "if(nVar = 1);\n"
@@ -203,9 +203,7 @@ class TestParseNoqaTrailing:
             "endif;\n"
         )
         directives = parse_noqa(_tokenize(code))
-        assert all(directives.is_suppressed("F110", n) for n in (1, 2, 3))
-        assert not directives.is_suppressed("F110", 4)
-        assert not directives.is_suppressed("F110", 5)
+        assert all(directives.is_suppressed("F110", n) for n in (1, 2, 3, 4, 5))
 
     def test_trailing_region_markers_are_ignored(self):
         code = "nVar = 1; # noqa-begin: F110\nif(nVar = 1);\nendif; # noqa-end: F110\n"
